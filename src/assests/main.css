@@ -1,0 +1,218 @@
+/* src/assests/main.css */
+
+:root {
+  --bg-dark: #070a0f;
+  --glass: rgba(255, 255, 255, 0.08);
+  --border: rgba(255, 255, 255, 0.18);
+  --gold: #d4af37;
+  --text-muted: #9ca3af;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  /* جلوگیری از اسکرول افقی در کل سایت - مشکل اصلی ریسپانسیو */
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+
+body {
+  background: radial-gradient(circle at top, #141a24, var(--bg-dark));
+  color: #fff;
+  font-family: 'Vazirmatn', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  overflow-x: hidden;
+  width: 100%;
+  padding-top: 0px;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  line-height: 1.8;
+}
+
+/* همه‌ی تصاویر و مدیاها از کادر بیرون نزنند */
+img,
+video,
+svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* padding سیال به جای درصد ثابت 8% */
+.section {
+  padding: clamp(48px, 8vw, 80px) clamp(16px, 5vw, 80px);
+}
+
+/* کارت شیشه‌ای عمومی */
+.glass {
+  background: var(--glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-radius: clamp(16px, 3vw, 28px);
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+  transition: all 0.4s ease;
+}
+
+.glass-hover:hover,
+.glass:hover {
+  transform: translateY(-6px);
+  border-color: rgba(212, 175, 55, 0.5);
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.35);
+}
+
+/* دکمه‌ها */
+button {
+  background: var(--gold);
+  color: #000;
+  border: none;
+  padding: 10px 20px; /* پدینگ کمتر شد */
+  border-radius: 8px; /* شکل دکمه‌های معمولی */
+  font-weight: bold;
+  cursor: pointer;
+  transition: 0.3s;
+  font-family: inherit;
+}
+
+button:hover {
+  filter: brightness(1.1);
+}
+
+button:hover {
+  filter: brightness(1.1);
+}
+
+.round-x1 { border-radius: 20px; }
+.round-2x1 { border-radius: 28px; }
+
+.hover-lift {
+  transition: all 0.4s ease;
+}
+.hover-lift:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.12);
+}
+
+/* روی دیوایس‌های لمسی، افکت‌های hover سنگین غیرفعال شوند */
+@media (hover: none) {
+  .glass:hover,
+  .glass-hover:hover,
+  .hover-lift:hover {
+    transform: none;
+  }
+}
+
+
+/* ===== کشوی فیلتر سراسری (teleport شده به body) ===== */
+.filter-overlay-global {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  z-index: 99998;
+}
+.fade-enter-active.filter-overlay-global,
+.fade-leave-active.filter-overlay-global { transition: opacity 0.3s ease; }
+
+.filter-drawer-global {
+  position: fixed;
+  top: 0; right: 0; bottom: 0;
+  width: 300px; max-width: 85vw;
+  height: 100%;
+  z-index: 99999;
+  box-sizing: border-box;
+  padding: 20px 16px;
+  overflow-y: auto;
+  background: linear-gradient(165deg, rgba(18,22,36,0.98), rgba(8,10,18,0.99));
+  border-left: 1px solid rgba(255,255,255,0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  direction: rtl;
+  font-family: 'Vazirmatn', 'Inter', system-ui, sans-serif;
+  color: #fff;
+  transform: translateX(100%);
+  transition: transform 0.4s cubic-bezier(0.4,0,0.2,1);
+}
+.filter-drawer-global.open { transform: translateX(0); }
+
+/* محتوای داخل کشو (چون scoped نیست، اینجا تعریف می‌شوند) */
+.filter-drawer-global * { box-sizing: border-box; }
+.filter-drawer-global .sidebar-head { display: flex; align-items: center; gap: 8px; padding-bottom: 6px; }
+.filter-drawer-global .sidebar-title { font-weight: 700; font-size: 0.95rem; }
+.filter-drawer-global .sidebar-diamond { color: #c5a059; font-size: 0.6rem; }
+.filter-drawer-global .sidebar-close { margin-right: auto; background: transparent; color: rgba(255,255,255,0.6); border: none; padding: 4px; cursor: pointer; font-size: 1rem; }
+.filter-drawer-global .filter-group { display: flex; flex-direction: column; gap: 8px; }
+.filter-drawer-global .filter-group-head { font-size: 0.85rem; font-weight: 600; color: rgba(255,255,255,0.85); }
+.filter-drawer-global .cat-pill { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 10px 14px; border-radius: 10px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); color: rgba(255,255,255,0.7); font-family: inherit; font-size: 0.82rem; cursor: pointer; text-align: right; }
+.filter-drawer-global .cat-pill.active { background: linear-gradient(135deg, rgba(197,160,89,0.25), rgba(197,160,89,0.1)); border-color: rgba(197,160,89,0.4); color: #f5d78e; }
+.filter-drawer-global .cat-count { font-size: 0.68rem; padding: 1px 7px; border-radius: 999px; background: rgba(255,255,255,0.1); flex-shrink: 0; }
+.filter-drawer-global .filter-divider { display: flex; align-items: center; justify-content: center; }
+.filter-drawer-global .filter-divider span { color: rgba(197,160,89,0.5); font-size: 0.55rem; padding: 0 10px; }
+.filter-drawer-global .filter-divider::before, .filter-drawer-global .filter-divider::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.08); }
+.filter-drawer-global .price-inputs { display: flex; flex-direction: column; gap: 8px; }
+.filter-drawer-global .price-inputs input { width: 100%; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 10px 14px; color: #fff; font-family: inherit; font-size: 0.82rem; outline: none; }
+.filter-drawer-global .price-inputs input::-webkit-outer-spin-button,
+.filter-drawer-global .price-inputs input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.filter-drawer-global .price-inputs input[type=number] { -moz-appearance: textfield; }
+.filter-drawer-global .apply-btn { padding: 11px; border-radius: 10px; border: none; cursor: pointer; background: linear-gradient(135deg, #2bbf9e, #1a8f78); color: #fff; font-family: inherit; font-size: 0.82rem; font-weight: 600; }
+.filter-drawer-global .stock-toggle { display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+.filter-drawer-global .stock-label { font-size: 0.82rem; color: rgba(255,255,255,0.85); }
+.filter-drawer-global .switch { position: relative; width: 42px; height: 22px; flex-shrink: 0; }
+.filter-drawer-global .switch input { opacity: 0; width: 0; height: 0; }
+.filter-drawer-global .slider { position: absolute; inset: 0; background: rgba(255,255,255,0.12); border-radius: 999px; transition: 0.3s; }
+.filter-drawer-global .slider::before { content: ''; position: absolute; width: 16px; height: 16px; right: 3px; top: 3px; background: #fff; border-radius: 50%; transition: 0.3s; }
+.filter-drawer-global .switch input:checked + .slider { background: #2bbf9e; }
+.filter-drawer-global .switch input:checked + .slider::before { transform: translateX(-20px); }
+.filter-drawer-global .reset-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); color: rgba(255,255,255,0.65); padding: 10px; border-radius: 10px; font-family: inherit; font-size: 0.8rem; cursor: pointer; }
+
+/* در دسکتاپ کشو همیشه باز و چسبیده در کنار باشد */
+@media (min-width: 861px) {
+  .filter-overlay-global { display: none; }
+  .filter-drawer-global {
+    position: fixed;
+    top: 100px; right: max(24px, calc((100vw - 1400px) / 2 + 24px)); bottom: auto;
+    width: 260px; height: auto; max-height: calc(100vh - 140px);
+    border-radius: 18px; border: 1px solid rgba(255,255,255,0.06);
+    transform: none;
+  }
+  .filter-drawer-global .sidebar-close { display: none; }
+}
+
+
+/* ===== کشوی فیلتر — فقط موبایل ===== */
+.filter-overlay-global { position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 99998; }
+
+.filter-drawer.is-mobile {
+  position: fixed; top: 0; right: 0; bottom: 0;
+  width: 300px; max-width: 85vw; height: 100%;
+  z-index: 99999; box-sizing: border-box; padding: 20px 16px; overflow-y: auto;
+  background: linear-gradient(165deg, rgba(18,22,36,0.98), rgba(8,10,18,0.99));
+  border-left: 1px solid rgba(255,255,255,0.08);
+  display: flex; flex-direction: column; gap: 16px;
+  direction: rtl; font-family: 'Vazirmatn','Inter',system-ui,sans-serif; color: #fff;
+  transform: translateX(100%); transition: transform 0.4s cubic-bezier(0.4,0,0.2,1);
+}
+.filter-drawer.is-mobile.open { transform: translateX(0); }
+.filter-drawer.is-mobile .sidebar-close { display: block; margin-right: auto; background: transparent; color: rgba(255,255,255,0.6); border: none; padding: 4px; cursor: pointer; font-size: 1rem; }
+.filter-drawer.is-mobile * { box-sizing: border-box; }
+.filter-drawer.is-mobile .cat-pill { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px; border-radius: 10px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); color: rgba(255,255,255,0.7); font-family: inherit; font-size: 0.82rem; cursor: pointer; text-align: right; }
+.filter-drawer.is-mobile .cat-pill.active { background: linear-gradient(135deg, rgba(197,160,89,0.25), rgba(197,160,89,0.1)); border-color: rgba(197,160,89,0.4); color: #f5d78e; }
+.filter-drawer.is-mobile .price-inputs input { width: 100%; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 10px 14px; color: #fff; font-family: inherit; font-size: 0.82rem; outline: none; }
+.filter-drawer.is-mobile .switch input:checked + .slider { background: #2bbf9e; }
+
+
+
+button.nav-btn,
+button.icon-btn,
+button.mobile-toggle,
+button.toggle-btn,
+button.mobile-menu-btn,
+button.arrow-icon,
+button.close-btn,
+button.modal-close {
+  padding: 0 !important;
+  background: transparent !important;
+  color: inherit !important;
+}
