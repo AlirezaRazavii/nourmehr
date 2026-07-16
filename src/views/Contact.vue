@@ -1,27 +1,12 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import api from '../services/api'
 
 const { t, locale } = useI18n()
 
-// لیست زبان‌های راست‌به‌چپ
-const rtlLocales = ['fa', 'ar', 'he']
-
 // تشخیص جهت زبان (برای انیمیشن‌ها و چیدمان)
-const isRTL = computed(() => rtlLocales.includes(locale.value))
-
-// تنظیم جهت و زبان روی تگ <html> برای رفع مشکل چپ‌نویس شدن هنگام لود اولیه
-const applyDirection = (loc) => {
-  const dir = rtlLocales.includes(loc) ? 'rtl' : 'ltr'
-  document.documentElement.setAttribute('dir', dir)
-  document.documentElement.setAttribute('lang', loc)
-}
-
-// اجرای فوری هنگام ساخت کامپوننت + واکنش به تغییر زبان
-watch(locale, (newLocale) => {
-  applyDirection(newLocale)
-}, { immediate: true })
+const isRTL = computed(() => ['fa', 'ar', 'he'].includes(locale.value))
 
 // تابع کمکی برای استخراج متن از دیتای دوزبانه
 const getLocalizedText = (value) => {
