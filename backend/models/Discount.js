@@ -11,7 +11,7 @@ const discountSchema = new mongoose.Schema({
   perUserLimit: { type: Number, default: 1, min: 1 },        
   firstPurchaseOnly: { type: Boolean, default: false },
   startDate: { type: Date, required: true },
-  endDate: { type: Date, required: true },
+  endDate: { type: Date, required: false },
   status: { type: String, enum: ['active', 'inactive', 'expired'], default: 'active' },
   isPublic: { type: Boolean, default: false },
   description: {
