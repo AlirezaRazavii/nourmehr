@@ -5,9 +5,6 @@ import api from '../services/api'
 
 const { t, locale } = useI18n()
 
-// تشخیص جهت زبان (برای انیمیشن‌ها و چیدمان)
-const isRTL = computed(() => ['fa', 'ar', 'he'].includes(locale.value))
-
 // تابع کمکی برای استخراج متن از دیتای دوزبانه
 const getLocalizedText = (value) => {
   if (!value) return ''
@@ -146,8 +143,7 @@ const faqItems = [
 </script>
 
 <template>
-  <section class="contact-page" :dir="isRTL ? 'rtl' : 'ltr'">
-    <!-- هیرو -->
+  <section class="contact-page">
     <div class="hero-section">
       <div class="hero-bg" aria-hidden="true"></div>
       <div class="hero-overlay" aria-hidden="true"></div>
