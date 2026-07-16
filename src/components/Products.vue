@@ -574,4 +574,47 @@ onUnmounted(() => {
   .card-content { padding: 9px 10px 11px; gap: 6px; }
   .view-btn { justify-content: center; width: 100%; }
 }
+
+
+/* ═══════ بهینه‌سازی موبایل: رفع باگ سفید شدن و پرش اسکرول ═══════ */
+@media (max-width: 860px) {
+  /* خاموش کردن گوی‌های بلوردار متحرک — سنگین‌ترین منبع باگ اسکرول */
+  .bg-orb { display: none !important; }
+
+  /* حذف mask روی گرید که روی GPU موبایل هزینه دارد */
+  .bg-grid { display: none !important; }
+
+  /* حذف backdrop-filter سنگین و جایگزینی با پس‌زمینه توپر */
+  .search-bar {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: rgba(12, 15, 24, 0.95) !important;
+  }
+  .card-badge {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: rgba(0, 0, 0, 0.72) !important;
+  }
+  .filter-drawer.is-mobile {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}
+
+/* روی دستگاه‌های لمسی، انیمیشن ورود کارت‌ها را حذف کن تا موقع اسکرول پرش نکند */
+@media (hover: none) and (pointer: coarse) {
+  .product-card {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  /* توقف انیمیشن‌های تزئینی همیشه‌فعال روی موبایل */
+  .badge-dot,
+  .sidebar-diamond,
+  .empty-icon {
+    animation: none !important;
+  }
+}
+
+
 </style>
