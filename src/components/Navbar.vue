@@ -1,6 +1,6 @@
 <template>
   <header class="navbar-wrapper" :class="{ 'navbar-scrolled': isScrolled }">
-    <nav class="navbar">
+    <nav class="navbar" :class="{ 'menu-open': mobileMenuOpen }">
 
       <!-- Logo -->
       <router-link :to="{ name: 'Home', params: { lang: locale } }" class="brand">
@@ -594,10 +594,10 @@ onUnmounted(() => {
 .hamburger.open span:nth-child(2) { opacity: 0; }
 .hamburger.open span:nth-child(3) { transform: translateY(-9px) rotate(-45deg); }
 
-.mobile-menu { position: fixed; top: 0; right: 0; left: 0; bottom: 0; z-index: 999; pointer-events: none; }
+.mobile-menu { position: fixed; top: 0; right: 0; left: 0; bottom: 0; z-index: 1005; pointer-events: none; }
 .mobile-menu.is-open { pointer-events: auto; }
 
-.mobile-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.6); opacity: 0; transition: opacity 0.3s ease; z-index: 1; }
+.mobile-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.6); opacity: 0; transition: opacity 0.3s ease; z-index: 1004; }
 .mobile-menu.is-open .mobile-backdrop { opacity: 1; }
 
 .mobile-menu-content {
@@ -605,7 +605,7 @@ onUnmounted(() => {
   background: #080a12; border-left: 1px solid rgba(255,255,255,0.1);
   transform: translateX(100%);
   transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-  z-index: 2; display: flex; flex-direction: column;
+  z-index: 1006; display: flex; flex-direction: column;
   padding: 20px; padding-bottom: 40px;
   overflow-y: auto; overscroll-behavior: contain;
 }
@@ -653,4 +653,12 @@ onUnmounted(() => {
     transition: none !important;
   }
 }
+
+.navbar.menu-open .brand {
+  z-index: 1;
+}
+
+.mobile-menu-content { z-index: 1006; }
+.mobile-backdrop { z-index: 1004; }
+
 </style>
