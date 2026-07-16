@@ -952,4 +952,39 @@ watch(
   .thumb:hover,
   .color-btn:hover { transform: none; }
 }
+
+/* ═══════ بهینه‌سازی موبایل: جلوگیری از سفید شدن و باگ اسکرول ═══════ */
+@media (max-width: 860px) {
+  /* حذف backdrop-filter سنگین که روی GPU موبایل باگ اسکرول ایجاد می‌کند */
+  .search-bar,
+  .card-badge,
+  .related-dropdown {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  .search-bar { background: rgba(10, 13, 20, 0.96) !important; }
+  .card-badge { background: rgba(0, 0, 0, 0.7) !important; }
+
+  /* خاموش کردن گوی‌های بلوردار متحرک که موقع اسکرول باعث پرش می‌شوند */
+  .bg-orb {
+    display: none !important;
+  }
+
+  /* ثابت نگه‌داشتن بلور drawer فقط وقتی باز است، ولی سبک‌تر */
+  .filter-drawer.is-mobile {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}
+
+/* روی دستگاه‌های لمسی، انیمیشن ورود کارت‌ها را ساده کن تا موقع اسکرول پرش نکند */
+@media (hover: none) and (pointer: coarse) {
+  .product-card {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .bg-grid { display: none !important; }
+}
+
 </style>
