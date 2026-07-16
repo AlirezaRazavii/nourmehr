@@ -6,11 +6,24 @@ const PROVIDER = process.env.SMS_PROVIDER || 'log';
 const API_KEY = process.env.SMS_API_KEY;
 const FROM = process.env.SMS_FROM;
 const TEMPLATE_CODE = process.env.SMS_TEMPLATE_CODE;
+
 if (process.env.NODE_ENV !== 'production') {
-  console.log('[SMS DEBUG] provider:', PROVIDER, '| apiKey length:', API_KEY ? API_KEY.length : 0, '| template:', TEMPLATE_CODE);
+  console.log(
+    '[SMS DEBUG] provider:', PROVIDER,
+    '| apiKey length:', API_KEY ? API_KEY.length : 0,
+    '| template:', TEMPLATE_CODE
+  );
 }
 
-
+// ------------------------------------------------------
+// 1. Provider: Log (حالت توسعه — فقط در کنسول چاپ می‌کند)
+// ------------------------------------------------------
+const logProvider = {
+  async send(phone, code) {
+    console.log(`[SMS LOG] کد تایید برای ${phone}: ${code}`);
+    return { success: true };
+  },
+};
 
 // ------------------------------------------------------
 // 2. Provider: Kavenegar (روش Verify/Lookup)
@@ -23,11 +36,13 @@ const kavenegarProvider = {
     if (!TEMPLATE_CODE) {
       throw new Error('SMS_TEMPLATE_CODE (نام الگو) برای کاوه‌نگار تنظیم نشده است');
     }
+    // کاوه‌نگار در token فاصله را نمی‌پذیرد؛ برای اطمینان trim می‌کنیم
+    const token = String(code).trim();
     const url = `https://api.kavenegar.com/v1/${API_KEY}/verify/lookup.json`;
     const response = await axios.get(url, {
       params: {
         receptor: phone,
-        token: code,
+        token,
         template: TEMPLATE_CODE,
       },
     });
@@ -38,7 +53,6 @@ const kavenegarProvider = {
   },
 };
 
-
 // ------------------------------------------------------
 // انتخاب provider بر اساس متغیر محیطی
 // ------------------------------------------------------
@@ -46,9 +60,6 @@ let activeProvider;
 switch (PROVIDER) {
   case 'kavenegar':
     activeProvider = kavenegarProvider;
-    break;
-  case 'melipayamak':
-    activeProvider = melipayamakProvider;
     break;
   default:
     activeProvider = logProvider;
@@ -64,7 +75,6 @@ const sendVerificationCode = async (phone, code) => {
   try {
     return await activeProvider.send(phone, code);
   } catch (error) {
-    // چاپ پیام خطای دقیق‌تر (اگر پاسخ از سمت کاوه‌نگار باشد)
     const kavenegarMsg = error.response?.data?.return?.message;
     console.error('SMS send error:', kavenegarMsg || error.message);
     return { success: false, message: kavenegarMsg || error.message };
