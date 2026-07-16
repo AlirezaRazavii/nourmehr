@@ -71,17 +71,6 @@
           <div class="filter-divider"><span>◆</span></div>
 
           <div class="filter-group">
-            <div class="filter-group-head"><span>{{ $t('products_price_range') }}</span></div>
-            <div class="price-inputs">
-              <input v-model.number="minPrice" type="number" inputmode="numeric" :placeholder="$t('products_min_price')" />
-              <input v-model.number="maxPrice" type="number" inputmode="numeric" :placeholder="$t('products_max_price')" />
-            </div>
-            <button class="apply-btn" @click="mobileFilterOpen = false">{{ $t('products_apply_price_filter') }}</button>
-          </div>
-
-          <div class="filter-divider"><span>◆</span></div>
-
-          <div class="filter-group">
             <label class="stock-toggle">
               <span class="stock-label">{{ $t('products_only_in_stock') }}</span>
               <span class="switch">
@@ -218,8 +207,6 @@ watch(
 )
 
 const searchQuery = ref('')
-const minPrice = ref(null)
-const maxPrice = ref(null)
 const onlyInStock = ref(false)
 const sortBy = ref('default')
 const mobileFilterOpen = ref(false)
@@ -271,12 +258,6 @@ const filteredProducts = computed(() => {
       (getLocalizedText(p.shortDesc) || '').toLowerCase().includes(q)
     )
   }
-  if (minPrice.value != null && minPrice.value !== '') {
-    list = list.filter(p => Number(p.price) >= Number(minPrice.value))
-  }
-  if (maxPrice.value != null && maxPrice.value !== '') {
-    list = list.filter(p => Number(p.price) <= Number(maxPrice.value))
-  }
   if (onlyInStock.value) {
     list = list.filter(isInStock)
   }
@@ -308,7 +289,7 @@ const changePage = (page) => {
   }
 }
 
-watch([searchQuery, selectedCategory, minPrice, maxPrice, onlyInStock, sortBy], () => {
+watch([searchQuery, selectedCategory, onlyInStock, sortBy], () => {
   currentPage.value = 1
 })
 
@@ -328,8 +309,6 @@ const getCategoryIcon = (catSlugOrString) => {
 const resetFilters = () => {
   selectedCategory.value = 'all'
   searchQuery.value = ''
-  minPrice.value = null
-  maxPrice.value = null
   onlyInStock.value = false
   sortBy.value = 'default'
   currentPage.value = 1
@@ -423,14 +402,6 @@ onUnmounted(() => {
 .filter-divider { display: flex; align-items: center; justify-content: center; }
 .filter-divider span { color: rgba(197,160,89,0.5); font-size: 0.55rem; padding: 0 10px; }
 .filter-divider::before, .filter-divider::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent); }
-.price-inputs { display: flex; flex-direction: column; gap: 8px; }
-.price-inputs input { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 10px; padding: 10px 14px; color: #fff; font-family: inherit; font-size: 0.82rem; outline: none; transition: border-color 0.3s; }
-.price-inputs input:focus { border-color: rgba(197,160,89,0.5); }
-.price-inputs input::placeholder { color: rgba(255,255,255,0.3); }
-.price-inputs input::-webkit-outer-spin-button, .price-inputs input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-.price-inputs input[type=number] { -moz-appearance: textfield; }
-.apply-btn { margin-top: 4px; padding: 11px; border-radius: 10px; border: none; cursor: pointer; background: linear-gradient(135deg, #2bbf9e, #1a8f78); color: #fff; font-family: inherit; font-size: 0.82rem; font-weight: 600; transition: filter 0.25s, transform 0.25s; }
-.apply-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
 .stock-toggle { display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
 .stock-label { font-size: 0.82rem; color: rgba(255,255,255,0.85); }
 .switch { position: relative; width: 42px; height: 22px; flex-shrink: 0; }
@@ -472,7 +443,7 @@ onUnmounted(() => {
 .card-image {
   width: 100%;
   height: 100%;
-  object-fit: contain;             /* عکس کامل و با نسبت اصلی خودش، مثل HomeCollection */
+  object-fit: contain;
   filter: drop-shadow(0 12px 26px rgba(0,0,0,0.4));
   transition: transform 0.5s ease;
 }
@@ -489,7 +460,6 @@ onUnmounted(() => {
 .desc-label { display: inline-block; font-size: 0.6rem; color: #c5a059; letter-spacing: 1px; margin-bottom: 4px; }
 .short-desc { font-size: clamp(0.7rem,0.85vw,0.78rem); color: rgba(255,255,255,0.5); line-height: 1.6; margin: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
-/* دیگر بلوک قیمت وجود ندارد؛ دکمه‌ی مشاهده به سمت انتها می‌چسبد */
 .card-footer { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: auto; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.04); }
 
 .view-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 11px; background: linear-gradient(135deg, #2bbf9e, #1a8f78); border: none; color: #fff; text-decoration: none; font-size: 0.72rem; font-weight: 600; cursor: pointer; transition: all 0.35s cubic-bezier(0.16,1,0.3,1); flex-shrink: 0; }
@@ -554,7 +524,6 @@ onUnmounted(() => {
     font-size: 1.2rem !important;
   }
   .filter-drawer.is-mobile .cat-pill,
-  .filter-drawer.is-mobile .price-inputs input,
   .filter-drawer.is-mobile .apply-btn,
   .filter-drawer.is-mobile .reset-btn {
     width: 100% !important;
@@ -578,13 +547,9 @@ onUnmounted(() => {
 
 /* ═══════ بهینه‌سازی موبایل: رفع باگ سفید شدن و پرش اسکرول ═══════ */
 @media (max-width: 860px) {
-  /* خاموش کردن گوی‌های بلوردار متحرک — سنگین‌ترین منبع باگ اسکرول */
   .bg-orb { display: none !important; }
-
-  /* حذف mask روی گرید که روی GPU موبایل هزینه دارد */
   .bg-grid { display: none !important; }
 
-  /* حذف backdrop-filter سنگین و جایگزینی با پس‌زمینه توپر */
   .search-bar {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
@@ -601,20 +566,16 @@ onUnmounted(() => {
   }
 }
 
-/* روی دستگاه‌های لمسی، انیمیشن ورود کارت‌ها را حذف کن تا موقع اسکرول پرش نکند */
 @media (hover: none) and (pointer: coarse) {
   .product-card {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
   }
-  /* توقف انیمیشن‌های تزئینی همیشه‌فعال روی موبایل */
   .badge-dot,
   .sidebar-diamond,
   .empty-icon {
     animation: none !important;
   }
 }
-
-
 </style>
