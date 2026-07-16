@@ -140,6 +140,11 @@ const routePathMap = {
 }
 
 router.beforeEach(async (to, from, next) => {
+
+  if (to.path.endsWith('.txt')) {
+  return next()
+}
+
   const supportedLangs = ['fa', 'en']
   const langParam = to.params.lang
   const defaultLang = localStorage.getItem('app_lang') || 'fa'
@@ -151,6 +156,8 @@ router.beforeEach(async (to, from, next) => {
     }
     return next()
   }
+
+
 
   // 2. اصلاح زبان در URL
   if (!langParam || !supportedLangs.includes(langParam)) {
