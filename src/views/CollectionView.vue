@@ -11,7 +11,7 @@ const getLocalizedText = (value) => {
   if (!value) return ''
   if (typeof value === 'string') return value
   if (typeof value === 'object') {
-    return value[locale.value] || value.fa || ''
+    return value[locale.value] || value.fa || value.en || ''
   }
   return ''
 }
@@ -53,8 +53,31 @@ const getCategoryIcon = (category) => {
   return '◆'
 }
 
+// شناسه‌ی محصول را از هر ساختاری استخراج می‌کند
+const productId = (p) => p?._id || p?.id || p?.slug || ''
+
 const goToProduct = (p) => {
-  if (p?._id || p?.id) router.push({ name: 'ProductDetails', params: { lang: locale.value, id: p._id || p.id } })
+  const id = productId(p)
+  if (id) router.push({ name: 'ProductDetails', params: { lang: locale.value, id } })
+}
+
+// نرمال‌سازی پاسخ سرور تا در برابر ساختارهای مختلف مقاوم باشد
+const extractCollectionAndProducts = (data) => {
+  // حالت استاندارد: data = { collection, products, total }
+  if (data && typeof data === 'object' && ('collection' in data || 'products' in data)) {
+    return {
+      collection: data.collection || null,
+      products: Array.isArray(data.products) ? data.products : []
+    }
+  }
+  // حالت جایگزین: data خودش آبجکت کالکشن است و محصولات داخل آن
+  if (data && typeof data === 'object') {
+    return {
+      collection: data,
+      products: Array.isArray(data.products) ? data.products : []
+    }
+  }
+  return { collection: null, products: [] }
 }
 
 const load = async () => {
@@ -63,17 +86,25 @@ const load = async () => {
   currentPage.value = 1
   try {
     const data = await getCollection(route.params.slug, { limit: 100 })
-    collection.value = data.collection
-    products.value = data.products || []
+    const { collection: col, products: prods } = extractCollectionAndProducts(data)
+    collection.value = col
+    products.value = prods
+
+    // دیباگ کمکی — در صورت نیاز کنسول را ببینید
+    if (!prods.length) {
+      console.warn('[CollectionView] هیچ محصولی برای این کالکشن برنگشت. پاسخ سرور:', data)
+    }
   } catch (e) {
     console.error('[CollectionView] خطا:', e)
     loadError.value = e.response?.data?.message || e.message || t('cv_error_server')
+    collection.value = null
+    products.value = []
   } finally {
     loading.value = false
   }
 }
 
-watch(() => route.params.slug, () => { if (route.params.slug) load() })
+watch(() => route.params.slug, (slug) => { if (slug) load() })
 onMounted(load)
 </script>
 
@@ -89,8 +120,8 @@ onMounted(load)
         </nav>
         <div class="cv-head-icon">{{ collection.icon || '✦' }}</div>
         <h1>{{ getLocalizedText(collection.title || collection.name) }}</h1>
-        <p v-if="collection.subtitle" class="cv-subtitle">{{ getLocalizedText(collection.subtitle) }}</p>
-        <p v-if="collection.description" class="cv-desc">{{ getLocalizedText(collection.description) }}</p>
+        <p v-if="getLocalizedText(collection.subtitle)" class="cv-subtitle">{{ getLocalizedText(collection.subtitle) }}</p>
+        <p v-if="getLocalizedText(collection.description)" class="cv-desc">{{ getLocalizedText(collection.description) }}</p>
       </header>
 
       <!-- وضعیت بارگذاری -->
@@ -103,11 +134,11 @@ onMounted(load)
         <button class="cv-btn" @click="load">{{ $t('retry') }}</button>
       </div>
 
-      <!-- محصولات: کارت استاندارد، مثل صفحه‌ی محصولات -->
+      <!-- محصولات -->
       <div v-else-if="products.length" class="cv-grid">
         <article
           v-for="(product, i) in paginatedProducts"
-          :key="product._id"
+          :key="productId(product) || i"
           class="product-card"
           :style="{ '--i': i }"
           @click="goToProduct(product)"
@@ -116,7 +147,7 @@ onMounted(load)
             <div class="card-image-wrapper">
               <img
                 class="card-image"
-                :src="getImageUrl(product.mainImage || product.image)"
+                :src="getImageUrl(product.mainImage || product.image || (product.images && product.images[0]))"
                 :alt="getLocalizedText(product.name)"
                 loading="lazy"
               />
@@ -137,7 +168,11 @@ onMounted(load)
               </div>
 
               <div class="card-footer">
-                <router-link :to="{ name: 'ProductDetails', params: { lang: locale, id: product._id || product.id } }" class="view-btn" @click.stop>
+                <router-link
+                  :to="{ name: 'ProductDetails', params: { lang: locale, id: productId(product) } }"
+                  class="view-btn"
+                  @click.stop
+                >
                   <span class="view-text">{{ $t('products_view') }}</span>
                   <span class="view-arrow">
                     <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5">

@@ -12,7 +12,7 @@ const getFinalPrice = (product) => {
 const formatProduct = (p) => ({
   ...p,
   finalPrice: getFinalPrice(p),
-  priceFormatted: p.price.toLocaleString('fa-IR'),
+  priceFormatted: Number(p.price || 0).toLocaleString('fa-IR'),
   finalPriceFormatted: getFinalPrice(p).toLocaleString('fa-IR')
 });
 
@@ -61,12 +61,12 @@ const getCollectionBySlugOrId = async (req, res) => {
   try {
     const mongoose = require('mongoose');
     const { id } = req.params;
-    const { page = 1, limit = 12, sort = 'newest' } = req.query;
+    const { page = 1, limit = 100, sort = 'newest' } = req.query;
 
     const or = [{ slug: id }];
     if (mongoose.Types.ObjectId.isValid(id)) or.push({ _id: id });
 
-    const collection = await Collection.findOne({ $or: or });
+    const collection = await Collection.findOne({ $or: or }).lean();
     if (!collection) return res.status(404).json({ success: false, message: 'Collection not found' });
 
     let sortOption = {};
@@ -74,24 +74,31 @@ const getCollectionBySlugOrId = async (req, res) => {
     else if (sort === 'price_desc') sortOption = { price: -1 };
     else sortOption = { createdAt: -1 };
 
-    const skip = (page - 1) * limit;
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(200, Math.max(1, parseInt(limit) || 100));
+    const skip = (pageNum - 1) * limitNum;
+
     const filter = { collections: collection._id, status: 'active' };
+
     const products = await Product.find(filter)
       .populate('category')
       .sort(sortOption)
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(limitNum)
+      .lean(); // ← بدون این، ...p فیلدهای محصول را کپی نمی‌کرد و محصولات خالی برمی‌گشتند
+
     const total = await Product.countDocuments(filter);
 
     res.json({
       success: true,
       data: {
-        collection: collection.toObject(),
+        collection,
         products: products.map(formatProduct),
         total
       }
     });
   } catch (error) {
+    console.error('[getCollectionBySlugOrId] error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
