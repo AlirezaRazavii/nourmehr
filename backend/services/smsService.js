@@ -1,17 +1,8 @@
 // services/smsService.js
 const axios = require('axios');
 
-// مقداردهی از env
-const PROVIDER = process.env.SMS_PROVIDER || 'log';
-const API_KEY = process.env.SMS_API_KEY;
-const FROM = process.env.SMS_FROM;
-const TEMPLATE_CODE = process.env.SMS_TEMPLATE_CODE;
-if (process.env.NODE_ENV !== 'production') {
-  console.log('[SMS DEBUG] provider:', PROVIDER, '| apiKey length:', API_KEY ? API_KEY.length : 0, '| template:', TEMPLATE_CODE);
-}
-
 // ------------------------------------------------------
-// 1. Provider: Log (فقط در کنسول چاپ می‌کند)
+// 1. Provider: Log
 // ------------------------------------------------------
 const logProvider = {
   async send(phone, code) {
@@ -25,6 +16,9 @@ const logProvider = {
 // ------------------------------------------------------
 const kavenegarProvider = {
   async send(phone, code) {
+    const API_KEY = process.env.SMS_API_KEY;
+    const TEMPLATE_CODE = process.env.SMS_TEMPLATE_CODE;
+
     if (!API_KEY) {
       throw new Error('SMS_API_KEY برای کاوه‌نگار تنظیم نشده است');
     }
@@ -51,6 +45,9 @@ const kavenegarProvider = {
 // ------------------------------------------------------
 const melipayamakProvider = {
   async send(phone, code) {
+    const API_KEY = process.env.SMS_API_KEY;
+    const FROM = process.env.SMS_FROM;
+
     if (!API_KEY) {
       throw new Error('SMS_API_KEY برای ملی پیامک تنظیم نشده است');
     }
@@ -69,32 +66,31 @@ const melipayamakProvider = {
   },
 };
 
-// ------------------------------------------------------
-// انتخاب provider بر اساس متغیر محیطی
-// ------------------------------------------------------
-let activeProvider;
-switch (PROVIDER) {
-  case 'kavenegar':
-    activeProvider = kavenegarProvider;
-    break;
-  case 'melipayamak':
-    activeProvider = melipayamakProvider;
-    break;
-  default:
-    activeProvider = logProvider;
-}
-
 /**
  * ارسال کد تایید از طریق سرویس فعال
  * @param {string} phone - شماره موبایل
  * @param {string} code - کد تایید ۶ رقمی
- * @returns {Promise<{success: boolean}>}
  */
 const sendVerificationCode = async (phone, code) => {
+  console.log('[SMS RUNTIME] provider:', process.env.SMS_PROVIDER, '| apiKey len:', (process.env.SMS_API_KEY || '').length);
+  // provider را در لحظه‌ی ارسال می‌خوانیم تا مطمئن باشیم dotenv اجرا شده
+  const PROVIDER = process.env.SMS_PROVIDER || 'log';
+
+  let activeProvider;
+  switch (PROVIDER) {
+    case 'kavenegar':
+      activeProvider = kavenegarProvider;
+      break;
+    case 'melipayamak':
+      activeProvider = melipayamakProvider;
+      break;
+    default:
+      activeProvider = logProvider;
+  }
+
   try {
     return await activeProvider.send(phone, code);
   } catch (error) {
-    // چاپ پیام خطای دقیق‌تر (اگر پاسخ از سمت کاوه‌نگار باشد)
     const kavenegarMsg = error.response?.data?.return?.message;
     console.error('SMS send error:', kavenegarMsg || error.message);
     return { success: false, message: kavenegarMsg || error.message };
