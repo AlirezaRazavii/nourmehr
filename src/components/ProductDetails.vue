@@ -15,11 +15,8 @@ const router = useRouter()
 const { addToCart } = useCart()
 const productStore = useProductStore()
 const authStore = useAuth()
-
-// اصلاح باگ واکنش‌گرایی: با storeToRefs، isAuthenticated واکنش‌گرا می‌ماند
 const { isAuthenticated } = storeToRefs(authStore)
 
-// --- State ---
 const activeImage = ref(0)
 const selectedColor = ref(null)
 const selectedSize = ref('')
@@ -42,31 +39,36 @@ const formatPrice = (n) =>
 const getLocalizedText = (value) => {
   if (!value) return ''
   if (typeof value === 'string') return value
-  if (typeof value === 'object') {
-    return value[locale.value] || value.fa || ''
-  }
+  if (typeof value === 'object') return value[locale.value] || value.fa || ''
   return ''
+}
+
+// تابع متمرکز برای هدایت به صفحه لاگین با حفظ زبان و مسیر بازگشت
+const redirectToLogin = () => {
+  router.push({
+    name: 'Login',
+    params: { lang: locale.value },
+    query: { redirect: route.fullPath }
+  })
 }
 
 const allProducts = computed(() => productStore.products)
 
-const product = computed(() => {
-  const id = route.params.id
-  return (
-    productStore.currentProduct ||
-    allProducts.value.find((p) => p._id === id || p.slug === id) ||
-    null
-  )
-})
+const product = computed(() =>
+  productStore.currentProduct ||
+  allProducts.value.find((p) => p._id === route.params.id || p.slug === route.params.id) ||
+  null
+)
 
 const inStock = computed(() => (product.value?.stock ?? 0) > 0)
 const maxQty = computed(() => product.value?.stock || 10)
 
 const sizeList = computed(() =>
-  (product.value?.sizes || []).map((s) => {
-    const nameStr = typeof s.name === 'string' ? s.name : getLocalizedText(s.name)
-    return { name: nameStr, price: s.price || 0, discountPercent: s.discountPercent || 0 }
-  })
+  (product.value?.sizes || []).map((s) => ({
+    name: typeof s.name === 'string' ? s.name : getLocalizedText(s.name),
+    price: s.price || 0,
+    discountPercent: s.discountPercent || 0
+  }))
 )
 
 const displayUnitPrice = computed(() => {
@@ -77,28 +79,20 @@ const displayUnitPrice = computed(() => {
   const s = sizeList.value.find((x) => x.name === selectedSize.value)
   if (s) {
     if (s.price) base = s.price
-    if (s.discountPercent && s.discountPercent > 0) sizeDiscount = s.discountPercent
+    if (s.discountPercent > 0) sizeDiscount = s.discountPercent
   }
-  if (sizeDiscount > 0) {
-    return base * (1 - sizeDiscount / 100)
-  }
-  if (p.discountPercent && p.discountPercent > 0) {
-    return base * (1 - p.discountPercent / 100)
-  }
+  if (sizeDiscount > 0) return base * (1 - sizeDiscount / 100)
+  if (p.discountPercent > 0) return base * (1 - p.discountPercent / 100)
   return base
 })
 
-
-// قیمت اصلی سایز انتخاب‌شده قبل از هر تخفیفی
 const originalUnitPrice = computed(() => {
   const p = product.value
   if (!p) return 0
   const s = sizeList.value.find((x) => x.name === selectedSize.value)
-  if (s && s.price) return s.price
-  return p.price
+  return s && s.price ? s.price : p.price
 })
 
-// درصد تخفیف سایز انتخاب‌شده (۰ یعنی بدون تخفیف)
 const selectedSizeDiscount = computed(() => {
   const s = sizeList.value.find((x) => x.name === selectedSize.value)
   return s && s.discountPercent ? s.discountPercent : 0
@@ -108,34 +102,25 @@ const productImages = computed(() => getProductImages(product.value))
 
 const relatedProducts = computed(() => {
   if (!product.value) return []
-  // اگر سرور محصولات مرتبط را ارسال کرده (دستی یا خودکار)
-  if (product.value.relatedProducts && product.value.relatedProducts.length > 0) {
+  if (product.value.relatedProducts?.length > 0) {
     return product.value.relatedProducts.slice(0, 6)
   }
-  // fallback: فیلتر از محصولات بارگذاری‌شده بر اساس دسته‌بندی
   return allProducts.value
     .filter((p) => {
       const catA = p.category?._id || p.category?.slug || p.category
-      const catB =
-        product.value.category?._id || product.value.category?.slug || product.value.category
+      const catB = product.value.category?._id || product.value.category?.slug || product.value.category
       return catA === catB && p._id !== product.value._id
     })
     .slice(0, 6)
 })
 
 const hasSpecs = computed(() => {
-  if (!product.value) return false
-  return !!(
-    product.value.weight ||
-    product.value.dimensions ||
-    getLocalizedText(product.value.material) ||
-    getLocalizedText(product.value.craftsman) ||
-    getLocalizedText(product.value.warranty) ||
-    product.value.sku
-  )
+  const p = product.value
+  if (!p) return false
+  return !!(p.weight || p.dimensions || getLocalizedText(p.material) ||
+    getLocalizedText(p.craftsman) || getLocalizedText(p.warranty) || p.sku)
 })
 
-// --- Reviews ---
 const fetchReviews = async (productId) => {
   isLoadingReviews.value = true
   try {
@@ -151,19 +136,15 @@ const fetchReviews = async (productId) => {
 }
 
 const submitReview = async () => {
+  // چک لاگین قبل از هر درخواست
   if (!isAuthenticated.value) {
-    router.push({
-      name: 'Login',
-      params: { lang: locale.value },
-      query: { redirect: route.fullPath }
-    })
+    redirectToLogin()
     return
   }
   if (!reviewForm.value.comment.trim()) {
     reviewSubmitMsg.value = t('review_err_comment')
     return
   }
-
   isSubmittingReview.value = true
   reviewSubmitMsg.value = ''
   try {
@@ -179,30 +160,29 @@ const submitReview = async () => {
       throw new Error(res.data?.message)
     }
   } catch (err) {
+    // اگر توکن نامعتبر بود، به لاگین برو
+    if (err.response?.status === 401 || err.response?.status === 403) {
+      redirectToLogin()
+      return
+    }
     reviewSubmitMsg.value = err.response?.data?.message || t('review_err_submit')
   } finally {
     isSubmittingReview.value = false
   }
 }
 
-// --- Load product ---
 const loadProduct = async (idOrSlug) => {
   isLoading.value = true
   activeImage.value = 0
   await productStore.fetchProduct(idOrSlug)
-  if (productStore.products.length === 0) {
-    productStore.fetchProducts()
-  }
+  if (productStore.products.length === 0) productStore.fetchProducts()
   isLoading.value = false
 
-  if (product.value?.colors?.length > 0) {
-    selectedColor.value = product.value.colors[0]
-  }
+  if (product.value?.colors?.length > 0) selectedColor.value = product.value.colors[0]
   if (product.value?.sizes?.length > 0) {
     const first = product.value.sizes[0]
     selectedSize.value = typeof first === 'string' ? first : getLocalizedText(first?.name)
   }
-
   if (product.value?._id || product.value?.id) {
     fetchReviews(product.value._id || product.value.id)
   } else {
@@ -210,36 +190,38 @@ const loadProduct = async (idOrSlug) => {
   }
 }
 
-// --- Actions ---
 const changeImage = (index) => { activeImage.value = index }
-
 const changeQuantity = (delta) => {
   const next = quantity.value + delta
-  if (next >= 1 && next <= maxQty.value) {
-    quantity.value = next
-  }
+  if (next >= 1 && next <= maxQty.value) quantity.value = next
 }
-
 const selectColor = (color) => { selectedColor.value = color }
 
 const handleAddToCart = async () => {
+  // مهم‌ترین تغییر: قبل از فرستادن درخواست، لاگین را چک کن
+  if (!isAuthenticated.value) {
+    redirectToLogin()
+    return
+  }
   if (!product.value?._id) return
   addError.value = ''
   if (!inStock.value) {
     addError.value = t('product_out_of_stock')
     return
   }
-
   const colorName = selectedColor.value ? getLocalizedText(selectedColor.value.name) : null
-
   const res = await addToCart(
     product.value._id,
     quantity.value,
     colorName,
     selectedSize.value || null
   )
-
+  // لایه دوم دفاعی: اگر باز هم خطای دسترسی برگشت
   if (res && res.success === false) {
+    if (res.status === 401 || res.status === 403) {
+      redirectToLogin()
+      return
+    }
     addError.value = res.error || t('product_add_to_cart_error')
     return
   }
@@ -250,7 +232,6 @@ const handleAddToCart = async () => {
 const toggleZoom = () => { isZoomed.value = !isZoomed.value }
 const closeZoom = () => { isZoomed.value = false }
 const goBack = () => { router.push({ name: 'Products', params: { lang: locale.value } }) }
-const goToProduct = (id) => { router.push({ name: 'ProductDetails', params: { lang: locale.value, id } }) }
 const goToCart = () => { router.push({ name: 'Cart', params: { lang: locale.value } }) }
 
 const formatDate = (d) => {
@@ -262,26 +243,18 @@ const formatDate = (d) => {
   }
 }
 
-// بستن مودال زوم با کلید Esc
 const handleKeydown = (e) => {
   if (e.key === 'Escape' && isZoomed.value) closeZoom()
 }
 
-// --- Lifecycle ---
 onMounted(() => {
   loadProduct(route.params.id)
   window.addEventListener('keydown', handleKeydown)
 })
-
-onBeforeUnmount(() => {
-  window.removeEventListener('keydown', handleKeydown)
-})
-
-watch(
-  () => route.params.id,
-  (id) => { if (id) loadProduct(id) }
-)
+onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
+watch(() => route.params.id, (id) => { if (id) loadProduct(id) })
 </script>
+
 
 <template>
   <section class="product-detail-page">

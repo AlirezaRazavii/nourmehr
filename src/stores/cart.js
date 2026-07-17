@@ -9,28 +9,31 @@ export const useCart = defineStore('cart', () => {
   const isLoading = ref(false)
   const isOpen = ref(false)
 
+  const safePrice = (n) => Number(n || 0).toLocaleString('fa-IR')
+
   const fetchCart = async () => {
     isLoading.value = true
     try {
-      const response = await api.get('/cart')
-      const cart = response.data.cart
-      items.value = cart.items.map(item => ({
+      const { data } = await api.get('/cart')
+      const cart = data.cart
+      items.value = (cart.items || []).map((item) => ({
+        _id: item._id,
         productId: item.productId,
         name: item.name,
         quantity: item.quantity,
-        color: item.color,
+        color: item.color || '',
         size: item.size || '',
         image: getImageUrl(item.image),
-        unitPrice: item.unitPrice,
-        totalPrice: item.totalPrice,
+        unitPrice: item.unitPrice || 0,
+        totalPrice: item.totalPrice || 0,
         stock: item.stock,
-        inStock: item.inStock
+        inStock: item.inStock,
       }))
       serverCart.value = {
-        subtotal: cart.subtotal,
-        shipping: cart.shippingCost,
-        discount: cart.discount,
-        total: cart.total
+        subtotal: cart.subtotal || 0,
+        shipping: cart.shippingCost || 0,
+        discount: cart.discount || 0,
+        total: cart.total || 0,
       }
     } catch (err) {
       console.error('خطا در دریافت سبد خرید:', err)
@@ -46,19 +49,27 @@ export const useCart = defineStore('cart', () => {
       openMiniCart()
       return { success: true }
     } catch (err) {
-      return { success: false, error: err.response?.data?.message }
+      return {
+        success: false,
+        error: err.response?.data?.message,
+        status: err.response?.status,
+      }
     }
   }
 
-    const updateQuantity = async (productId, quantity, color = null, size = null) => {
-    try {
-      const cartRes = await api.get('/cart')
-      const item = cartRes.data.cart.items.find(i => 
-        i.productId === productId && 
-        (i.color || '') === (color || '') && 
+  // پیدا کردن آیتم از استیت محلی (بدون درخواست اضافه)
+  const findLocalItem = (productId, color, size) =>
+    items.value.find(
+      (i) =>
+        i.productId === productId &&
+        (i.color || '') === (color || '') &&
         (i.size || '') === (size || '')
-      )
-      if (item && item._id) {
+    )
+
+  const updateQuantity = async (productId, quantity, color = null, size = null) => {
+    try {
+      let item = findLocalItem(productId, color, size)
+      if (item?._id) {
         await api.put(`/cart/item/${item._id}`, { quantity })
         await fetchCart()
       } else {
@@ -66,25 +77,20 @@ export const useCart = defineStore('cart', () => {
       }
       return { success: true }
     } catch (err) {
-      return { success: false, error: err.response?.data?.message }
+      return { success: false, error: err.response?.data?.message, status: err.response?.status }
     }
   }
 
   const removeFromCart = async (productId, color = null, size = null) => {
     try {
-      const cartRes = await api.get('/cart')
-      const item = cartRes.data.cart.items.find(i => 
-        i.productId === productId && 
-        (i.color || '') === (color || '') && 
-        (i.size || '') === (size || '')
-      )
-      if (item && item._id) {
+      const item = findLocalItem(productId, color, size)
+      if (item?._id) {
         await api.delete(`/cart/item/${item._id}`)
         await fetchCart()
       }
       return { success: true }
     } catch (err) {
-      return { success: false, error: err.response?.data?.message }
+      return { success: false, error: err.response?.data?.message, status: err.response?.status }
     }
   }
 
@@ -99,26 +105,19 @@ export const useCart = defineStore('cart', () => {
 
   const totalItems = computed(() => items.value.reduce((acc, i) => acc + i.quantity, 0))
   const totalPrice = computed(() => serverCart.value.total)
-  const totalPriceFormatted = computed(() => totalPrice.value.toLocaleString('fa-IR'))
+  const totalPriceFormatted = computed(() => safePrice(totalPrice.value))
   const isEmpty = computed(() => items.value.length === 0)
 
-   const cartItems = computed(() => items.value.map(item => ({
-    productId: item.productId,
-    name: item.name,
-    quantity: item.quantity,
-    color: item.color,
-    size: item.size || '',
-    image: item.image,
-    unitPrice: item.unitPrice,
-    totalPrice: item.totalPrice,
-    stock: item.stock,
-    inStock: item.inStock,
-    product: {
-      mainImage: item.image,
-      name: item.name,
-      priceFormatted: item.unitPrice.toLocaleString('fa-IR')
-    }
-  })))
+  const cartItems = computed(() =>
+    items.value.map((item) => ({
+      ...item,
+      product: {
+        mainImage: item.image,
+        name: item.name,
+        priceFormatted: safePrice(item.unitPrice),
+      },
+    }))
+  )
 
   let closeTimer = null
   const openMiniCart = () => {
@@ -128,9 +127,11 @@ export const useCart = defineStore('cart', () => {
   }
   const closeMiniCart = () => { clearTimeout(closeTimer); isOpen.value = false }
   const toggleMiniCart = () => { isOpen.value ? closeMiniCart() : openMiniCart() }
-  // تا وقتی موس روی پاپ‌آپ است باز بماند؛ با خروج موس بعد از کمی بسته شود
   const handleMiniCartMouseEnter = () => { clearTimeout(closeTimer) }
-  const handleMiniCartMouseLeave = () => { clearTimeout(closeTimer); closeTimer = setTimeout(() => { isOpen.value = false }, 1500) }
+  const handleMiniCartMouseLeave = () => {
+    clearTimeout(closeTimer)
+    closeTimer = setTimeout(() => { isOpen.value = false }, 1500)
+  }
 
   const resetCartState = () => {
     items.value = []
@@ -158,11 +159,12 @@ export const useCart = defineStore('cart', () => {
     removeFromCart,
     clearCart,
     fetchCart,
+    openMiniCart,
     closeMiniCart,
     toggleMiniCart,
     handleMiniCartMouseEnter,
     handleMiniCartMouseLeave,
     resetCartState,
-    formatPrice: (n) => Number(n).toLocaleString('fa-IR')
+    formatPrice: safePrice,
   }
 })
