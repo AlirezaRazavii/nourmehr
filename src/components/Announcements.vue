@@ -4,16 +4,17 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { getHomeBlogs } from '../services/blogApi'
 
-const { t, locale } = useI18n()
+const { t, te, locale } = useI18n()
 const router = useRouter()
 
 const announcements = ref([])
 const loading = ref(true)
 
+// اگر عنوان/متن در دیتابیس به‌صورت آبجکت چندزبانه ذخیره شده باشد، زبان فعلی را برمی‌گرداند
 const getLocalizedText = (value) => {
   if (!value) return ''
   if (typeof value === 'string') return value
-  if (typeof value === 'object') return value[locale.value] || value.fa || ''
+  if (typeof value === 'object') return value[locale.value] || value.fa || value.en || ''
   return ''
 }
 
@@ -26,11 +27,11 @@ const formatDate = (d) => {
   }
 }
 
-// کلید ترجمه‌ی نوع را امن می‌کند تا اگر type نامعتبر بود، کلید خام نمایش داده نشود
+// کلید ترجمه‌ی نوع را امن می‌کند: اگر کلید وجود نداشت به «general» برمی‌گردد
 const getTypeLabel = (type) => {
   const key = 'news_type_' + (type || 'general')
-  const label = t(key)
-  return label === key ? t('news_type_general') : label
+  if (te(key)) return t(key)
+  return te('news_type_general') ? t('news_type_general') : ''
 }
 
 const goToBlog = (slug) => {
@@ -49,7 +50,6 @@ const toggle = (id) => {
 onMounted(async () => {
   try {
     const res = await getHomeBlogs()
-    // بررسی امن که data واقعاً آرایه است تا در رندر خطا ندهد
     if (res?.success && Array.isArray(res.data)) {
       announcements.value = res.data
     }
@@ -59,7 +59,6 @@ onMounted(async () => {
     loading.value = false
   }
 
-  // fallback برای نبود IntersectionObserver (SSR / مرورگر قدیمی)
   if (typeof IntersectionObserver === 'undefined') {
     revealed.value = true
     return
@@ -69,7 +68,7 @@ onMounted(async () => {
     ([entry]) => {
       if (entry.isIntersecting) {
         revealed.value = true
-        observer?.disconnect() // بعد از نمایش، رصد را متوقف کن
+        observer?.disconnect()
       }
     },
     { threshold: 0.1 }

@@ -12,17 +12,17 @@
           {{ $t('news_back') }}
         </button>
 
-        <h1>{{ blog.title }}</h1>
+        <h1>{{ getLocalizedText(blog.title) }}</h1>
         <div class="blog-meta">
-          <span class="news-type">{{ $t('news_type_' + blog.type) }}</span>
+          <span class="news-type">{{ getTypeLabel(blog.type) }}</span>
           <span class="blog-date">{{ formatDate(blog.createdAt) }}</span>
         </div>
 
         <div class="blog-image" v-if="blog.image">
-          <img :src="getImageUrl(blog.image)" :alt="blog.title" />
+          <img :src="getImageUrl(blog.image)" :alt="getLocalizedText(blog.title)" />
         </div>
 
-        <div class="blog-text" v-html="blog.content"></div>
+        <div class="blog-text" v-html="getLocalizedText(blog.content)"></div>
       </div>
 
       <div v-else class="empty-state">
@@ -39,11 +39,24 @@ import { useI18n } from 'vue-i18n'
 import { getBlogBySlug } from '../services/blogApi'
 import { getImageUrl } from '../utils/imageUrl'
 
-const { locale } = useI18n()
+const { t, te, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const blog = ref(null)
 const loading = ref(true)
+
+const getLocalizedText = (value) => {
+  if (!value) return ''
+  if (typeof value === 'string') return value
+  if (typeof value === 'object') return value[locale.value] || value.fa || value.en || ''
+  return ''
+}
+
+const getTypeLabel = (type) => {
+  const key = 'news_type_' + (type || 'general')
+  if (te(key)) return t(key)
+  return te('news_type_general') ? t('news_type_general') : ''
+}
 
 const formatDate = (d) => {
   if (!d) return ''
