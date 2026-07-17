@@ -39,6 +39,8 @@
   "discounts_empty": "There are no active discount codes at the moment",
   "discounts_type_free_shipping": "Free Shipping",
   "discounts_type_percent": "{value}% off",
+  "product_discount_off": "{percent}% off",
+  "product_save_percent": "Save {percent}%",
   "discounts_type_fixed": "{value} Toman off",
   "discounts_first_purchase": "First purchase only",
   "discounts_min_purchase": "Min. purchase:",

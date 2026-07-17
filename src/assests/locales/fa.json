@@ -39,6 +39,8 @@
   "discounts_empty": "در حال حاضر کد تخفیف فعالی وجود ندارد",
   "discounts_type_free_shipping": "ارسال رایگان",
   "discounts_type_percent": "{value}٪ تخفیف",
+  "product_discount_off": "{percent}٪ تخفیف",
+  "product_save_percent": "{percent}٪ تخفیف",
   "discounts_type_fixed": "{value} تومان تخفیف",
   "discounts_first_purchase": "ویژه اولین خرید",
   "discounts_min_purchase": "حداقل خرید:",

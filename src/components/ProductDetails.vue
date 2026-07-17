@@ -394,7 +394,7 @@ watch(() => route.params.id, (id) => { if (id) loadProduct(id) })
                 type="button"
                 @click="selectedSize = s.name"
                 :class="{ active: selectedSize === s.name }"
-              >{{ s.name }}<span v-if="s.price" class="size-price"> — {{ formatPrice(s.price) }} {{ $t('products_currency') }}</span><span v-if="s.discountPercent > 0" class="size-discount-tag">{{ formatPrice(s.discountPercent) }}٪ تخفیف</span></button>
+              >{{ s.name }}<span v-if="s.price" class="size-price"> — {{ formatPrice(s.price) }} {{ $t('products_currency') }}</span><span v-if="s.discountPercent > 0" class="size-discount-tag">{{ $t('product_discount_off', { percent: formatPrice(s.discountPercent) }) }}</span></button>
             </div>
           </div>
 
