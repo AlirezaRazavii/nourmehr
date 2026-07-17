@@ -14,55 +14,27 @@ const searchQuery = ref('')
 const statusFilter = ref('all')
 const uploading = ref(false)
 
-// Refs for file inputs
 const fileInput = ref(null)
 const galleryInput = ref(null)
 
 const form = ref({
-  name: { fa: '', en: '' },
-  category: '',
-  price: '',
-  stock: '',
-  shortDesc: { fa: '', en: '' },
-  description: { fa: '', en: '' },
-  image: '',
-  gallery: [],
-  status: 'active',
-  weight: '',
-  dimensions: '',
-  material: { fa: '', en: '' },
-  craftsman: { fa: '', en: '' },
-  warranty: { fa: '', en: '' },
-  sku: '',
-  featuresText: { fa: '', en: '' },
-  sizes: [],
-  colors: [],
-  relatedProducts: [],
+  name: { fa: '', en: '' }, category: '', price: '', stock: '',
+  shortDesc: { fa: '', en: '' }, description: { fa: '', en: '' },
+  image: '', gallery: [], status: 'active',
+  weight: '', dimensions: '',
+  material: { fa: '', en: '' }, craftsman: { fa: '', en: '' }, warranty: { fa: '', en: '' },
+  sku: '', featuresText: { fa: '', en: '' }, sizes: [], colors: [], relatedProducts: [],
 })
 
 const blankForm = () => ({
-  name: { fa: '', en: '' },
-  category: '', 
-  price: '', 
-  stock: '', 
-  shortDesc: { fa: '', en: '' }, 
-  description: { fa: '', en: '' },
-  image: '', 
-  gallery: [], 
-  status: 'active',
-  weight: '', 
-  dimensions: '', 
-  material: { fa: '', en: '' }, 
-  craftsman: { fa: '', en: '' }, 
-  warranty: { fa: '', en: '' }, 
-  sku: '',
-  featuresText: { fa: '', en: '' }, 
-  sizes: [], 
-  colors: [],
-  relatedProducts: [],
+  name: { fa: '', en: '' }, category: '', price: '', stock: '',
+  shortDesc: { fa: '', en: '' }, description: { fa: '', en: '' },
+  image: '', gallery: [], status: 'active',
+  weight: '', dimensions: '',
+  material: { fa: '', en: '' }, craftsman: { fa: '', en: '' }, warranty: { fa: '', en: '' },
+  sku: '', featuresText: { fa: '', en: '' }, sizes: [], colors: [], relatedProducts: [],
 })
 
-// --- محصولات مرتبط ---
 const relatedProductSearch = ref('')
 
 const availableRelatedProducts = computed(() => {
@@ -79,18 +51,15 @@ const availableRelatedProducts = computed(() => {
     .slice(0, 20)
 })
 
-const selectedRelatedProducts = computed(() => {
-  return products.value.filter(p => form.value.relatedProducts.includes(p._id || p.id))
-})
+const selectedRelatedProducts = computed(() =>
+  products.value.filter(p => form.value.relatedProducts.includes(p._id || p.id))
+)
 
 const addRelatedProduct = (product) => {
   const pid = product._id || product.id
-  if (!form.value.relatedProducts.includes(pid)) {
-    form.value.relatedProducts.push(pid)
-  }
+  if (!form.value.relatedProducts.includes(pid)) form.value.relatedProducts.push(pid)
   relatedProductSearch.value = ''
 }
-
 const removeRelatedProduct = (pid) => {
   form.value.relatedProducts = form.value.relatedProducts.filter(id => id !== pid)
 }
@@ -101,7 +70,6 @@ const addSize = () => { form.value.sizes.push({ name: { fa: '', en: '' }, price:
 const removeSize = (i) => { form.value.sizes.splice(i, 1) }
 
 const categories = ref([])
-
 const fetchCategories = async () => {
   const res = await adminApi.getCategories()
   if (res.success) categories.value = res.data
@@ -125,19 +93,15 @@ const statusColors = {
 const fetchProducts = async () => {
   loading.value = true
   const res = await adminApi.getProducts()
-  if (res.success) {
-    products.value = res.data
-  }
+  if (res.success) products.value = res.data
   loading.value = false
 }
 
-const filteredProducts = computed(() => {
-  return products.value.filter(p => {
-    // جستجو در هر دو زبان
-    const nameFa = p.name?.fa || '';
-    const nameEn = p.name?.en || '';
-    const matchSearch = !searchQuery.value || nameFa.includes(searchQuery.value) || nameEn.toLowerCase().includes(searchQuery.value.toLowerCase());
-    
+const filteredProducts = computed(() =>
+  products.value.filter(p => {
+    const nameFa = p.name?.fa || ''
+    const nameEn = p.name?.en || ''
+    const matchSearch = !searchQuery.value || nameFa.includes(searchQuery.value) || nameEn.toLowerCase().includes(searchQuery.value.toLowerCase())
     const matchStatus =
       statusFilter.value === 'all' ||
       (statusFilter.value === 'out_of_stock'
@@ -145,7 +109,7 @@ const filteredProducts = computed(() => {
         : p.status === statusFilter.value)
     return matchSearch && matchStatus
   })
-})
+)
 
 const openCreate = () => {
   editingProduct.value = null
@@ -185,7 +149,6 @@ const openEdit = (product) => {
   showModal.value = true
 }
 
-// Drag and drop image upload
 const handleDragOver = (e) => { e.preventDefault(); e.stopPropagation(); e.target.classList.add('drag-over') }
 const handleDragLeave = (e) => { e.target.classList.remove('drag-over') }
 
@@ -223,7 +186,6 @@ const uploadImage = async (file, type) => {
     if (res.success && res.filePath) {
       if (type === 'main') form.value.image = res.filePath
       else form.value.gallery.push(res.filePath)
-      alert('تصویر با موفقیت آپلود شد')
     } else throw new Error(res.message || 'آپلود ناموفق')
   } catch (err) {
     alert('خطا در آپلود تصویر: ' + (err.message || 'خطای ناشناخته'))
@@ -232,12 +194,34 @@ const uploadImage = async (file, type) => {
   }
 }
 
+// حذف تصویر اصلی
+const removeMainImage = async () => {
+  if (!form.value.image) return
+  const pathToDelete = form.value.image
+  form.value.image = ''
+  try {
+    await adminApi.deleteProductImage(pathToDelete)
+  } catch (err) {
+    console.error('خطا در حذف فایل تصویر اصلی:', err)
+  }
+}
+
+// حذف یک عکس از گالری
+const removeGalleryImage = async (index) => {
+  const pathToDelete = form.value.gallery[index]
+  form.value.gallery.splice(index, 1)
+  try {
+    await adminApi.deleteProductImage(pathToDelete)
+  } catch (err) {
+    console.error('خطا در حذف فایل گالری:', err)
+  }
+}
+
 const saveProduct = async () => {
   try {
     const id = editingProduct.value?._id || editingProduct.value?.id
     const { featuresText, ...rest } = form.value
-    
-    // تبدیل ویژگی‌ها به آرایه آبجکت‌های دوزبانه
+
     const faFeatures = (featuresText.fa || '').split('\n').map(s => s.trim()).filter(Boolean)
     const enFeatures = (featuresText.en || '').split('\n').map(s => s.trim()).filter(Boolean)
     const features = faFeatures.map((fa, i) => ({ fa, en: enFeatures[i] || '' }))
@@ -251,7 +235,7 @@ const saveProduct = async () => {
       colors: (form.value.colors || []).filter(c => c && c.name?.fa).map(c => ({ name: { fa: String(c.name.fa).trim(), en: String(c.name.en || '').trim() }, value: c.value })),
       relatedProducts: form.value.relatedProducts || [],
     }
-    
+
     if (editingProduct.value) {
       const res = await adminApi.updateProduct(id, payload)
       if (!res.success) throw new Error(res.message || 'خطا در ویرایش')
@@ -329,7 +313,7 @@ const deleteProduct = async (id) => {
           <div class="product-meta">
             <div class="meta-item">
               <span class="meta-label">قیمت:</span>
-              <span class="meta-value price">{{ product.price.toLocaleString('fa-IR') }} تومان</span>
+              <span class="meta-value price">{{ (product.price || 0).toLocaleString('fa-IR') }} تومان</span>
             </div>
             <div class="meta-item">
               <span class="meta-label">موجودی:</span>
@@ -352,7 +336,6 @@ const deleteProduct = async (id) => {
       </div>
     </div>
 
-    <!-- Create/Edit Modal -->
     <Transition name="modal">
       <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
         <div class="modal-content glass">
@@ -365,8 +348,7 @@ const deleteProduct = async (id) => {
 
           <div class="modal-body">
             <div class="form-grid">
-              
-              <!-- نام محصول -->
+
               <div class="form-group full">
                 <label class="form-label">نام محصول <span style="color:#ef4444">*</span></label>
                 <div class="lang-inputs">
@@ -398,16 +380,21 @@ const deleteProduct = async (id) => {
                 </select>
               </div>
 
-              <!-- تصاویر -->
+              <!-- تصویر اصلی -->
               <div class="form-group full">
                 <label class="form-label">تصویر اصلی</label>
-                <div class="upload-area" @dragover.prevent="handleDragOver" @dragleave="handleDragLeave" @drop="handleImageDrop" @click="triggerFileInput">
+                <div class="upload-area" @dragover.prevent="handleDragOver" @dragleave="handleDragLeave" @drop="handleImageDrop" @click="!form.image && triggerFileInput()">
                   <input type="file" ref="fileInput" accept="image/*" style="display:none" @change="e => handleFileSelect(e, 'main')" />
                   <span v-if="!form.image && !uploading">Drag & drop یا کلیک برای انتخاب تصویر</span>
                   <span v-else-if="uploading">در حال آپلود...</span>
-                  <img v-else :src="getImageUrl(form.image)" alt="Preview" class="preview-img" />
+                  <div v-else class="single-image-wrap">
+                    <img :src="getImageUrl(form.image)" alt="Preview" class="preview-img" />
+                    <button type="button" class="img-remove-btn" @click.stop="removeMainImage" title="حذف تصویر">✕</button>
+                  </div>
                 </div>
               </div>
+
+              <!-- گالری -->
               <div class="form-group full">
                 <label class="form-label">گالری تصاویر (فایل‌های متعدد)</label>
                 <div class="upload-area" @dragover.prevent="handleDragOver" @dragleave="handleDragLeave" @drop="e => handleImageDrop(e, 'gallery')" @click="triggerGalleryInput">
@@ -415,12 +402,14 @@ const deleteProduct = async (id) => {
                   <span v-if="!form.gallery.length && !uploading">Drag & drop یا کلیک برای انتخاب تصاویر</span>
                   <span v-else-if="uploading">در حال آپلود...</span>
                   <div v-else class="gallery-preview">
-                    <img v-for="(img, idx) in form.gallery" :key="idx" :src="getImageUrl(img)" class="preview-img" />
+                    <div v-for="(img, idx) in form.gallery" :key="idx" class="gallery-item">
+                      <img :src="getImageUrl(img)" />
+                      <button type="button" class="img-remove-btn" @click.stop="removeGalleryImage(idx)" title="حذف تصویر">✕</button>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <!-- توضیحات -->
               <div class="form-group full">
                 <label class="form-label">توضیح کوتاه</label>
                 <div class="lang-inputs">
@@ -436,7 +425,6 @@ const deleteProduct = async (id) => {
                 </div>
               </div>
 
-              <!-- مشخصات فنی -->
               <div class="form-group">
                 <label class="form-label">کد محصول (SKU)</label>
                 <input v-model="form.sku" type="text" class="form-input" placeholder="مثلاً NM-DIA-001" dir="ltr" />
@@ -449,7 +437,7 @@ const deleteProduct = async (id) => {
                 <label class="form-label">ابعاد</label>
                 <input v-model="form.dimensions" type="text" class="form-input" placeholder="مثلاً ۲۵ × ۱۵ سانتی‌متر" />
               </div>
-              
+
               <div class="form-group full">
                 <label class="form-label">جنس</label>
                 <div class="lang-inputs">
@@ -472,7 +460,6 @@ const deleteProduct = async (id) => {
                 </div>
               </div>
 
-              <!-- ویژگی‌ها -->
               <div class="form-group full">
                 <label class="form-label">ویژگی‌ها (هر خط یک ویژگی)</label>
                 <div class="lang-inputs" style="flex-direction: column;">
@@ -481,7 +468,6 @@ const deleteProduct = async (id) => {
                 </div>
               </div>
 
-              <!-- سایزها -->
               <div class="form-group full">
                 <label class="form-label">سایزها و قیمت هر سایز</label>
                 <div class="sizes-container">
@@ -499,7 +485,6 @@ const deleteProduct = async (id) => {
                 </div>
               </div>
 
-              <!-- رنگ‌ها -->
               <div class="form-group full">
                 <label class="form-label">رنگ‌ها</label>
                 <div class="colors-container">
@@ -515,11 +500,9 @@ const deleteProduct = async (id) => {
                 </div>
               </div>
 
-              <!-- محصولات مرتبط -->
               <div class="form-group full">
                 <label class="form-label">محصولات مرتبط</label>
                 <div class="related-products-container">
-                  <!-- تگ‌های محصولات انتخاب‌شده -->
                   <div v-if="selectedRelatedProducts.length" class="selected-tags">
                     <span v-for="rp in selectedRelatedProducts" :key="rp._id || rp.id" class="related-tag">
                       <img v-if="rp.mainImage" :src="getImageUrl(rp.mainImage)" class="tag-img" />
@@ -531,23 +514,14 @@ const deleteProduct = async (id) => {
                     <span>محصول مرتبطی انتخاب نشده — محصولات هم‌دسته‌بندی به صورت خودکار نمایش داده می‌شوند</span>
                   </div>
 
-                  <!-- جستجو و انتخاب -->
                   <div class="related-search-box">
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
                     <input v-model="relatedProductSearch" type="text" placeholder="جستجو برای افزودن محصول مرتبط..." class="form-input" />
                   </div>
 
-                  <!-- لیست محصولات قابل انتخاب -->
                   <div v-if="relatedProductSearch" class="related-dropdown">
-                    <div v-if="availableRelatedProducts.length === 0" class="related-empty">
-                      محصولی یافت نشد
-                    </div>
-                    <div
-                      v-for="p in availableRelatedProducts"
-                      :key="p._id || p.id"
-                      class="related-option"
-                      @click="addRelatedProduct(p)"
-                    >
+                    <div v-if="availableRelatedProducts.length === 0" class="related-empty">محصولی یافت نشد</div>
+                    <div v-for="p in availableRelatedProducts" :key="p._id || p.id" class="related-option" @click="addRelatedProduct(p)">
                       <img v-if="p.mainImage" :src="getImageUrl(p.mainImage)" class="option-img" />
                       <div v-else class="option-img-placeholder">📦</div>
                       <div class="option-info">
@@ -575,738 +549,108 @@ const deleteProduct = async (id) => {
 </template>
 
 <style scoped>
-.admin-products {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-}
-
-.page-title {
-  font-size: 1.5rem;
-  font-weight: 700;
-  margin: 0;
-}
-
-.page-subtitle {
-  font-size: 0.9rem;
-  opacity: 0.5;
-  margin: 4px 0 0;
-}
-
-.create-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  border-radius: 10px;
-  border: none;
-  background: linear-gradient(135deg, #c5a059, #8f7032);
-  color: #000;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  font-family: inherit;
-}
-
-.create-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(197,160,89,0.5);
-}
-
-.filters-bar {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.search-box {
-  flex: 1;
-  min-width: 250px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 16px;
-  border-radius: 10px;
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.08);
-  color: #fff;
-}
-
-.search-box svg {
-  opacity: 0.4;
-  flex-shrink: 0;
-}
-
-.search-box input {
-  flex: 1;
-  background: none;
-  border: none;
-  color: #fff;
-  font-size: 0.9rem;
-  outline: none;
-  font-family: inherit;
-}
-
-.search-box input::placeholder {
-  color: rgba(255,255,255,0.3);
-}
-
-.filter-select {
-  padding: 10px 16px;
-  border-radius: 10px;
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.08);
-  color: #fff;
-  font-size: 0.9rem;
-  outline: none;
-  cursor: pointer;
-  font-family: inherit;
-}
-
-.filter-select option {
-  background: #0a0d14;
-  color: #fff;
-}
-
-.loading-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: 60px 0;
-  color: rgba(255,255,255,0.5);
-}
-
-.spinner {
-  width: 36px;
-  height: 36px;
-  border: 3px solid rgba(197,160,89,0.2);
-  border-top-color: #c5a059;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.products-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 20px;
-}
-
-.product-card {
-  padding: 0;
-  border-radius: 20px;
-  background: rgba(5,8,20,0.9);
-  border: 1px solid rgba(255,255,255,0.06);
-  display: flex;
-  flex-direction: column;
-  transition: all 0.3s ease;
-  overflow: hidden;
-}
-
-.product-card:hover {
-  border-color: rgba(197,160,89,0.3);
-  transform: translateY(-2px);
-}
-
-.product-img {
-  height: 180px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255,255,255,0.02);
-  border-bottom: 1px solid rgba(255,255,255,0.04);
-  position: relative;
-}
-
-.img-placeholder {
-  opacity: 0.3;
-}
-
-.product-real-img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  padding: 16px;
-}
-
-.status-badge {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  display: inline-flex;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-.product-info {
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex: 1;
-}
-
-.product-name {
-  font-size: 1rem;
-  font-weight: 600;
-  margin: 0;
-}
-
-.product-en-name {
-  font-size: 0.8rem;
-  color: rgba(255,255,255,0.4);
-  margin-bottom: 4px;
-}
-
-.product-category {
-  font-size: 0.85rem;
-  opacity: 0.5;
-}
-
-.product-meta {
-  display: flex;
-  gap: 16px;
-  margin-top: 8px;
-}
-
-.meta-item {
-  display: flex;
-  gap: 4px;
-  font-size: 0.85rem;
-}
-
-.meta-label {
-  opacity: 0.5;
-}
-
-.meta-value {
-  font-weight: 500;
-}
-
-.meta-value.price {
-  color: #facc6b;
-}
-
-.meta-value.low {
-  color: #ef4444;
-}
-
-.product-desc {
-  font-size: 0.85rem;
-  opacity: 0.6;
-  line-height: 1.6;
-  margin: 8px 0 0;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.product-actions {
-  display: flex;
-  gap: 8px;
-  padding: 16px 20px;
-  border-top: 1px solid rgba(255,255,255,0.04);
-}
-
-.action-btn {
-  flex: 1;
-  padding: 8px;
-  border-radius: 8px;
-  border: none;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-family: inherit;
-}
-
-.action-btn.edit {
-  background: rgba(197,160,89,0.15);
-  color: #facc6b;
-}
-
-.action-btn.edit:hover {
-  background: rgba(197,160,89,0.25);
-}
-
-.action-btn.delete {
-  background: rgba(239,68,68,0.15);
-  color: #ef4444;
-}
-
-.action-btn.delete:hover {
-  background: rgba(239,68,68,0.25);
-}
-
-.empty-state {
-  text-align: center;
-  padding: 60px;
-  color: rgba(255,255,255,0.4);
-  grid-column: 1 / -1;
-}
-
-.empty-icon {
-  font-size: 2.5rem;
-  display: block;
-  margin-bottom: 8px;
-}
-
-/* Modal */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2000;
-  padding: 20px;
-}
-
-.modal-content {
-  width: 100%;
-  max-width: 650px;
-  max-height: 85vh;
-  overflow-y: auto;
-  border-radius: 20px;
-  padding: 0;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 24px;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
-  position: sticky;
-  top: 0;
-  background: rgba(8, 10, 18, 0.95);
-  backdrop-filter: blur(10px);
-  z-index: 10;
-}
-
-.modal-header h2 {
-  font-size: 1.2rem;
-  margin: 0;
-}
-
-.modal-close {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: none;
-  background: transparent;
-  color: #fff;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-}
-
-.modal-close:hover {
-  background: rgba(255,255,255,0.1);
-}
-
-.modal-body {
-  padding: 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.form-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.form-group.full {
-  grid-column: 1 / -1;
-}
-
-.form-label {
-  font-size: 0.85rem;
-  opacity: 0.7;
-}
-
-.form-input {
-  padding: 10px 14px;
-  border-radius: 10px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.08);
-  color: #fff;
-  font-size: 0.9rem;
-  font-family: inherit;
-  outline: none;
-  transition: border-color 0.2s ease;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.form-input:focus {
-  border-color: rgba(197,160,89,0.5);
-}
-
-.form-input::placeholder {
-  color: rgba(255,255,255,0.3);
-}
-
-.form-select {
-  padding: 10px 14px;
-  border-radius: 10px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.08);
-  color: #fff;
-  font-size: 0.9rem;
-  font-family: inherit;
-  outline: none;
-  cursor: pointer;
-}
-
-.form-select option {
-  background: #0a0d14;
-  color: #fff;
-}
-
-.form-textarea {
-  resize: vertical;
-  min-height: 80px;
-  margin-bottom: 8px;
-}
-
-/* New styles for multilingual inputs */
-.lang-inputs {
-  display: flex;
-  gap: 10px;
-}
-
-.dynamic-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.remove-btn {
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: none;
-  background: rgba(239,68,68,0.15);
-  color: #ef4444;
-  cursor: pointer;
-  font-family: inherit;
-  white-space: nowrap;
-  height: 40px;
-}
-
-.add-btn {
-  align-self: flex-start;
-  padding: 8px 16px;
-  border-radius: 8px;
-  border: 1px dashed rgba(197,160,89,0.5);
-  background: transparent;
-  color: #facc6b;
-  cursor: pointer;
-  font-family: inherit;
-}
-
-.color-picker {
-  width: 46px;
-  height: 40px;
-  border-radius: 8px;
-  border: 1px solid rgba(255,255,255,0.1);
-  background: transparent;
-  cursor: pointer;
-  padding: 2px;
-}
-
-.hint-text {
-  font-size: 0.78rem;
-  opacity: 0.5;
-  margin-top: 4px;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 8px;
-  position: sticky;
-  bottom: 0;
-  background: linear-gradient(to top, rgba(8, 10, 18, 1), transparent);
-  padding-top: 10px;
-}
-
-.cancel-btn {
-  padding: 10px 24px;
-  border-radius: 10px;
-  border: 1px solid rgba(255,255,255,0.1);
-  background: transparent;
-  color: rgba(255,255,255,0.7);
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-family: inherit;
-}
-
-.cancel-btn:hover {
-  background: rgba(255,255,255,0.06);
-}
-
-.submit-btn {
-  padding: 10px 24px;
-  border-radius: 10px;
-  border: none;
-  background: linear-gradient(135deg, #c5a059, #8f7032);
-  color: #000;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  font-family: inherit;
-}
-
-.submit-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(197,160,89,0.5);
-}
-
-.upload-area {
-  border: 2px dashed rgba(255,255,255,0.2);
-  border-radius: 12px;
-  padding: 20px;
-  text-align: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  background: rgba(255,255,255,0.02);
-}
-
-.upload-area.drag-over {
-  border-color: rgba(197,160,89,0.6);
-  background: rgba(197,160,89,0.1);
-}
-
-.upload-area .preview-img {
-  max-width: 100%;
-  max-height: 120px;
-  object-fit: contain;
-  border-radius: 8px;
-}
-
-.gallery-preview {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.gallery-preview img {
-  width: 60px;
-  height: 60px;
-  object-fit: cover;
-  border-radius: 8px;
-}
-
-.modal-enter-active,
-.modal-leave-active {
-  transition: all 0.3s ease;
-}
-
-.modal-enter-from,
-.modal-leave-to {
-  opacity: 0;
-  transform: scale(0.95);
-}
-
-/* --- محصولات مرتبط --- */
-.related-products-container {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.selected-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.related-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px 4px 4px;
-  border-radius: 999px;
-  background: rgba(197,160,89,0.15);
-  border: 1px solid rgba(197,160,89,0.3);
-  color: #facc6b;
-  font-size: 0.82rem;
-  animation: tagIn 0.25s ease;
-}
-
-@keyframes tagIn {
-  from { opacity: 0; transform: scale(0.85); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-.tag-img {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 1px solid rgba(197,160,89,0.4);
-}
-
-.tag-name {
-  max-width: 140px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.tag-remove {
-  background: none;
-  border: none;
-  color: rgba(255,255,255,0.5);
-  cursor: pointer;
-  font-size: 0.7rem;
-  padding: 0 2px;
-  line-height: 1;
-  transition: color 0.2s;
-}
-
-.tag-remove:hover {
-  color: #ef4444;
-}
-
-.no-related-hint {
-  padding: 12px;
-  border-radius: 10px;
-  background: rgba(255,255,255,0.02);
-  border: 1px dashed rgba(255,255,255,0.1);
-  text-align: center;
-  color: rgba(255,255,255,0.4);
-  font-size: 0.82rem;
-}
-
-.related-search-box {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  position: relative;
-}
-
-.related-search-box svg {
-  position: absolute;
-  right: 12px;
-  opacity: 0.4;
-  pointer-events: none;
-}
-
-.related-search-box .form-input {
-  padding-right: 36px;
-}
-
-.related-dropdown {
-  max-height: 200px;
-  overflow-y: auto;
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 12px;
-  background: rgba(8,10,18,0.95);
-  backdrop-filter: blur(10px);
-}
-
-.related-dropdown::-webkit-scrollbar {
-  width: 4px;
-}
-
-.related-dropdown::-webkit-scrollbar-thumb {
-  background: rgba(197,160,89,0.3);
-  border-radius: 4px;
-}
-
-.related-empty {
-  padding: 16px;
-  text-align: center;
-  color: rgba(255,255,255,0.4);
-  font-size: 0.85rem;
-}
-
-.related-option {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  cursor: pointer;
-  transition: background 0.15s;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
-}
-
-.related-option:last-child {
-  border-bottom: none;
-}
-
-.related-option:hover {
-  background: rgba(197,160,89,0.1);
-}
-
-.option-img {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  object-fit: cover;
-  flex-shrink: 0;
-  border: 1px solid rgba(255,255,255,0.1);
-}
-
-.option-img-placeholder {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255,255,255,0.03);
-  font-size: 1rem;
-  flex-shrink: 0;
-}
-
-.option-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.option-name {
-  font-size: 0.88rem;
-  color: #fff;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.option-price {
-  font-size: 0.78rem;
-  color: rgba(197,160,89,0.8);
-}
+.admin-products { display: flex; flex-direction: column; gap: 20px; }
+.page-header { display: flex; justify-content: space-between; align-items: flex-start; }
+.page-title { font-size: 1.5rem; font-weight: 700; margin: 0; }
+.page-subtitle { font-size: 0.9rem; opacity: 0.5; margin: 4px 0 0; }
+.create-btn { display: flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 10px; border: none; background: linear-gradient(135deg, #c5a059, #8f7032); color: #000; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; font-family: inherit; }
+.create-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(197,160,89,0.5); }
+.filters-bar { display: flex; gap: 12px; flex-wrap: wrap; }
+.search-box { flex: 1; min-width: 250px; display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-radius: 10px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); color: #fff; }
+.search-box svg { opacity: 0.4; flex-shrink: 0; }
+.search-box input { flex: 1; background: none; border: none; color: #fff; font-size: 0.9rem; outline: none; font-family: inherit; }
+.search-box input::placeholder { color: rgba(255,255,255,0.3); }
+.filter-select { padding: 10px 16px; border-radius: 10px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); color: #fff; font-size: 0.9rem; outline: none; cursor: pointer; font-family: inherit; }
+.filter-select option { background: #0a0d14; color: #fff; }
+.loading-state { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 60px 0; color: rgba(255,255,255,0.5); }
+.spinner { width: 36px; height: 36px; border: 3px solid rgba(197,160,89,0.2); border-top-color: #c5a059; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.products-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
+.product-card { padding: 0; border-radius: 20px; background: rgba(5,8,20,0.9); border: 1px solid rgba(255,255,255,0.06); display: flex; flex-direction: column; transition: all 0.3s ease; overflow: hidden; }
+.product-card:hover { border-color: rgba(197,160,89,0.3); transform: translateY(-2px); }
+.product-img { height: 180px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.02); border-bottom: 1px solid rgba(255,255,255,0.04); position: relative; }
+.img-placeholder { opacity: 0.3; }
+.product-real-img { width: 100%; height: 100%; object-fit: contain; padding: 16px; }
+.status-badge { position: absolute; top: 12px; right: 12px; display: inline-flex; padding: 4px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 500; }
+.product-info { padding: 20px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.product-name { font-size: 1rem; font-weight: 600; margin: 0; }
+.product-en-name { font-size: 0.8rem; color: rgba(255,255,255,0.4); margin-bottom: 4px; }
+.product-category { font-size: 0.85rem; opacity: 0.5; }
+.product-meta { display: flex; gap: 16px; margin-top: 8px; }
+.meta-item { display: flex; gap: 4px; font-size: 0.85rem; }
+.meta-label { opacity: 0.5; }
+.meta-value { font-weight: 500; }
+.meta-value.price { color: #facc6b; }
+.meta-value.low { color: #ef4444; }
+.product-desc { font-size: 0.85rem; opacity: 0.6; line-height: 1.6; margin: 8px 0 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.product-actions { display: flex; gap: 8px; padding: 16px 20px; border-top: 1px solid rgba(255,255,255,0.04); }
+.action-btn { flex: 1; padding: 8px; border-radius: 8px; border: none; font-size: 0.85rem; cursor: pointer; transition: all 0.2s ease; font-family: inherit; }
+.action-btn.edit { background: rgba(197,160,89,0.15); color: #facc6b; }
+.action-btn.edit:hover { background: rgba(197,160,89,0.25); }
+.action-btn.delete { background: rgba(239,68,68,0.15); color: #ef4444; }
+.action-btn.delete:hover { background: rgba(239,68,68,0.25); }
+.empty-state { text-align: center; padding: 60px; color: rgba(255,255,255,0.4); grid-column: 1 / -1; }
+.empty-icon { font-size: 2.5rem; display: block; margin-bottom: 8px; }
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 2000; padding: 20px; }
+.modal-content { width: 100%; max-width: 650px; max-height: 85vh; overflow-y: auto; border-radius: 20px; padding: 0; }
+.modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid rgba(255,255,255,0.06); position: sticky; top: 0; background: rgba(8, 10, 18, 0.95); backdrop-filter: blur(10px); z-index: 10; }
+.modal-header h2 { font-size: 1.2rem; margin: 0; }
+.modal-close { width: 36px; height: 36px; border-radius: 50%; border: none; background: transparent; color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease; }
+.modal-close:hover { background: rgba(255,255,255,0.1); }
+.modal-body { padding: 24px; display: flex; flex-direction: column; gap: 20px; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-group.full { grid-column: 1 / -1; }
+.form-label { font-size: 0.85rem; opacity: 0.7; }
+.form-input { padding: 10px 14px; border-radius: 10px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); color: #fff; font-size: 0.9rem; font-family: inherit; outline: none; transition: border-color 0.2s ease; width: 100%; box-sizing: border-box; }
+.form-input:focus { border-color: rgba(197,160,89,0.5); }
+.form-input::placeholder { color: rgba(255,255,255,0.3); }
+.form-select { padding: 10px 14px; border-radius: 10px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); color: #fff; font-size: 0.9rem; font-family: inherit; outline: none; cursor: pointer; }
+.form-select option { background: #0a0d14; color: #fff; }
+.form-textarea { resize: vertical; min-height: 80px; margin-bottom: 8px; }
+.lang-inputs { display: flex; gap: 10px; }
+.dynamic-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.remove-btn { padding: 8px 12px; border-radius: 8px; border: none; background: rgba(239,68,68,0.15); color: #ef4444; cursor: pointer; font-family: inherit; white-space: nowrap; height: 40px; }
+.add-btn { align-self: flex-start; padding: 8px 16px; border-radius: 8px; border: 1px dashed rgba(197,160,89,0.5); background: transparent; color: #facc6b; cursor: pointer; font-family: inherit; }
+.color-picker { width: 46px; height: 40px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: transparent; cursor: pointer; padding: 2px; }
+.hint-text { font-size: 0.78rem; opacity: 0.5; margin-top: 4px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 8px; position: sticky; bottom: 0; background: linear-gradient(to top, rgba(8, 10, 18, 1), transparent); padding-top: 10px; }
+.cancel-btn { padding: 10px 24px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: rgba(255,255,255,0.7); font-size: 0.9rem; cursor: pointer; transition: all 0.2s ease; font-family: inherit; }
+.cancel-btn:hover { background: rgba(255,255,255,0.06); }
+.submit-btn { padding: 10px 24px; border-radius: 10px; border: none; background: linear-gradient(135deg, #c5a059, #8f7032); color: #000; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; font-family: inherit; }
+.submit-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(197,160,89,0.5); }
+.upload-area { border: 2px dashed rgba(255,255,255,0.2); border-radius: 12px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.2s ease; background: rgba(255,255,255,0.02); }
+.upload-area.drag-over { border-color: rgba(197,160,89,0.6); background: rgba(197,160,89,0.1); }
+.upload-area .preview-img { max-width: 100%; max-height: 120px; object-fit: contain; border-radius: 8px; }
+.single-image-wrap { position: relative; display: inline-block; }
+.gallery-preview { display: flex; gap: 8px; flex-wrap: wrap; }
+.gallery-item { position: relative; display: inline-block; }
+.gallery-item img { width: 60px; height: 60px; object-fit: cover; border-radius: 8px; }
+.img-remove-btn { position: absolute; top: -8px; right: -8px; width: 24px; height: 24px; border-radius: 50%; border: none; background: #ef4444; color: #fff; font-size: 0.75rem; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.4); transition: transform 0.2s ease, background 0.2s ease; z-index: 5; }
+.img-remove-btn:hover { background: #dc2626; transform: scale(1.15); }
+.modal-enter-active, .modal-leave-active { transition: all 0.3s ease; }
+.modal-enter-from, .modal-leave-to { opacity: 0; transform: scale(0.95); }
+.related-products-container { display: flex; flex-direction: column; gap: 10px; }
+.selected-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+.related-tag { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 4px; border-radius: 999px; background: rgba(197,160,89,0.15); border: 1px solid rgba(197,160,89,0.3); color: #facc6b; font-size: 0.82rem; }
+.tag-img { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(197,160,89,0.4); }
+.tag-name { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tag-remove { background: none; border: none; color: rgba(255,255,255,0.5); cursor: pointer; font-size: 0.7rem; padding: 0 2px; line-height: 1; transition: color 0.2s; }
+.tag-remove:hover { color: #ef4444; }
+.no-related-hint { padding: 12px; border-radius: 10px; background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.1); text-align: center; color: rgba(255,255,255,0.4); font-size: 0.82rem; }
+.related-search-box { display: flex; align-items: center; gap: 8px; position: relative; }
+.related-search-box svg { position: absolute; right: 12px; opacity: 0.4; pointer-events: none; }
+.related-search-box .form-input { padding-right: 36px; }
+.related-dropdown { max-height: 200px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; background: rgba(8,10,18,0.95); }
+.related-dropdown::-webkit-scrollbar { width: 4px; }
+.related-dropdown::-webkit-scrollbar-thumb { background: rgba(197,160,89,0.3); border-radius: 4px; }
+.related-empty { padding: 16px; text-align: center; color: rgba(255,255,255,0.4); font-size: 0.85rem; }
+.related-option { display: flex; align-items: center; gap: 10px; padding: 10px 14px; cursor: pointer; transition: background 0.15s; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.related-option:last-child { border-bottom: none; }
+.related-option:hover { background: rgba(197,160,89,0.1); }
+.option-img { width: 36px; height: 36px; border-radius: 8px; object-fit: cover; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.1); }
+.option-img-placeholder { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.03); font-size: 1rem; flex-shrink: 0; }
+.option-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.option-name { font-size: 0.88rem; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.option-price { font-size: 0.78rem; color: rgba(197,160,89,0.8); }
 </style>

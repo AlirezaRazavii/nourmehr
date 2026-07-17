@@ -9,7 +9,7 @@ const { getUsers, updateUserStatus, updateUserRole, updateUserPermissions } = re
 const { getPayments, verifyPaymentByAdmin, refundPaymentByAdmin } = require('../controllers/admin/paymentController');
 const { getTickets, getTicketById, replyToTicket, updateTicketStatus } = require('../controllers/admin/ticketController');
 const { getDiscounts, createDiscount, updateDiscount, deleteDiscount } = require('../controllers/admin/discountController');
-const { getProducts, getProductById, createProduct, updateProduct, deleteProduct, uploadProductImage } = require('../controllers/admin/productController');
+const { getProducts, getProductById, createProduct, updateProduct, deleteProduct, uploadProductImage, deleteProductImage } = require('../controllers/admin/productController');
 const { getCategories, createCategory, updateCategory, deleteCategory } = require('../controllers/admin/categoryController');
 const { getSettings, updateSettings } = require('../controllers/admin/settingController');
 const { getCollections, createCollection, updateCollection, deleteCollection, setCollectionProducts } = require('../controllers/admin/collectionController');
@@ -66,6 +66,7 @@ router.post('/products', hasPermission(PERMISSIONS.PRODUCTS), createProduct);
 router.put('/products/:id', hasPermission(PERMISSIONS.PRODUCTS), updateProduct);
 router.delete('/products/:id', hasPermission(PERMISSIONS.PRODUCTS), deleteProduct);
 router.post('/products/upload-image', hasPermission(PERMISSIONS.PRODUCTS), upload.single('image'), uploadProductImage);
+router.post('/products/delete-image', hasPermission(PERMISSIONS.PRODUCTS), deleteProductImage);
 
 // دسته‌بندی‌ها
 router.get('/categories', hasPermission(PERMISSIONS.CATEGORIES), getCategories);

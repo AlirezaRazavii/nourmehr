@@ -128,6 +128,13 @@ export const adminApi = {
     return res.data
   },
 
+
+  async deleteProductImage(filePath) {
+    const res = await api.post('/admin/products/delete-image', { filePath })
+    return res.data
+  },
+
+
   async getSettings() {
     const res = await api.get('/admin/settings')
     return res.data
