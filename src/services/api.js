@@ -9,13 +9,15 @@ const api = axios.create({
   withCredentials: true,
 })
 
-// افزودن توکن به هر درخواست در صورت معتبر بودن
+// افزودن توکن و زبان به هر درخواست
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('auth_token')
     if (token && token !== 'null' && token !== 'undefined') {
       config.headers.Authorization = `Bearer ${token}`
     }
+    const lang = localStorage.getItem('app_lang') || 'fa'
+    config.headers['Accept-Language'] = lang
     return config
   },
   (error) => Promise.reject(error)
