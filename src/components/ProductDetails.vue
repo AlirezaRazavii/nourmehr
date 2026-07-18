@@ -444,25 +444,12 @@ watch(() => route.params.id, (id) => { if (id) loadProduct(id) })
           </Transition>
 
           <div class="quick-features">
-            <div class="feature-item">
-              <div class="feature-icon">🚚</div>
-              <div>
-                <strong>{{ $t('product_free_shipping') }}</strong>
-                <span>{{ $t('product_free_shipping_desc') }}</span>
-              </div>
-            </div>
+
             <div class="feature-item" v-if="getLocalizedText(product.warranty)">
               <div class="feature-icon">🛡️</div>
               <div>
                 <strong>{{ $t('product_warranty_authenticity') }}</strong>
                 <span>{{ getLocalizedText(product.warranty) }}</span>
-              </div>
-            </div>
-            <div class="feature-item">
-              <div class="feature-icon">🎁</div>
-              <div>
-                <strong>{{ $t('product_gift_packaging') }}</strong>
-                <span>{{ $t('product_gift_packaging_desc') }}</span>
               </div>
             </div>
           </div>

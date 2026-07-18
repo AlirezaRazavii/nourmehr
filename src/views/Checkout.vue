@@ -311,9 +311,7 @@
                 <span :class="{ free: shippingCost === 0 }">{{ shippingCostFormatted }}</span>
               </div>
 
-              <div v-if="selectedShipping === 'free' && totalPrice < 10000000" class="free-shipping-hint-sidebar">
-                <span>{{ $t('cart_free_shipping_remaining', { amount: formatPrice(10000000 - totalPrice) }) }}</span>
-              </div>
+
 
               <div v-if="appliedDiscount" class="summary-row discount">
                 <span>{{ $t('checkout_discount') }} ({{ appliedDiscount.code }})</span>
@@ -380,8 +378,7 @@ const shippingForm = ref({
 
 const shippingMethods = [
   { id: 'express', nameKey: 'checkout_shipping_express_name', descKey: 'checkout_shipping_express_desc', icon: '🚀', price: 150000 },
-  { id: 'normal', nameKey: 'checkout_shipping_normal_name', descKey: 'checkout_shipping_normal_desc', icon: '📦', price: 80000 },
-  { id: 'free', nameKey: 'checkout_shipping_free_name', descKey: 'checkout_shipping_free_desc', icon: '🎁', minOrder: 10000000, price: 0 }
+  { id: 'normal', nameKey: 'checkout_shipping_normal_name', descKey: 'checkout_shipping_normal_desc', icon: '📦', price: 80000 }
 ]
 const selectedShipping = ref('normal')
 const createdOrder = ref(null)
@@ -412,9 +409,7 @@ const orderData = ref(null)
 const shippingCost = computed(() => {
   if (appliedDiscount.value?.freeShipping) return 0
   const method = shippingMethods.find(m => m.id === selectedShipping.value)
-  if (!method) return 0
-  if (method.id === 'free' && totalPrice.value < method.minOrder) return 0
-  return method.price || 0
+  return method ? (method.price || 0) : 0
 })
 
 const shippingCostFormatted = computed(() =>

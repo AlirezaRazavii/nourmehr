@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
@@ -119,11 +119,7 @@ const goToProduct = (id) => router.push(`/product/${id}`)
               <span>{{ $t('cart_summary_items', { count: totalItems }) }}</span>
               <span>{{ totalPriceFormatted }} {{ $t('products_currency') }}</span>
             </div>
-            <div class="free-shipping-hint">
-              <svg viewBox="0 0 24 24" width="16" height="16"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><line x1="12" y1="8" x2="12" y2="12" stroke="currentColor" stroke-width="2"/><line x1="12" y1="16" x2="12.01" y2="16" stroke="currentColor" stroke-width="2"/></svg>
-              <span v-if="totalPrice >= 10000000">{{ $t('cart_free_shipping_achieved') }}</span>
-              <span v-else>{{ $t('cart_free_shipping_remaining', { amount: formatPrice(10000000 - totalPrice) }) }}</span>
-            </div>
+
             <div class="summary-divider"></div>
             <div class="summary-row total">
               <span>{{ $t('cart_grand_total') }}</span>
