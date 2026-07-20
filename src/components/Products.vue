@@ -476,14 +476,15 @@ onUnmounted(() => {
 .discount-tag { position: absolute; top: 10px; left: 10px; z-index: 3; padding: 4px 9px; border-radius: 9px; background: linear-gradient(135deg, #ef4444, #b91c1c); color: #fff; font-size: 0.7rem; font-weight: 800; box-shadow: 0 4px 14px rgba(239,68,68,0.4); }
 .wishlist-heart {
   position: absolute; top: 10px; right: 10px; z-index: 4;
-  width: 36px; height: 36px; border-radius: 50%;
-  background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.75); display: flex; align-items: center; justify-content: center;
+  width: 36px !important; height: 36px !important; border-radius: 50% !important;
+  padding: 0 !important;
+  background: rgba(0,0,0,0.5) !important; border: 1px solid rgba(255,255,255,0.12) !important;
+  color: rgba(255,255,255,0.75) !important; display: flex; align-items: center; justify-content: center;
   cursor: pointer; transition: all 0.25s ease; backdrop-filter: blur(6px);
 }
-.wishlist-heart:hover { background: rgba(239,68,68,0.2); color: #ff6b6b; border-color: rgba(239,68,68,0.4); transform: scale(1.1); }
-.wishlist-heart.active { color: #ef4444; background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.5); }
-.card-badge { position: absolute; bottom: 10px; right: 10px; z-index: 3; display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 9px; background: rgba(0,0,0,0.5); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.08); font-size: 0.62rem; color: #f5d78e; font-weight: 500; max-width: calc(100% - 20px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wishlist-heart:hover { background: rgba(239,68,68,0.2) !important; color: #ff6b6b !important; border-color: rgba(239,68,68,0.4) !important; transform: scale(1.1); filter: none !important; }
+.wishlist-heart.active { color: #ef4444 !important; background: rgba(239,68,68,0.15) !important; border-color: rgba(239,68,68,0.5) !important; }
+.wishlist-heart svg { display: block; }.card-badge { position: absolute; bottom: 10px; right: 10px; z-index: 3; display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 9px; background: rgba(0,0,0,0.5); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.08); font-size: 0.62rem; color: #f5d78e; font-weight: 500; max-width: calc(100% - 20px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .badge-icon { font-size: 0.7rem; flex-shrink: 0; }
 
 .card-content { padding: clamp(10px,1.2vw,14px); display: flex; flex-direction: column; gap: 7px; flex: 1; }

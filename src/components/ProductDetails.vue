@@ -712,14 +712,15 @@ watch(() => route.params.id, (id) => { if (id) loadProduct(id) })
 .product-title { font-size: 2rem; font-weight: 700; margin: 0; line-height: 1.3; }
 .title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .wishlist-heart-detail {
-  flex-shrink: 0; width: 46px; height: 46px; border-radius: 50%;
-  background: rgba(15,23,42,0.8); border: 1px solid rgba(255,255,255,0.15);
-  color: rgba(255,255,255,0.7); display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; width: 46px !important; height: 46px !important; border-radius: 50% !important;
+  padding: 0 !important;
+  background: rgba(15,23,42,0.8) !important; border: 1px solid rgba(255,255,255,0.15) !important;
+  color: rgba(255,255,255,0.7) !important; display: flex; align-items: center; justify-content: center;
   cursor: pointer; transition: all 0.25s ease;
 }
-.wishlist-heart-detail:hover { background: rgba(239,68,68,0.15); color: #ff6b6b; border-color: rgba(239,68,68,0.4); transform: scale(1.08); }
-.wishlist-heart-detail.active { color: #ef4444; background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.5); }
-.product-subtitle { font-size: 1rem; opacity: 0.85; line-height: 1.7; margin: 0; }
+.wishlist-heart-detail:hover { background: rgba(239,68,68,0.15) !important; color: #ff6b6b !important; border-color: rgba(239,68,68,0.4) !important; transform: scale(1.08); filter: none !important; }
+.wishlist-heart-detail.active { color: #ef4444 !important; background: rgba(239,68,68,0.15) !important; border-color: rgba(239,68,68,0.5) !important; }
+.wishlist-heart-detail svg { display: block; }.product-subtitle { font-size: 1rem; opacity: 0.85; line-height: 1.7; margin: 0; }
 .rating-stock { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
 .stock { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; }
 .stock-dot { width: 8px; height: 8px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 10px rgba(74, 222, 128, 0.6); }
