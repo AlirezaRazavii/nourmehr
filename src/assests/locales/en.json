@@ -1,4 +1,5 @@
-{  "wishlist_title": "Wishlist",
+{  "user_nav_wishlist": "Wishlist",
+  "wishlist_title": "Wishlist",
   "wishlist_items": "items",
   "wishlist_empty": "Your wishlist is empty",
   "wishlist_browse_products": "Browse Products",

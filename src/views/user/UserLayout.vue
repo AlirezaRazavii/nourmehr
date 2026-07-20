@@ -20,6 +20,7 @@ const isSidebarOpen = ref(false)
 const menuItems = computed(() => [
   { name: 'UserDashboard', label: t('user_nav_dashboard'), icon: '📊' },
   { name: 'UserOrders', label: t('user_nav_orders'), icon: '📦' },
+  { name: 'UserWishlist', label: t('user_nav_wishlist'), icon: '❤️' },
   { name: 'UserAddresses', label: t('user_nav_addresses'), icon: '📍' },
   { name: 'UserTickets', label: t('user_nav_tickets'), icon: '💬' },
   { name: 'UserProfile', label: t('user_nav_profile'), icon: '👤' }
