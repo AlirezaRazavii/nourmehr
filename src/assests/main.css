@@ -68,8 +68,8 @@ button {
   background: var(--gold);
   color: #000;
   border: none;
-  padding: 10px 20px; /* پدینگ کمتر شد */
-  border-radius: 8px; /* شکل دکمه‌های معمولی */
+  padding: 10px 20px; 
+  border-radius: 8px;
   font-weight: bold;
   cursor: pointer;
   transition: 0.3s;
