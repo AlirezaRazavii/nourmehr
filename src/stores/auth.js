@@ -94,6 +94,13 @@ export const useAuth = defineStore('auth', () => {
       console.error('Logout error:', err)
     } finally {
       setAuthData(null, null)
+      // پاک‌سازی state ویش‌لیست هنگام خروج
+      try {
+        const { useWishlist } = await import('./wishlist')
+        useWishlist().resetWishlistState()
+      } catch (e) {
+        // اگر store هنوز لود نشده باشد مشکلی نیست
+      }
     }
   }
 

@@ -120,6 +120,16 @@
                   :alt="getLocalizedText(product.name)"
                   loading="lazy"
                 />
+                <button
+                  class="wishlist-heart"
+                  :class="{ active: wishlist.isInWishlist(product._id || product.id) }"
+                  @click.stop.prevent="toggleWishlist(product._id || product.id)"
+                  :aria-label="$t('wishlist_toggle')"
+                >
+                  <svg viewBox="0 0 24 24" width="18" height="18" :fill="wishlist.isInWishlist(product._id || product.id) ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2">
+                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                  </svg>
+                </button>
                 <div v-if="product.discountPercent" class="discount-tag">{{ formatNumber(product.discountPercent) }}%</div>
                 <div class="card-badge">
                   <span class="badge-icon">{{ getCategoryIcon(product.category?.slug || product.category) }}</span>
@@ -178,10 +188,25 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useProductStore } from '../stores/products'
+import { useWishlist } from '../stores/wishlist'
+import { useAuth } from '../stores/auth'
+import { useRouter } from 'vue-router'
 import { getImageUrl } from '../utils/imageUrl'
 
 const { t, locale } = useI18n()
 const productStore = useProductStore()
+const wishlist = useWishlist()
+const auth = useAuth()
+const router = useRouter()
+
+// تغییر وضعیت علاقه‌مندی با بررسی لاگین
+const toggleWishlist = async (productId) => {
+  if (!auth.isAuthenticated) {
+    router.push({ name: 'Login', params: { lang: locale.value }, query: { redirect: route.fullPath } })
+    return
+  }
+  await wishlist.toggle(productId)
+}
 
 const route = useRoute()
 const categories = computed(() => [
@@ -449,6 +474,15 @@ onUnmounted(() => {
 }
 
 .discount-tag { position: absolute; top: 10px; left: 10px; z-index: 3; padding: 4px 9px; border-radius: 9px; background: linear-gradient(135deg, #ef4444, #b91c1c); color: #fff; font-size: 0.7rem; font-weight: 800; box-shadow: 0 4px 14px rgba(239,68,68,0.4); }
+.wishlist-heart {
+  position: absolute; top: 10px; right: 10px; z-index: 4;
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.75); display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all 0.25s ease; backdrop-filter: blur(6px);
+}
+.wishlist-heart:hover { background: rgba(239,68,68,0.2); color: #ff6b6b; border-color: rgba(239,68,68,0.4); transform: scale(1.1); }
+.wishlist-heart.active { color: #ef4444; background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.5); }
 .card-badge { position: absolute; bottom: 10px; right: 10px; z-index: 3; display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 9px; background: rgba(0,0,0,0.5); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.08); font-size: 0.62rem; color: #f5d78e; font-weight: 500; max-width: calc(100% - 20px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .badge-icon { font-size: 0.7rem; flex-shrink: 0; }
 

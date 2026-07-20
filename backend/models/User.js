@@ -28,7 +28,8 @@ const userSchema = new mongoose.Schema(
     permissions: { type: [String], default: [] },
     status: { type: String, enum: ['active', 'inactive', 'blocked'], default: 'active' },
     isProfileComplete: { type: Boolean, default: false },
-    addresses: [addressSchema],
+   addresses: [addressSchema],
+    wishlist: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Product' }],
     lastLogin: { type: Date },
   },
   { timestamps: true }

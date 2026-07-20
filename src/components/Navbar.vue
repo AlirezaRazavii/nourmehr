@@ -110,6 +110,18 @@
           {{ locale === 'fa' ? 'EN' : 'FA' }}
         </button>
 
+       <router-link
+          v-if="isLoggedIn"
+          :to="{ name: 'UserWishlist', params: { lang: locale } }"
+          class="wishlist-nav-btn"
+          aria-label="Wishlist"
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+          </svg>
+          <span v-if="wishlist.totalItems > 0" class="wishlist-nav-badge">{{ wishlist.totalItems }}</span>
+        </router-link>
+
         <div class="cart-wrapper">
           <router-link :to="{ name: 'Cart', params: { lang: locale } }" class="cart-btn" @click="closeMiniCart" aria-label="Cart">
             <svg viewBox="0 0 24 24" width="20" height="20">
@@ -255,6 +267,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import logoImg from '../assests/logo/IMG_3401.PNG'
 import { useCart } from '../stores/cart'
+import { useWishlist } from '../stores/wishlist'
 import { useAuth } from '../stores/auth'
 import { getPublicCategories } from '../services/categoryApi'
 
@@ -282,6 +295,8 @@ const toggleLanguage = () => {
 }
 
 const { state, cartItems, totalItems, closeMiniCart } = useCart()
+
+const wishlist = useWishlist()
 
 const auth = useAuth()
 const isLoggedIn = computed(() => auth.isAuthenticated)
@@ -527,6 +542,24 @@ onUnmounted(() => {
 .cart-badge {
   position: absolute; top: -5px; right: -5px;
   background: #c5a059; color: #000; font-size: 0.7rem; font-weight: bold;
+  height: 18px; min-width: 18px; padding: 0 4px; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.wishlist-nav-btn {
+  position: relative;
+  width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #fff; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; text-decoration: none;
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+  flex-shrink: 0;
+}
+.wishlist-nav-btn:hover { background: #ef4444; color: #fff; border-color: #ef4444; }
+.wishlist-nav-badge {
+  position: absolute; top: -5px; right: -5px;
+  background: #ef4444; color: #fff; font-size: 0.7rem; font-weight: bold;
   height: 18px; min-width: 18px; padding: 0 4px; border-radius: 9px;
   display: flex; align-items: center; justify-content: center;
 }

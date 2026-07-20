@@ -3,9 +3,11 @@ import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
-import { useCart } from '../stores/cart'
+Copyimport { useCart } from '../stores/cart'
 import { useProductStore } from '../stores/products'
 import { useAuth } from '../stores/auth'
+import { useWishlist } from '../stores/wishlist'
+
 import { getProductImages, getImageUrl } from '../utils/imageUrl'
 import api from '../services/api'
 
@@ -15,7 +17,18 @@ const router = useRouter()
 const { addToCart } = useCart()
 const productStore = useProductStore()
 const authStore = useAuth()
+const wishlist = useWishlist()
 const { isAuthenticated } = storeToRefs(authStore)
+
+// تغییر وضعیت علاقه‌مندی محصول جاری
+const toggleWishlist = async () => {
+  if (!isAuthenticated.value) {
+    redirectToLogin()
+    return
+  }
+  if (!product.value?._id) return
+  await wishlist.toggle(product.value._id)
+}
 
 const activeImage = ref(0)
 const selectedColor = ref(null)
@@ -344,7 +357,19 @@ watch(() => route.params.id, (id) => { if (id) loadProduct(id) })
             <span class="sku" v-if="product.sku">{{ $t('product_sku') }}: {{ product.sku }}</span>
           </div>
 
-          <h1 class="product-title">{{ getLocalizedText(product.name) }}</h1>
+          <div class="title-row">
+            <h1 class="product-title">{{ getLocalizedText(product.name) }}</h1>
+            <button
+              class="wishlist-heart-detail"
+              :class="{ active: wishlist.isInWishlist(product._id) }"
+              @click="toggleWishlist"
+              :aria-label="$t('wishlist_toggle')"
+            >
+              <svg viewBox="0 0 24 24" width="22" height="22" :fill="wishlist.isInWishlist(product._id) ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2">
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+              </svg>
+            </button>
+          </div>
           <p class="product-subtitle">{{ getLocalizedText(product.shortDesc) }}</p>
 
           <div class="rating-stock">
@@ -685,6 +710,15 @@ watch(() => route.params.id, (id) => { if (id) loadProduct(id) })
 .category-badge { padding: 6px 14px; border-radius: 999px; background: rgba(197, 160, 89, 0.15); color: #facc6b; font-size: 0.85rem; border: 1px solid rgba(197, 160, 89, 0.3); }
 .sku { font-size: 0.8rem; opacity: 0.6; }
 .product-title { font-size: 2rem; font-weight: 700; margin: 0; line-height: 1.3; }
+.title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.wishlist-heart-detail {
+  flex-shrink: 0; width: 46px; height: 46px; border-radius: 50%;
+  background: rgba(15,23,42,0.8); border: 1px solid rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.7); display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all 0.25s ease;
+}
+.wishlist-heart-detail:hover { background: rgba(239,68,68,0.15); color: #ff6b6b; border-color: rgba(239,68,68,0.4); transform: scale(1.08); }
+.wishlist-heart-detail.active { color: #ef4444; background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.5); }
 .product-subtitle { font-size: 1rem; opacity: 0.85; line-height: 1.7; margin: 0; }
 .rating-stock { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
 .stock { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; }

@@ -57,7 +57,8 @@ const routes = [
       { path: 'orders', name: 'UserOrders', component: () => import('./views/user/UserOrders.vue'), meta: { requiresAuth: true } },
       { path: 'addresses', name: 'UserAddresses', component: () => import('./views/user/UserAddresses.vue'), meta: { requiresAuth: true } },
       { path: 'profile', name: 'UserProfile', component: () => import('./views/user/UserProfile.vue'), meta: { requiresAuth: true } },
-      { path: 'tickets', name: 'UserTickets', component: () => import('./views/user/UserTickets.vue'), meta: { requiresAuth: true } }
+      { path: 'tickets', name: 'UserTickets', component: () => import('./views/user/UserTickets.vue'), meta: { requiresAuth: true } },
+      { path: 'wishlist', name: 'UserWishlist', component: () => import('./views/user/UserWishlist.vue'), meta: { requiresAuth: true } }
     ]
   },
 
@@ -136,6 +137,7 @@ const routePathMap = {
   UserAddresses: 'user/addresses',
   UserProfile: 'user/profile',
   UserTickets: 'user/tickets',
+  UserWishlist: 'user/wishlist',
   Discounts: 'discounts',
 }
 
