@@ -55,7 +55,7 @@ body {
 }
 
 .has-navbar {
-  padding-top: 80px;
+  padding-top: 60px;
 }
 
 .page-enter-active,
