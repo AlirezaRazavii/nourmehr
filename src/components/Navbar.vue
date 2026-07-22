@@ -270,7 +270,7 @@ import { useCart } from '../stores/cart'
 import { useWishlist } from '../stores/wishlist'
 import { useAuth } from '../stores/auth'
 import { getPublicCategories } from '../services/categoryApi'
-
+import { applyDirection } from '../i18n'
 const router = useRouter()
 const { t, locale } = useI18n()
 
@@ -284,6 +284,7 @@ const getLocalizedText = (value) => {
 const toggleLanguage = () => {
   locale.value = locale.value === 'fa' ? 'en' : 'fa'
   localStorage.setItem('app_lang', locale.value)
+  applyDirection(locale.value)
   const currentRoute = router.currentRoute.value
   if (currentRoute.params.lang !== locale.value) {
     router.push({
@@ -293,6 +294,7 @@ const toggleLanguage = () => {
     })
   }
 }
+
 
 const { state, cartItems, totalItems, closeMiniCart } = useCart()
 

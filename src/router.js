@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import i18n from './i18n'
+import i18n, { applyDirection } from './i18n'
+
 
 // --- لود تدریجی (Lazy Loading) ---
 const Home = () => import('./views/Home.vue')
@@ -187,6 +188,8 @@ router.beforeEach(async (to, from, next) => {
     i18n.global.locale.value = langParam
     localStorage.setItem('app_lang', langParam)
   }
+  // همگام‌سازی جهت صفحه (RTL/LTR) با زبان مسیر — این خط مشکل آینه‌ای شدن را حل می‌کند
+  applyDirection(langParam)
 
   // 4. بررسی احراز هویت
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth)

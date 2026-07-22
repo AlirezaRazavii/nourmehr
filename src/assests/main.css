@@ -216,3 +216,13 @@ button.modal-close {
   background: transparent !important;
   color: inherit !important;
 }
+
+
+html[dir="rtl"] body {
+  text-align: right;
+}
+
+html[dir="ltr"] body {
+  text-align: left;
+}
+

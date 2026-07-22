@@ -157,7 +157,7 @@ onUnmounted(() => {
             @click.stop="goToBlog(item.slug)"
           >
             {{ $t('news_read_more') }}
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+            <svg class="rm-arrow" width="13" height="13" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2.5"
               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M5 12h14M12 5l7 7-7 7"/>
@@ -489,11 +489,22 @@ onUnmounted(() => {
   background: var(--gold);
   color: #000;
 }
-.read-more svg { transition: transform .25s ease; }
-.read-more:hover svg { transform: translateX(3px); }
-/* آیکون فلش در حالت فارسی (RTL) باید برعکس شود */
-:global([dir="rtl"]) .read-more svg { transform: scaleX(-1); }
-:global([dir="rtl"]) .read-more:hover svg { transform: scaleX(-1) translateX(3px); }
+
+/* آیکون فلش دکمه «ادامه مطلب» */
+.rm-arrow { transition: transform .25s ease; }
+.read-more:hover .rm-arrow { transform: translateX(3px); }
+
+/*
+  حالت راست‌چین (RTL): فلش باید به سمت مخالف اشاره کند.
+  به‌جای scaleX(-1) از rotate(180deg) استفاده شده تا از باگ
+  کامپایل :global() در Vite جلوگیری شود (که باعث آینه‌ای شدن کل صفحه می‌شد).
+  سلکتور روی خود دکمه (که داخل کامپوننت scope دارد) قرار گرفته
+  و فقط بخش [dir="rtl"] به صورت global در نظر گرفته می‌شود.
+*/
+/* در حالت راست‌چین، فلش دکمه برعکس می‌شود.
+   از :deep و انتخابگر html استفاده می‌کنیم تا از باگ :global در Vite جلوگیری شود. */
+html[dir="rtl"] .read-more .rm-arrow { transform: rotate(180deg); }
+html[dir="rtl"] .read-more:hover .rm-arrow { transform: rotate(180deg) translateX(3px); }
 
 
 @media (max-width: 768px) {
