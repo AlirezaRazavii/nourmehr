@@ -26,6 +26,9 @@ const seedAdmin = require('./utils/seedAdmin');
 const seedCategories = require('./utils/seedCategories');
 const compression = require('compression');
 const ticketRoutes = require('./routes/ticketRoutes');
+const heroRoutes = require('./routes/heroRoutes');
+const heroImageRoutes = require('./routes/heroImageRoutes')
+
 
 dotenv.config();
 
@@ -101,7 +104,8 @@ app.use('/api/categories', categoryRoutes);
 app.use('/api/blogs', blogRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/wishlist', wishlistRoutes);
-
+app.use('/api/hero', heroRoutes);
+app.use('/api/hero-images', heroImageRoutes);
 app.use((req, res) => {
   res.status(404).json({ success: false, message: 'Route not found' });
 });

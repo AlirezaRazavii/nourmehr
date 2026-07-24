@@ -12,6 +12,7 @@ const PERMISSIONS = {
   COLLECTIONS: 'collections',
   BLOGS: 'blogs',
   SETTINGS: 'settings',
+  HERO: 'hero',
 };
 
 // لیست برای نمایش در پنل (با برچسب فارسی) — برای ساخت/ویرایش ادمین در فرانت
@@ -28,6 +29,7 @@ const PERMISSION_LIST = [
   { key: PERMISSIONS.COLLECTIONS, label: 'کالکشن‌ها' },
   { key: PERMISSIONS.BLOGS, label: 'اخبار و مقالات' },
   { key: PERMISSIONS.SETTINGS, label: 'تنظیمات' },
+  { key: PERMISSIONS.HERO, label: 'مدیریت هیرو (اسلایدر اصلی)' },
 ];
 
 module.exports = { PERMISSIONS, PERMISSION_LIST };

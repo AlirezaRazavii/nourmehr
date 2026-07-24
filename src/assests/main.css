@@ -1,5 +1,29 @@
 /* src/assests/main.css */
 
+
+/* ===== فونت‌های نستعلیق و شکسته ===== */
+@font-face {
+  font-family: 'IranNastaliq';
+  src: url('./fonts/IranNastaliq.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Shekasteh';
+  src: url('./fonts/Shekasteh.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'DimaShekasteh';
+  src: url('./fonts/DimaShekasteh.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --bg-dark: #070a0f;
   --glass: rgba(255, 255, 255, 0.08);

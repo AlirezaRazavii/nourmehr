@@ -15,6 +15,12 @@ const routes = [
       { path: 'discounts', name: 'AdminDiscounts', component: () => import('../views/admin/AdminDiscounts.vue') },
       { path: 'products', name: 'AdminProducts', component: () => import('../views/admin/AdminProducts.vue') },
       { path: 'settings', name: 'AdminSettings', component: () => import('../views/admin/AdminSettings.vue') },
+      {
+        path: 'hero',
+        name: 'admin-hero',
+        component: () => import('../views/admin/AdminHero.vue'),
+        meta: { permission: 'hero' },
+      },
     ]
   }
 ]

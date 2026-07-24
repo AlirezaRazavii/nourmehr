@@ -28,6 +28,7 @@ const AdminTickets = () => import('./views/admin/AdminTickets.vue')
 const AdminDiscounts = () => import('./views/admin/AdminDiscounts.vue')
 const AdminProducts = () => import('./views/admin/AdminProducts.vue')
 const AdminSettings = () => import('./views/admin/AdminSettings.vue')
+const AdminHero = () => import('./views/admin/AdminHero.vue')
 
 const routes = [
   { path: '/:lang', name: 'Home', component: Home },
@@ -83,6 +84,7 @@ const routes = [
       { path: 'collections', name: 'AdminCollections', component: () => import('./views/admin/AdminCollections.vue') },
       { path: 'reviews', name: 'AdminReviews', component: () => import('./views/admin/AdminReviews.vue') },
       { path: 'admins', name: 'AdminAdmins', component: () => import('./views/admin/AdminAdmins.vue') },
+      { path: 'hero', name: 'AdminHero', component: AdminHero, meta: { title: 'مدیریت هیرو' } },
     ]
   },
 
@@ -197,13 +199,12 @@ router.beforeEach(async (to, from, next) => {
     return next({ name: 'Login', params: { lang: langParam }, query: { redirect: to.fullPath } })
   }
 
-  // 5. اجبار به تکمیل پروفایل: اگر کاربر لاگین کرده ولی پروفایلش ناقص است،
-  // فقط اجازه‌ی رفتن به صفحه تکمیل پروفایل را دارد
+  // 5. اجبار به تکمیل پروفایل
   if (isAuthenticated() && needsProfile() && to.name !== 'CompleteProfile') {
     return next({ name: 'CompleteProfile', params: { lang: langParam } })
   }
 
-  // 6. اگر پروفایل کامل است ولی می‌خواهد به صفحه تکمیل پروفایل برود، به داشبورد بفرست
+  // 6. اگر پروفایل کامل است ولی می‌خواهد به صفحه تکمیل پروفایل برود
   if (isAuthenticated() && !needsProfile() && to.name === 'CompleteProfile') {
     return next({ name: 'UserDashboard', params: { lang: langParam } })
   }

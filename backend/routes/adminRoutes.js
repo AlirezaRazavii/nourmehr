@@ -17,7 +17,8 @@ const blogController = require('../controllers/admin/blogController');
 const reviewController = require('../controllers/admin/reviewController');
 const notificationController = require('../controllers/admin/notificationController');
 const { PERMISSION_LIST } = require('../config/permissions');
-
+const uploadHero = require('../middleware/uploadHero');
+const heroCtrl = require('../controllers/admin/heroController');
 
 const router = express.Router();
 router.use(protect, admin);
@@ -27,7 +28,6 @@ router.get('/permissions', superAdminOnly, (req, res) => {
   res.json({ success: true, data: PERMISSION_LIST });
 });
 
-
 // داشبورد برای همه‌ی ادمین‌ها باز است (فقط آمار کلی)
 router.get('/dashboard', getDashboardStats);
 
@@ -36,7 +36,7 @@ router.get('/orders', hasPermission(PERMISSIONS.ORDERS), getOrders);
 router.get('/orders/:id', hasPermission(PERMISSIONS.ORDERS), getOrderById);
 router.put('/orders/:id/status', hasPermission(PERMISSIONS.ORDERS), updateOrderStatus);
 
-// کاربران — مشاهده با مجوز users، ولی تغییر نقش و مجوز فقط برای مدیرکل
+// کاربران
 router.get('/users', hasPermission(PERMISSIONS.USERS), getUsers);
 router.put('/users/:id/status', hasPermission(PERMISSIONS.USERS), updateUserStatus);
 router.put('/users/:id/role', superAdminOnly, updateUserRole);
@@ -78,6 +78,15 @@ router.delete('/categories/:id', hasPermission(PERMISSIONS.CATEGORIES), deleteCa
 router.get('/settings', hasPermission(PERMISSIONS.SETTINGS), getSettings);
 router.put('/settings', hasPermission(PERMISSIONS.SETTINGS), updateSettings);
 
+// ---- مسیرهای مدیریت هیرو (اسلایدر اصلی) ----
+router.get('/hero', hasPermission(PERMISSIONS.HERO), heroCtrl.getHero);
+router.put('/hero/settings', hasPermission(PERMISSIONS.HERO), heroCtrl.updateSettings);
+router.post('/hero/upload', hasPermission(PERMISSIONS.HERO), uploadHero.single('image'), heroCtrl.uploadHeroImage);
+router.post('/hero/slides', hasPermission(PERMISSIONS.HERO), heroCtrl.addSlide);
+router.put('/hero/slides-order', hasPermission(PERMISSIONS.HERO), heroCtrl.reorderSlides);
+router.put('/hero/slides/:slideId', hasPermission(PERMISSIONS.HERO), heroCtrl.updateSlide);
+router.delete('/hero/slides/:slideId', hasPermission(PERMISSIONS.HERO), heroCtrl.deleteSlide);
+
 // کالکشن‌ها
 router.get('/collections', hasPermission(PERMISSIONS.COLLECTIONS), getCollections);
 router.post('/collections', hasPermission(PERMISSIONS.COLLECTIONS), createCollection);
@@ -97,7 +106,7 @@ router.get('/reviews', hasPermission(PERMISSIONS.REVIEWS), reviewController.getR
 router.put('/reviews/:id/approve', hasPermission(PERMISSIONS.REVIEWS), reviewController.approveReview);
 router.delete('/reviews/:id', hasPermission(PERMISSIONS.REVIEWS), reviewController.deleteReview);
 
-// اعلان‌ها (همه‌ی ادمین‌ها دسترسی دارند)
+// اعلان‌ها
 router.get('/notifications', notificationController.getNotifications);
 router.put('/notifications/read-all', notificationController.markAllAsRead);
 router.put('/notifications/:id/read', notificationController.markAsRead);
