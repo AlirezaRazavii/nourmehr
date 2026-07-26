@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import { useAuth } from '../stores/auth'
 import Toast from '../components/Toast.vue'
+import logoImg from '../assests/logo/Nourmehr-gold.webp'
 
 const { t, locale } = useI18n()
 const router = useRouter()
@@ -107,10 +108,9 @@ const changeNumber = () => {
 
     <div class="login-container">
       <div class="form-card glass">
-        <div class="brand-logo">
-          <span class="logo-icon">◆</span>
+        <div class="login-logo-wrapper">
+          <img :src="logoImg" alt="Nourmehr Logo" class="login-logo" />
         </div>
-        <h1 class="brand-title">NOURMEHR</h1>
 
         <!-- مرحله ۱: وارد کردن شماره -->
         <div v-if="step === 'phone'" class="form-step">
@@ -247,15 +247,16 @@ const changeNumber = () => {
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
 }
-.brand-logo {
-  width: 70px; height: 70px; margin: 0 auto 16px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, rgba(197,160,89,0.3), rgba(197,160,89,0.1));
-  border: 2px solid rgba(197,160,89,0.5);
-  display: flex; align-items: center; justify-content: center;
+.login-logo-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 24px;
 }
-.logo-icon { font-size: 2rem; color: #facc6b; }
-.brand-title { text-align: center; font-size: 1.6rem; letter-spacing: 0.3em; margin: 0 0 28px; }
+.login-logo {
+  width: 130px;
+  height: auto;
+  object-fit: contain;
+}
 .form-header { margin-bottom: 24px; text-align: center; }
 .form-header h2 { font-size: 1.4rem; margin: 0 0 8px; }
 .form-header p { font-size: 0.9rem; opacity: 0.7; margin: 0; }

@@ -265,7 +265,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import logoImg from '../assests/logo/IMG_3401.PNG'
+import logoImg from '../assests/logo/Nourmehr-gold.webp'
 import { useCart } from '../stores/cart'
 import { useWishlist } from '../stores/wishlist'
 import { useAuth } from '../stores/auth'
@@ -604,7 +604,7 @@ onUnmounted(() => {
 .user-name { font-size: 0.85rem; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .user-menu {
-  position: absolute; top: calc(100% + 12px); right: 0; width: 200px;
+  position: absolute; top: calc(100% + 12px); inset-inline-end: 0; width: 200px;
   background: rgba(8, 10, 18, 0.98); border: 1px solid rgba(197,160,89,0.3);
   border-radius: 10px; overflow: hidden; box-shadow: 0 15px 40px rgba(0,0,0,0.7);
   display: flex; flex-direction: column; z-index: 100;
