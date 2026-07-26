@@ -19,4 +19,7 @@ const ticketSchema = new mongoose.Schema({
   adminResponse: { type: Boolean, default: false }
 }, { timestamps: true });
 
+
+ticketSchema.index({ status: 1 });
+
 module.exports = mongoose.model('Ticket', ticketSchema);

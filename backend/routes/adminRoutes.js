@@ -1,8 +1,11 @@
 const express = require('express');
+
 const { protect, admin } = require('../middleware/authMiddleware');
 const { hasPermission, superAdminOnly } = require('../middleware/permissionMiddleware');
-const { PERMISSIONS } = require('../config/permissions');
-const { upload } = require('../middleware/upload');
+const { PERMISSIONS, PERMISSION_LIST } = require('../config/permissions');
+const { upload, handleUploadError } = require('../middleware/upload');
+const uploadHero = require('../middleware/uploadHero');
+
 const { getDashboardStats } = require('../controllers/admin/dashboardController');
 const { getOrders, getOrderById, updateOrderStatus } = require('../controllers/admin/orderController');
 const { getUsers, updateUserStatus, updateUserRole, updateUserPermissions } = require('../controllers/admin/userController');
@@ -16,97 +19,117 @@ const { getCollections, createCollection, updateCollection, deleteCollection, se
 const blogController = require('../controllers/admin/blogController');
 const reviewController = require('../controllers/admin/reviewController');
 const notificationController = require('../controllers/admin/notificationController');
-const { PERMISSION_LIST } = require('../config/permissions');
-const uploadHero = require('../middleware/uploadHero');
 const heroCtrl = require('../controllers/admin/heroController');
 
 const router = express.Router();
+
 router.use(protect, admin);
 
-// لیست دسترسی‌های قابل تعریف — فقط مدیر کل
+// هیچ پاسخ پنل ادمین نباید کش شود
+router.use((req, res, next) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.set('Pragma', 'no-cache');
+  next();
+});
+
+/* --------------------------------- دسترسی‌ها -------------------------------- */
 router.get('/permissions', superAdminOnly, (req, res) => {
   res.json({ success: true, data: PERMISSION_LIST });
 });
 
-// داشبورد برای همه‌ی ادمین‌ها باز است (فقط آمار کلی)
+/* --------------------------------- داشبورد --------------------------------- */
 router.get('/dashboard', getDashboardStats);
 
-// سفارشات
+/* --------------------------------- سفارشات --------------------------------- */
 router.get('/orders', hasPermission(PERMISSIONS.ORDERS), getOrders);
 router.get('/orders/:id', hasPermission(PERMISSIONS.ORDERS), getOrderById);
 router.put('/orders/:id/status', hasPermission(PERMISSIONS.ORDERS), updateOrderStatus);
 
-// کاربران
+/* --------------------------------- کاربران --------------------------------- */
 router.get('/users', hasPermission(PERMISSIONS.USERS), getUsers);
 router.put('/users/:id/status', hasPermission(PERMISSIONS.USERS), updateUserStatus);
 router.put('/users/:id/role', superAdminOnly, updateUserRole);
 router.put('/users/:id/permissions', superAdminOnly, updateUserPermissions);
 
-// پرداخت‌ها
+/* -------------------------------- پرداخت‌ها -------------------------------- */
 router.get('/payments', hasPermission(PERMISSIONS.PAYMENTS), getPayments);
 router.post('/payments/:id/verify', hasPermission(PERMISSIONS.PAYMENTS), verifyPaymentByAdmin);
 router.post('/payments/:id/refund', hasPermission(PERMISSIONS.PAYMENTS), refundPaymentByAdmin);
 
-// تیکت‌ها
+/* --------------------------------- تیکت‌ها --------------------------------- */
 router.get('/tickets', hasPermission(PERMISSIONS.TICKETS), getTickets);
 router.get('/tickets/:id', hasPermission(PERMISSIONS.TICKETS), getTicketById);
 router.post('/tickets/:id/reply', hasPermission(PERMISSIONS.TICKETS), replyToTicket);
 router.put('/tickets/:id/status', hasPermission(PERMISSIONS.TICKETS), updateTicketStatus);
 
-// تخفیف‌ها
+/* -------------------------------- تخفیف‌ها --------------------------------- */
 router.get('/discounts', hasPermission(PERMISSIONS.DISCOUNTS), getDiscounts);
 router.post('/discounts', hasPermission(PERMISSIONS.DISCOUNTS), createDiscount);
 router.put('/discounts/:id', hasPermission(PERMISSIONS.DISCOUNTS), updateDiscount);
 router.delete('/discounts/:id', hasPermission(PERMISSIONS.DISCOUNTS), deleteDiscount);
 
-// محصولات
-router.get('/products', hasPermission(PERMISSIONS.PRODUCTS), getProducts);
-router.get('/products/:id', hasPermission(PERMISSIONS.PRODUCTS), getProductById);
-router.post('/products', hasPermission(PERMISSIONS.PRODUCTS), createProduct);
-router.put('/products/:id', hasPermission(PERMISSIONS.PRODUCTS), updateProduct);
-router.delete('/products/:id', hasPermission(PERMISSIONS.PRODUCTS), deleteProduct);
-router.post('/products/upload-image', hasPermission(PERMISSIONS.PRODUCTS), upload.single('image'), uploadProductImage);
+/* -------------------------------- محصولات ---------------------------------- */
+// مسیرهای ثابت باید قبل از مسیرهای پارامتری تعریف شوند
+router.post(
+  '/products/upload-image',
+  hasPermission(PERMISSIONS.PRODUCTS),
+  upload.single('image'),
+  handleUploadError,
+  uploadProductImage
+);
 router.post('/products/delete-image', hasPermission(PERMISSIONS.PRODUCTS), deleteProductImage);
 
-// دسته‌بندی‌ها
+router.get('/products', hasPermission(PERMISSIONS.PRODUCTS), getProducts);
+router.post('/products', hasPermission(PERMISSIONS.PRODUCTS), createProduct);
+router.get('/products/:id', hasPermission(PERMISSIONS.PRODUCTS), getProductById);
+router.put('/products/:id', hasPermission(PERMISSIONS.PRODUCTS), updateProduct);
+router.delete('/products/:id', hasPermission(PERMISSIONS.PRODUCTS), deleteProduct);
+
+/* ------------------------------ دسته‌بندی‌ها -------------------------------- */
 router.get('/categories', hasPermission(PERMISSIONS.CATEGORIES), getCategories);
 router.post('/categories', hasPermission(PERMISSIONS.CATEGORIES), createCategory);
 router.put('/categories/:id', hasPermission(PERMISSIONS.CATEGORIES), updateCategory);
 router.delete('/categories/:id', hasPermission(PERMISSIONS.CATEGORIES), deleteCategory);
 
-// تنظیمات
+/* --------------------------------- تنظیمات --------------------------------- */
 router.get('/settings', hasPermission(PERMISSIONS.SETTINGS), getSettings);
 router.put('/settings', hasPermission(PERMISSIONS.SETTINGS), updateSettings);
 
-// ---- مسیرهای مدیریت هیرو (اسلایدر اصلی) ----
+/* ----------------------------- هیرو (اسلایدر) ------------------------------- */
 router.get('/hero', hasPermission(PERMISSIONS.HERO), heroCtrl.getHero);
 router.put('/hero/settings', hasPermission(PERMISSIONS.HERO), heroCtrl.updateSettings);
-router.post('/hero/upload', hasPermission(PERMISSIONS.HERO), uploadHero.single('image'), heroCtrl.uploadHeroImage);
+router.post(
+  '/hero/upload',
+  hasPermission(PERMISSIONS.HERO),
+  uploadHero.single('image'),
+  handleUploadError,
+  heroCtrl.uploadHeroImage
+);
 router.post('/hero/slides', hasPermission(PERMISSIONS.HERO), heroCtrl.addSlide);
 router.put('/hero/slides-order', hasPermission(PERMISSIONS.HERO), heroCtrl.reorderSlides);
 router.put('/hero/slides/:slideId', hasPermission(PERMISSIONS.HERO), heroCtrl.updateSlide);
 router.delete('/hero/slides/:slideId', hasPermission(PERMISSIONS.HERO), heroCtrl.deleteSlide);
 
-// کالکشن‌ها
+/* -------------------------------- کالکشن‌ها -------------------------------- */
 router.get('/collections', hasPermission(PERMISSIONS.COLLECTIONS), getCollections);
 router.post('/collections', hasPermission(PERMISSIONS.COLLECTIONS), createCollection);
+router.put('/collections/:id/products', hasPermission(PERMISSIONS.COLLECTIONS), setCollectionProducts);
 router.put('/collections/:id', hasPermission(PERMISSIONS.COLLECTIONS), updateCollection);
 router.delete('/collections/:id', hasPermission(PERMISSIONS.COLLECTIONS), deleteCollection);
-router.put('/collections/:id/products', hasPermission(PERMISSIONS.COLLECTIONS), setCollectionProducts);
 
-// اخبار و مقالات
+/* ----------------------------- اخبار و مقالات ------------------------------- */
 router.get('/blogs', hasPermission(PERMISSIONS.BLOGS), blogController.getBlogs);
-router.get('/blogs/:id', hasPermission(PERMISSIONS.BLOGS), blogController.getBlogById);
 router.post('/blogs', hasPermission(PERMISSIONS.BLOGS), blogController.createBlog);
+router.get('/blogs/:id', hasPermission(PERMISSIONS.BLOGS), blogController.getBlogById);
 router.put('/blogs/:id', hasPermission(PERMISSIONS.BLOGS), blogController.updateBlog);
 router.delete('/blogs/:id', hasPermission(PERMISSIONS.BLOGS), blogController.deleteBlog);
 
-// نظرات
+/* --------------------------------- نظرات ----------------------------------- */
 router.get('/reviews', hasPermission(PERMISSIONS.REVIEWS), reviewController.getReviews);
 router.put('/reviews/:id/approve', hasPermission(PERMISSIONS.REVIEWS), reviewController.approveReview);
 router.delete('/reviews/:id', hasPermission(PERMISSIONS.REVIEWS), reviewController.deleteReview);
 
-// اعلان‌ها
+/* -------------------------------- اعلان‌ها --------------------------------- */
 router.get('/notifications', notificationController.getNotifications);
 router.put('/notifications/read-all', notificationController.markAllAsRead);
 router.put('/notifications/:id/read', notificationController.markAsRead);

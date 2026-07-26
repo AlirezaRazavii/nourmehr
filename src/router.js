@@ -69,6 +69,7 @@ const routes = [
   {
     path: '/admin',
     component: AdminLayout,
+    meta: { requiresAuth: true, adminOnly: true },
     children: [
       { path: '', redirect: '/admin/dashboard' },
       { path: 'blogs', name: 'AdminBlogs', component: () => import('./views/admin/AdminBlogs.vue') },
@@ -94,8 +95,10 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
-  scrollBehavior() {
-    return { top: 0, behavior: 'smooth' }
+    scrollBehavior(to, from, savedPosition) {
+    if (savedPosition) return savedPosition
+    if (to.hash) return { el: to.hash, top: 80 }
+    return { top: 0 }
   }
 })
 
@@ -154,9 +157,8 @@ router.beforeEach(async (to, from, next) => {
   const langParam = to.params.lang
   const defaultLang = localStorage.getItem('app_lang') || 'fa'
 
-  // 1. مسیرهای ادمین
   if (to.path.startsWith('/admin')) {
-    if (to.meta.requiresAuth && !isAdmin()) {
+    if (!isAdmin()) {
       return next({ name: 'Login', params: { lang: defaultLang }, query: { redirect: to.fullPath } })
     }
     return next()
@@ -211,5 +213,18 @@ router.beforeEach(async (to, from, next) => {
 
   next()
 })
+
+if (typeof window !== 'undefined') {
+  const prefetch = () => {
+    import('./components/Products.vue')
+    import('./components/ProductDetails.vue')
+    import('./views/Cart.vue')
+  }
+  if ('requestIdleCallback' in window) {
+    window.requestIdleCallback(prefetch, { timeout: 4000 })
+  } else {
+    setTimeout(prefetch, 3000)
+  }
+}
 
 export default router

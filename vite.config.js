@@ -21,9 +21,41 @@ export default defineConfig({
     },
   },
 
+  optimizeDeps: {
+    include: ['vue', 'vue-router', 'pinia', 'axios', 'vue-i18n'],
+  },
+
   build: {
-    target: 'esnext',
+    target: 'es2020',
     cssMinify: true,
-    chunkSizeWarningLimit: 1000,
-  }
+    cssCodeSplit: true,
+    sourcemap: false,
+    reportCompressedSize: false,
+    assetsInlineLimit: 4096,
+    chunkSizeWarningLimit: 900,
+
+    rollupOptions: {
+      output: {
+        entryFileNames: 'assets/[name]-[hash].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash][extname]',
+
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('vue-i18n') || id.includes('@intlify')) return 'vendor-i18n'
+            if (id.includes('axios')) return 'vendor-http'
+            if (
+              id.includes('/vue-router/') ||
+              id.includes('/pinia/') ||
+              id.includes('/@vue/') ||
+              id.includes('/vue/dist/')
+            ) return 'vendor-vue'
+            return 'vendor'
+          }
+          if (id.includes('/src/views/admin/')) return 'panel-admin'
+          if (id.includes('/src/views/user/')) return 'panel-user'
+        },
+      },
+    },
+  },
 })

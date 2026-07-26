@@ -28,8 +28,21 @@
         </router-link>
 
         <!-- Desktop Dropdown -->
-        <div class="nav-dropdown" @mouseenter="dropdownOpen = true" @mouseleave="dropdownOpen = false">
-          <button class="nav-link dropdown-trigger" :class="{ active: dropdownOpen }">
+        <div
+          class="nav-dropdown"
+          @mouseenter="dropdownOpen = true"
+          @mouseleave="dropdownOpen = false"
+          @focusout="onDropdownFocusOut"
+        >
+        <button
+          class="nav-link dropdown-trigger"
+          :class="{ active: dropdownOpen }"
+          type="button"
+          aria-haspopup="true"
+          :aria-expanded="dropdownOpen ? 'true' : 'false'"
+          @click.stop="dropdownOpen = !dropdownOpen"
+        >
+
             <span>{{ $t('nav_categories') }}</span>
             <svg class="dropdown-arrow" :class="{ rotated: dropdownOpen }" viewBox="0 0 24 24" width="14" height="14">
               <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2"/>
@@ -224,16 +237,17 @@
 
               <div v-if="categoriesLoading" class="mobile-sublink-loading">{{ $t('loading') }}</div>
 
-              <router-link
-                v-else
-                v-for="cat in categories"
-                :key="cat._id"
-                :to="{ name: 'Products', params: { lang: locale }, query: { category: cat.slug } }"
-                class="mobile-sublink"
-                @click="closeMobile"
-              >
-                <span class="sublink-icon">{{ cat.icon || '◆' }}</span>{{ getLocalizedText(cat.name) }}
-              </router-link>
+              <template v-else>
+                <router-link
+                  v-for="cat in categories"
+                  :key="cat._id"
+                  :to="{ name: 'Products', params: { lang: locale }, query: { category: cat.slug } }"
+                  class="mobile-sublink"
+                  @click="closeMobile"
+                >
+                  <span class="sublink-icon">{{ cat.icon || '◆' }}</span>{{ getLocalizedText(cat.name) }}
+                </router-link>
+              </template>
             </div>
           </div>
 
@@ -262,16 +276,19 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import logoImg from '../assests/logo/Nourmehr-gold.webp'
 import { useCart } from '../stores/cart'
 import { useWishlist } from '../stores/wishlist'
 import { useAuth } from '../stores/auth'
 import { getPublicCategories } from '../services/categoryApi'
+import { fetchCategoriesCached } from '../services/categoryCache'
 import { applyDirection } from '../i18n'
+
 const router = useRouter()
+const route = useRoute()
 const { t, locale } = useI18n()
 
 const getLocalizedText = (value) => {
@@ -282,25 +299,27 @@ const getLocalizedText = (value) => {
 }
 
 const toggleLanguage = () => {
-  locale.value = locale.value === 'fa' ? 'en' : 'fa'
-  localStorage.setItem('app_lang', locale.value)
-  applyDirection(locale.value)
-  const currentRoute = router.currentRoute.value
-  if (currentRoute.params.lang !== locale.value) {
-    router.push({
-      name: currentRoute.name,
-      params: { ...currentRoute.params, lang: locale.value },
-      query: currentRoute.query
-    })
+  const next = locale.value === 'fa' ? 'en' : 'fa'
+  locale.value = next
+  localStorage.setItem('app_lang', next)
+  applyDirection(next)
+
+  const current = router.currentRoute.value
+  if (current.params.lang === next) return
+
+  if (current.name) {
+    router.push({ name: current.name, params: { ...current.params, lang: next }, query: current.query })
+      .catch(() => {})
+  } else {
+    // مسیرهای بدون name (مثلاً 404) را دستی جایگزین می‌کنیم
+    router.replace(current.fullPath.replace(/^\/(fa|en)(?=\/|$)/, `/${next}`)).catch(() => {})
   }
 }
 
-
 const { state, cartItems, totalItems, closeMiniCart } = useCart()
-
 const wishlist = useWishlist()
-
 const auth = useAuth()
+
 const isLoggedIn = computed(() => auth.isAuthenticated)
 const userName = computed(() => auth.userName || auth.user?.email || t('default_user'))
 const userInitial = computed(() => (userName.value || '?').trim().charAt(0).toUpperCase())
@@ -309,20 +328,20 @@ const handleLogout = async () => {
   await auth.logout()
   userMenuOpen.value = false
   closeMobile()
-  router.push({ name: 'Login', params: { lang: locale.value } })
+  router.push({ name: 'Login', params: { lang: locale.value } }).catch(() => {})
 }
 
-// ---------- Categories ----------
+// ---------- Categories (با کش مشترک) ----------
 const categories = ref([])
 const categoriesLoading = ref(false)
 const categoriesError = ref(false)
 
-const fetchCategories = async () => {
+const fetchCategories = async (force = false) => {
   categoriesLoading.value = true
   categoriesError.value = false
+  categories.value = await getPublicCategories({ force })
   try {
-    const data = await getPublicCategories()
-    categories.value = Array.isArray(data) ? data : []
+    categories.value = await fetchCategoriesCached(force)
   } catch (err) {
     console.error('خطا در دریافت دسته‌بندی‌ها:', err)
     categoriesError.value = true
@@ -339,26 +358,48 @@ const userMenuOpen = ref(false)
 const mobileMenuOpen = ref(false)
 const mobileDropdownOpen = ref(false)
 
+const lockScroll = (lock) => {
+  document.body.style.overflow = lock ? 'hidden' : ''
+}
+
 const toggleMobile = () => {
   mobileMenuOpen.value = !mobileMenuOpen.value
-  document.body.style.overflow = mobileMenuOpen.value ? 'hidden' : ''
+  lockScroll(mobileMenuOpen.value)
 }
 
 const closeMobile = () => {
   mobileMenuOpen.value = false
-  document.body.style.overflow = ''
+  mobileDropdownOpen.value = false
+  lockScroll(false)
 }
 
 const toggleMobileDropdown = () => {
   mobileDropdownOpen.value = !mobileDropdownOpen.value
 }
 
-// بستن خودکار منوی موبایل هنگام بزرگ شدن صفحه به دسکتاپ
+// بستن دراپ‌داون وقتی فوکوس از کل ناحیه خارج شد (پشتیبانی کیبورد)
+const onDropdownFocusOut = (e) => {
+  if (!e.currentTarget.contains(e.relatedTarget)) dropdownOpen.value = false
+}
+
+// Esc همه‌ی منوها را می‌بندد
+const onKeydown = (e) => {
+  if (e.key !== 'Escape') return
+  dropdownOpen.value = false
+  userMenuOpen.value = false
+  if (mobileMenuOpen.value) closeMobile()
+}
+
+// کلیک بیرون از منوها
+const onDocClick = () => {
+  dropdownOpen.value = false
+  userMenuOpen.value = false
+}
+
 const handleResize = () => {
   if (window.innerWidth > 1024 && mobileMenuOpen.value) closeMobile()
 }
 
-// اسکرول با throttle توسط requestAnimationFrame — برای موبایل‌های ضعیف حیاتی است
 let scrollTicking = false
 const handleScroll = () => {
   if (scrollTicking) return
@@ -369,17 +410,29 @@ const handleScroll = () => {
   })
 }
 
+// بستن منوها با تغییر مسیر (شامل دکمه‌ی Back مرورگر)
+watch(() => route.fullPath, () => {
+  dropdownOpen.value = false
+  userMenuOpen.value = false
+  if (mobileMenuOpen.value) closeMobile()
+})
+
 onMounted(() => {
   window.addEventListener('scroll', handleScroll, { passive: true })
   window.addEventListener('resize', handleResize, { passive: true })
-  fetchCategories() // فراخوانی مستقیم و مطمئن، مثل کد اصلی خودتان
+  window.addEventListener('keydown', onKeydown)
+  document.addEventListener('click', onDocClick)
+  fetchCategories()
 })
 
 onUnmounted(() => {
   window.removeEventListener('scroll', handleScroll)
   window.removeEventListener('resize', handleResize)
-  document.body.style.overflow = ''
+  window.removeEventListener('keydown', onKeydown)
+  document.removeEventListener('click', onDocClick)
+  lockScroll(false)
 })
+
 </script>
 
 <style scoped>
@@ -693,7 +746,5 @@ onUnmounted(() => {
   z-index: 1;
 }
 
-.mobile-menu-content { z-index: 1006; }
-.mobile-backdrop { z-index: 1004; }
 
 </style>

@@ -6,12 +6,15 @@ import Footer from './components/Footer.vue'
 
 const route = useRoute()
 
-// تشخیص مسیرهای ادمین و کاربر (با پشتیبانی از پیشوند زبان مثل /fa/user)
-const isAdminRoute = computed(() => route.path.includes('/admin'))
-const isUserRoute = computed(() => route.path.includes('/user'))
+const isAdminRoute = computed(() => /(^|\/)admin(\/|$)/.test(route.path))
+const isUserRoute = computed(() => /(^|\/)user(\/|$)/.test(route.path))
 
-// نوبار و فوتر فقط در صفحات عمومی نمایش داده شوند
 const showLayout = computed(() => !isAdminRoute.value && !isUserRoute.value)
+
+
+const viewKey = computed(() =>
+  route.name === 'Search' ? route.fullPath : route.path
+)
 </script>
 
 <template>
@@ -19,7 +22,7 @@ const showLayout = computed(() => !isAdminRoute.value && !isUserRoute.value)
     <Navbar v-if="showLayout" />
 
     <main class="page-content">
-      <router-view v-slot="{ Component }" :key="$route.fullPath">
+        <router-view v-slot="{ Component }" :key="viewKey">
         <transition name="page" mode="out-in">
           <component :is="Component" />
         </transition>
@@ -60,18 +63,26 @@ body {
 
 .page-enter-active,
 .page-leave-active {
-  transition: all 0.4s ease;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  will-change: opacity, transform;
 }
 
 .page-enter-from {
   opacity: 0;
-  transform: translateY(20px);
+  transform: translateY(10px);
 }
 
 .page-leave-to {
   opacity: 0;
-  transform: translateY(-20px);
+  transform: translateY(-10px);
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .page-enter-active,
+  .page-leave-active { transition: none; }
+}
+
+
 
 ::-webkit-scrollbar {
   width: 8px;
