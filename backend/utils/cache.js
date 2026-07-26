@@ -7,14 +7,29 @@ const cache = new NodeCache({
   useClones: false,
 });
 
+const pendingRequests = new Map();
+
 const getOrSet = async (key, ttl, fetcher) => {
   const cached = cache.get(key);
   if (cached !== undefined) return cached;
-  const fresh = await fetcher();
-  if (fresh !== undefined && fresh !== null) {
-    cache.set(key, fresh, ttl);
+  
+  if (pendingRequests.has(key)) {
+    return pendingRequests.get(key);
   }
-  return fresh;
+
+  const promise = fetcher().then(fresh => {
+    if (fresh !== undefined && fresh !== null) {
+      cache.set(key, fresh, ttl);
+    }
+    pendingRequests.delete(key);
+    return fresh;
+  }).catch(err => {
+    pendingRequests.delete(key);
+    throw err;
+  });
+
+  pendingRequests.set(key, promise);
+  return promise;
 };
 
 const del = (key) => cache.del(key);

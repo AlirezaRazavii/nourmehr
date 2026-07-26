@@ -1,5 +1,6 @@
 const Product = require('../models/Product');
 const Category = require('../models/Category');
+const { getOrSet } = require('../utils/cache');
 
 const getFinalPrice = (product) => {
   if (product.discountPercent && product.discountPercent > 0) {
@@ -52,42 +53,51 @@ const getProductBySlugOrId = async (req, res) => {
   try {
     const mongoose = require('mongoose');
     const { id } = req.params;
-    // اگر id یک ObjectId معتبر بود هم با _id و هم با slug جستجو کن؛ در غیر این صورت فقط slug
-    const or = [{ slug: id }];
-    if (mongoose.Types.ObjectId.isValid(id)) or.push({ _id: id });
-    const product = await Product.findOne({ $or: or })
-      .populate('category')
-      .populate({
-        path: 'relatedProducts',
-        select: 'name slug mainImage price discountPercent category stock',
-        populate: { path: 'category', select: 'name slug' }
-      });
-    if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
-    // افزایش بازدید به صورت اتمیک و بدون انتظار (سریع‌تر و امن‌تر)
-    Product.updateOne({ _id: product._id }, { $inc: { viewsCount: 1 } }).catch(() => {});
-    const productObj = product.toObject();
-    productObj.finalPrice = getFinalPrice(product);
-    productObj.priceFormatted = product.price.toLocaleString('fa-IR');
-    productObj.finalPriceFormatted = productObj.finalPrice.toLocaleString('fa-IR');
+    const cacheKey = `public:product:${id}`;
 
-    // اگر محصولات مرتبط دستی انتخاب نشده، از دسته‌بندی خودکار بگیر
-    if (!productObj.relatedProducts || productObj.relatedProducts.length === 0) {
-      const categoryId = product.category?._id || product.category;
-      if (categoryId) {
-        const autoRelated = await Product.find({
-          category: categoryId,
-          _id: { $ne: product._id },
-          status: 'active'
-        })
-          .select('name slug mainImage price discountPercent category stock')
-          .populate('category', 'name slug')
-          .limit(6)
-          .sort({ createdAt: -1 });
-        productObj.relatedProducts = autoRelated;
+    let productData = await getOrSet(cacheKey, 120, async () => {
+      const or = [{ slug: id }];
+      if (mongoose.Types.ObjectId.isValid(id)) or.push({ _id: id });
+      const product = await Product.findOne({ $or: or })
+        .populate('category')
+        .populate({
+          path: 'relatedProducts',
+          select: 'name slug mainImage price discountPercent category stock',
+          populate: { path: 'category', select: 'name slug' }
+        });
+      
+      if (!product) return null;
+
+      const productObj = product.toObject();
+      productObj.finalPrice = getFinalPrice(product);
+      productObj.priceFormatted = product.price.toLocaleString('fa-IR');
+      productObj.finalPriceFormatted = productObj.finalPrice.toLocaleString('fa-IR');
+
+      if (!productObj.relatedProducts || productObj.relatedProducts.length === 0) {
+        const categoryId = product.category?._id || product.category;
+        if (categoryId) {
+          const autoRelated = await Product.find({
+            category: categoryId,
+            _id: { $ne: product._id },
+            status: 'active'
+          })
+            .select('name slug mainImage price discountPercent category stock')
+            .populate('category', 'name slug')
+            .limit(6)
+            .sort({ createdAt: -1 });
+          productObj.relatedProducts = autoRelated;
+        }
       }
+      return productObj;
+    });
+
+    if (!productData) {
+      return res.status(404).json({ success: false, message: 'Product not found' });
     }
 
-    res.json({ success: true, data: productObj });
+    Product.updateOne({ _id: productData._id }, { $inc: { viewsCount: 1 } }).catch(() => {});
+
+    res.json({ success: true, data: productData });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -95,8 +105,10 @@ const getProductBySlugOrId = async (req, res) => {
 
 const getCategories = async (req, res) => {
   try {
-    const categories = await Category.find({ status: 'active' }).sort({ sortOrder: 1 });
-    res.json({ success: true, data: categories });
+    const data = await getOrSet('public:products:categories', 600, () =>
+      Category.find({ status: 'active' }).sort({ sortOrder: 1 }).lean()
+    );
+    res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
