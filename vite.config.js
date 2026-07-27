@@ -1,14 +1,31 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [vue()],
+
+  define: {
+    __VUE_PROD_DEVTOOLS__: false,
+    __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: false,
+    __INTLIFY_PROD_DEVTOOLS__: false,
+    __INTLIFY_JIT_COMPILATION__: true,
+  },
 
   server: {
     host: '0.0.0.0',
     port: 5000,
     strictPort: false,
     allowedHosts: true,
+    warmup: {
+      clientFiles: [
+        './src/main.js',
+        './src/App.vue',
+        './src/router.js',
+        './src/i18n.js',
+        './src/components/Navbar.vue',
+        './src/views/Home.vue',
+      ],
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:3001',
@@ -25,6 +42,11 @@ export default defineConfig({
     include: ['vue', 'vue-router', 'pinia', 'axios', 'vue-i18n'],
   },
 
+  esbuild: {
+    drop: command === 'build' ? ['debugger'] : [],
+    legalComments: 'none',
+  },
+
   build: {
     target: 'es2020',
     cssMinify: true,
@@ -33,6 +55,7 @@ export default defineConfig({
     reportCompressedSize: false,
     assetsInlineLimit: 4096,
     chunkSizeWarningLimit: 900,
+    modulePreload: { polyfill: false },
 
     rollupOptions: {
       output: {
@@ -52,10 +75,12 @@ export default defineConfig({
             ) return 'vendor-vue'
             return 'vendor'
           }
+          if (id.includes('/src/assests/locales/fa.json')) return 'locale-fa'
+          if (id.includes('/src/assests/locales/en.json')) return 'locale-en'
           if (id.includes('/src/views/admin/')) return 'panel-admin'
           if (id.includes('/src/views/user/')) return 'panel-user'
         },
       },
     },
   },
-})
+}))

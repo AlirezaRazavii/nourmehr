@@ -4,6 +4,7 @@ import {
   computed,
   onMounted,
   onUnmounted,
+  nextTick,
 } from 'vue'
 
 import { getPublicHero } from '../services/heroApi'
@@ -27,8 +28,64 @@ const defaultSettings = {
 }
 
 /* =====================================================
+   کش سراسری هیرو
+===================================================== */
+
+const HERO_CACHE_KEY = 'hero_cache_v1'
+const HERO_CACHE_TTL = 5 * 60 * 1000
+
+let heroMemoryCache = null
+
+const readHeroCache = () => {
+  if (
+    heroMemoryCache &&
+    Date.now() - heroMemoryCache.t < HERO_CACHE_TTL
+  ) {
+    return heroMemoryCache.data
+  }
+
+  try {
+    const raw = sessionStorage.getItem(HERO_CACHE_KEY)
+    if (!raw) return null
+
+    const parsed = JSON.parse(raw)
+    if (!parsed || !parsed.t) return null
+    if (Date.now() - parsed.t > HERO_CACHE_TTL) return null
+
+    heroMemoryCache = parsed
+    return parsed.data
+  } catch (error) {
+    return null
+  }
+}
+
+const writeHeroCache = (data) => {
+  const entry = { t: Date.now(), data }
+  heroMemoryCache = entry
+
+  try {
+    sessionStorage.setItem(
+      HERO_CACHE_KEY,
+      JSON.stringify(entry)
+    )
+  } catch (error) {}
+}
+
+const runWhenIdle = (task, timeout = 2000) => {
+  if (typeof window === 'undefined') return
+
+  if ('requestIdleCallback' in window) {
+    window.requestIdleCallback(task, { timeout })
+  } else {
+    window.setTimeout(task, 300)
+  }
+}
+
+/* =====================================================
    State
 ===================================================== */
+
+const heroRef = ref(null)
 
 const currentSlide = ref(0)
 const loading = ref(true)
@@ -38,8 +95,34 @@ const slides = ref([])
 const isTransitioning = ref(false)
 const renderVersion = ref(0)
 
+const inView = ref(true)
+const pageVisible = ref(true)
+const hoverPaused = ref(false)
+
 let slideInterval = null
 let transitionUnlockTimer = null
+let observer = null
+let dataSignature = ''
+
+const preloadedSources = new Set()
+
+/* =====================================================
+   وضعیت فعال بودن انیمیشن‌ها
+===================================================== */
+
+const isPaused = computed(() => {
+  return !inView.value || !pageVisible.value
+})
+
+const canAutoplay = computed(() => {
+  return (
+    settings.value.autoplay &&
+    slides.value.length > 1 &&
+    inView.value &&
+    pageVisible.value &&
+    !hoverPaused.value
+  )
+})
 
 /* =====================================================
    اسلاید فعال
@@ -104,6 +187,23 @@ const resolveImg = (url) => {
   return url || ''
 }
 
+const slideBackground = (slide) => {
+  return (
+    slide?.bgImage ||
+    slide?.backgroundImage ||
+    slide?.image ||
+    ''
+  )
+}
+
+const activeBackground = computed(() => {
+  return resolveImg(slideBackground(active.value))
+})
+
+const activeProductImage = computed(() => {
+  return resolveImg(active.value.image)
+})
+
 /* =====================================================
    استایل‌های پویا
 ===================================================== */
@@ -117,19 +217,10 @@ const heroStyle = computed(() => ({
 }))
 
 const backgroundStyle = computed(() => {
-  const backgroundImage =
-    active.value.bgImage ||
-    active.value.backgroundImage ||
-    active.value.image
-
   const brightness =
     Number(active.value.bgBrightness ?? 0.42)
 
   return {
-    backgroundImage: backgroundImage
-      ? `url("${resolveImg(backgroundImage)}")`
-      : 'none',
-
     filter: `brightness(${brightness})`,
   }
 })
@@ -263,16 +354,19 @@ const stopAutoSlide = () => {
 const startAutoSlide = () => {
   stopAutoSlide()
 
-  if (
-    !settings.value.autoplay ||
-    slides.value.length <= 1
-  ) {
-    return
-  }
+  if (!canAutoplay.value) return
 
   slideInterval = window.setInterval(() => {
     nextSlide(false)
   }, autoplayDelay.value)
+}
+
+const syncAutoplay = () => {
+  if (canAutoplay.value) {
+    startAutoSlide()
+  } else {
+    stopAutoSlide()
+  }
 }
 
 /* =====================================================
@@ -296,6 +390,52 @@ const lockTransition = () => {
     isTransitioning.value = false
     transitionUnlockTimer = null
   }, transitionLockDuration.value)
+}
+
+/* =====================================================
+   Preload تدریجی تصاویر
+===================================================== */
+
+const preloadSource = (source) => {
+  if (!source) return
+  if (preloadedSources.has(source)) return
+
+  preloadedSources.add(source)
+
+  const image = new Image()
+  image.decoding = 'async'
+  image.fetchPriority = 'low'
+  image.src = source
+}
+
+const preloadSlideAt = (index) => {
+  const total = slides.value.length
+  if (total === 0) return
+
+  const normalized = ((index % total) + total) % total
+  const slide = slides.value[normalized]
+  if (!slide) return
+
+  preloadSource(resolveImg(slide.image))
+  preloadSource(resolveImg(slideBackground(slide)))
+}
+
+const preloadNeighbors = () => {
+  if (slides.value.length <= 1) return
+
+  runWhenIdle(() => {
+    preloadSlideAt(currentSlide.value + 1)
+  }, 3000)
+}
+
+const preloadRemaining = () => {
+  if (slides.value.length <= 2) return
+
+  runWhenIdle(() => {
+    for (let i = 2; i < slides.value.length; i += 1) {
+      preloadSlideAt(currentSlide.value + i)
+    }
+  }, 8000)
 }
 
 /* =====================================================
@@ -328,7 +468,11 @@ const changeSlide = (
   currentSlide.value = normalizedIndex
   renderVersion.value += 1
 
+  preloadNeighbors()
+
   if (restartTimer) {
+    syncAutoplay()
+  } else if (canAutoplay.value) {
     startAutoSlide()
   }
 }
@@ -350,13 +494,15 @@ const onShowcaseClick = () => {
 
 const onMouseEnter = () => {
   if (settings.value.pauseOnHover) {
+    hoverPaused.value = true
     stopAutoSlide()
   }
 }
 
 const onMouseLeave = () => {
   if (settings.value.pauseOnHover) {
-    startAutoSlide()
+    hoverPaused.value = false
+    syncAutoplay()
   }
 }
 
@@ -370,83 +516,157 @@ const handleImageError = (event) => {
   if (image) {
     image.style.visibility = 'hidden'
   }
-
-  console.error(
-    'Hero image load failed:',
-    image?.src
-  )
 }
 
 /* =====================================================
-   Preload تصاویر
+   ناظر ورود به دید و وضعیت تب
 ===================================================== */
 
-const preloadSlideImages = (slideItems = []) => {
+const destroyObserver = () => {
+  if (observer) {
+    observer.disconnect()
+    observer = null
+  }
+}
+
+const setupObserver = () => {
   if (typeof window === 'undefined') return
+  if (!('IntersectionObserver' in window)) return
+  if (!heroRef.value) return
 
-  slideItems.forEach((slide) => {
-    const sources = [
-      slide?.image,
-      slide?.bgImage,
-      slide?.backgroundImage,
-    ]
+  destroyObserver()
 
-    ;[...new Set(sources.filter(Boolean))]
-      .forEach((source) => {
-        const image = new Image()
-        image.decoding = 'async'
-        image.src = resolveImg(source)
-      })
-  })
+  observer = new IntersectionObserver(
+    (entries) => {
+      const entry = entries[0]
+      if (!entry) return
+
+      inView.value = entry.isIntersecting
+      syncAutoplay()
+    },
+    { threshold: 0.01 }
+  )
+
+  observer.observe(heroRef.value)
+}
+
+const onVisibilityChange = () => {
+  pageVisible.value =
+    document.visibilityState === 'visible'
+
+  syncAutoplay()
+}
+
+/* =====================================================
+   اعمال داده‌ها
+===================================================== */
+
+const applyHeroData = (data) => {
+  const receivedSlides = Array.isArray(data?.slides)
+    ? data.slides.filter(Boolean)
+    : []
+
+  const hasSlides =
+    data?.enabled !== false &&
+    receivedSlides.length > 0
+
+  if (!hasSlides) {
+    slides.value = []
+    currentSlide.value = 0
+    return false
+  }
+
+  settings.value = {
+    ...defaultSettings,
+    ...(data?.settings || {}),
+    isEnabled: data?.enabled !== false,
+  }
+
+  slides.value = receivedSlides
+  currentSlide.value = 0
+  renderVersion.value += 1
+
+  return true
+}
+
+const signatureOf = (data) => {
+  try {
+    return JSON.stringify(data)
+  } catch (error) {
+    return ''
+  }
 }
 
 /* =====================================================
    دریافت اطلاعات هیرو
 ===================================================== */
 
+const fetchHero = async () => {
+  const response = await getPublicHero()
+  return response?.data ?? response
+}
+
+const revalidateHero = async () => {
+  try {
+    const data = await fetchHero()
+    const signature = signatureOf(data)
+
+    if (signature && signature === dataSignature) return
+
+    dataSignature = signature
+    writeHeroCache(data)
+
+    const applied = applyHeroData(data)
+
+    if (applied) {
+      await nextTick()
+      setupObserver()
+      syncAutoplay()
+      preloadNeighbors()
+    }
+  } catch (error) {}
+}
+
 const loadHero = async () => {
-  loading.value = true
   stopAutoSlide()
   clearTransitionLock()
 
+  const cached = readHeroCache()
+
+  if (cached) {
+    dataSignature = signatureOf(cached)
+    applyHeroData(cached)
+    loading.value = false
+
+    await nextTick()
+    setupObserver()
+    syncAutoplay()
+    preloadNeighbors()
+    preloadRemaining()
+
+    runWhenIdle(revalidateHero, 6000)
+    return
+  }
+
+  loading.value = true
+
   try {
-    const response = await getPublicHero()
-    const data = response?.data ?? response
+    const data = await fetchHero()
 
-    const receivedSlides = Array.isArray(
-      data?.slides
-    )
-      ? data.slides.filter(Boolean)
-      : []
-
-    const hasSlides =
-      data?.enabled !== false &&
-      receivedSlides.length > 0
-
-    if (!hasSlides) {
-      slides.value = []
-      return
-    }
-
-    settings.value = {
-      ...defaultSettings,
-      ...(data?.settings || {}),
-      isEnabled: data?.enabled !== false,
-    }
-
-    slides.value = receivedSlides
-    currentSlide.value = 0
-    renderVersion.value += 1
-
-    preloadSlideImages(receivedSlides)
+    dataSignature = signatureOf(data)
+    writeHeroCache(data)
+    applyHeroData(data)
   } catch (error) {
-    console.error('Loading hero failed:', error)
-
     slides.value = []
     currentSlide.value = 0
   } finally {
     loading.value = false
-    startAutoSlide()
+
+    await nextTick()
+    setupObserver()
+    syncAutoplay()
+    preloadNeighbors()
+    preloadRemaining()
   }
 }
 
@@ -455,12 +675,27 @@ const loadHero = async () => {
 ===================================================== */
 
 onMounted(() => {
+  pageVisible.value =
+    document.visibilityState === 'visible'
+
+  document.addEventListener(
+    'visibilitychange',
+    onVisibilityChange,
+    { passive: true }
+  )
+
   loadHero()
 })
 
 onUnmounted(() => {
   stopAutoSlide()
   clearTransitionLock()
+  destroyObserver()
+
+  document.removeEventListener(
+    'visibilitychange',
+    onVisibilityChange
+  )
 })
 </script>
 
@@ -471,11 +706,13 @@ onUnmounted(() => {
       settings.isEnabled &&
       slides.length
     "
+    ref="heroRef"
     class="hero"
     :class="[
       `hero--transition-${normalizedTransitionType}`,
       {
         'hero--transitioning': isTransitioning,
+        'hero--paused': isPaused,
       },
     ]"
     :style="heroStyle"
@@ -485,11 +722,19 @@ onUnmounted(() => {
     <!-- پس‌زمینه -->
     <div class="background-stack">
       <Transition :name="backgroundTransitionName">
-        <div
+        <img
+          v-if="activeBackground"
           :key="`${activeKey}-background`"
           class="hero__background"
+          :src="activeBackground"
           :style="backgroundStyle"
-        ></div>
+          alt=""
+          aria-hidden="true"
+          decoding="async"
+          fetchpriority="high"
+          draggable="false"
+          @error="handleImageError"
+        />
       </Transition>
     </div>
 
@@ -587,9 +832,7 @@ onUnmounted(() => {
               >
                 <img
                   :key="`${activeKey}-image`"
-                  :src="
-                    resolveImg(active.image)
-                  "
+                  :src="activeProductImage"
                   :alt="
                     active.title ||
                     'تصویر محصول'
@@ -833,13 +1076,18 @@ onUnmounted(() => {
 .hero__background {
   grid-area: 1 / 1;
 
+  display: block;
+
   width: 104%;
   height: 104%;
+  max-width: none;
   margin: -2%;
 
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: cover;
+  object-fit: cover;
+  object-position: center;
+
+  user-select: none;
+  pointer-events: none;
 
   transform:
     translate3d(0, 0, 0)
@@ -849,11 +1097,6 @@ onUnmounted(() => {
 
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
-
-  will-change:
-    opacity,
-    transform,
-    filter;
 }
 
 .hero__overlay {
@@ -983,11 +1226,6 @@ onUnmounted(() => {
 
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
-
-  will-change:
-    opacity,
-    transform,
-    filter;
 }
 
 .hero-title__text,
@@ -1001,6 +1239,31 @@ onUnmounted(() => {
   overflow-wrap: normal;
   word-break: normal;
   tab-size: 4;
+}
+
+/* =====================================================
+   لایه‌بندی GPU فقط هنگام ترنزیشن
+===================================================== */
+
+.hero--transitioning .hero__background,
+.hero--transitioning .hero-title,
+.hero--transitioning .hero-subtitle,
+.hero--transitioning .product__layer,
+.hero--transitioning .info-panel__description {
+  will-change:
+    opacity,
+    transform,
+    filter;
+}
+
+/* =====================================================
+   توقف کامل انیمیشن‌ها خارج از دید
+===================================================== */
+
+.hero--paused .product__stage,
+.hero--paused .hero-timer__progress,
+.hero--paused .hero-timer__icon {
+  animation-play-state: paused;
 }
 
 /* =====================================================
@@ -1176,7 +1439,9 @@ onUnmounted(() => {
     7s
     ease-in-out
     infinite;
+}
 
+.hero:not(.hero--paused) .product__stage {
   will-change: transform;
 }
 
@@ -1215,11 +1480,6 @@ onUnmounted(() => {
 
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
-
-  will-change:
-    opacity,
-    transform,
-    filter;
 }
 
 .product__image {
@@ -1399,11 +1659,6 @@ onUnmounted(() => {
 
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
-
-  will-change:
-    opacity,
-    transform,
-    filter;
 }
 
 .info-panel[dir='rtl']
@@ -2290,6 +2545,10 @@ onUnmounted(() => {
     perspective: 1000px;
   }
 
+  .hero__texture {
+    display: none;
+  }
+
   .hero__overlay {
     background:
       linear-gradient(
@@ -2359,6 +2618,10 @@ onUnmounted(() => {
     animation: none;
   }
 
+  .hero:not(.hero--paused) .product__stage {
+    will-change: auto;
+  }
+
   .product__image {
     max-width: 86vw;
     max-height: 52vh;
@@ -2393,6 +2656,9 @@ onUnmounted(() => {
     box-shadow:
       0 -16px 40px
       rgba(0, 0, 0, 0.42);
+
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
 
     transform: none;
   }
@@ -2478,7 +2744,7 @@ onUnmounted(() => {
   }
 
   .product__image {
-    max-width: vw;
+    max-width: 88vw;
     max-height: 46vh;
   }
 

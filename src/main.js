@@ -2,16 +2,24 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
-import i18n from './i18n'
+import i18n, { getSavedLocale, loadLocaleMessages } from './i18n'
 import './assests/main.css'
 
-const app = createApp(App)
-const pinia = createPinia()
+async function bootstrap() {
+  try {
+    await loadLocaleMessages(getSavedLocale())
+  } catch (e) {}
 
-app.use(pinia)
-app.use(router)
-app.use(i18n)
+  const app = createApp(App)
 
-app.mount('#app')
+  app.use(createPinia())
+  app.use(router)
+  app.use(i18n)
 
-document.getElementById('app-splash')?.remove()
+  app.mount('#app')
+
+  const splash = document.getElementById('app-splash')
+  if (splash) splash.remove()
+}
+
+bootstrap()

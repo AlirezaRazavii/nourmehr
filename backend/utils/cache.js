@@ -21,6 +21,7 @@ const KEYS = {
   PRODUCT_CATEGORIES: 'public:products:categories',
   CATEGORIES: 'public:categories',
   CATEGORY_SLUG: 'public:category:slug:',
+  HERO: 'public:hero:',
 };
 
 /**
@@ -82,6 +83,10 @@ const invalidateCategoryCache = () => {
   delByPrefix(KEYS.PRODUCT_LIST); 
 };
 
+const invalidateHeroCache = () => {
+  delByPrefix(KEYS.HERO);
+};
+
 const flushAll = () => {
   pendingRequests.clear();
   cache.flushAll();
@@ -89,5 +94,5 @@ const flushAll = () => {
 
 module.exports = {
   cache, KEYS, getOrSet, del, delByPrefix,
-  invalidateProductCache, invalidateCategoryCache, flushAll,
+  invalidateProductCache, invalidateCategoryCache, invalidateHeroCache, flushAll,
 };

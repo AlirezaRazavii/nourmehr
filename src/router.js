@@ -1,6 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import i18n, { applyDirection } from './i18n'
-
+import i18n, { applyDirection, setLocale, loadLocaleMessages, SUPPORTED_LOCALES, getSavedLocale } from './i18n'
 
 // --- لود تدریجی (Lazy Loading) ---
 const Home = () => import('./views/Home.vue')
@@ -95,17 +94,45 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
-    scrollBehavior(to, from, savedPosition) {
+  scrollBehavior(to, from, savedPosition) {
     if (savedPosition) return savedPosition
     if (to.hash) return { el: to.hash, top: 80 }
     return { top: 0 }
   }
 })
 
-const getStoredUser = () => JSON.parse(localStorage.getItem('auth_user') || 'null')
-const getStoredToken = () =>
-  document.cookie.split('; ').find(row => row.startsWith('auth_token='))?.split('=')[1] ||
-  localStorage.getItem('auth_token')
+let cachedUserRaw = null
+let cachedUser = null
+
+const getStoredUser = () => {
+  let raw = null
+  try {
+    raw = localStorage.getItem('auth_user')
+  } catch (e) {
+    return null
+  }
+  if (raw === cachedUserRaw) return cachedUser
+  cachedUserRaw = raw
+  try {
+    cachedUser = JSON.parse(raw || 'null')
+  } catch (e) {
+    cachedUser = null
+  }
+  return cachedUser
+}
+
+const getStoredToken = () => {
+  const fromCookie = document.cookie
+    .split('; ')
+    .find(row => row.startsWith('auth_token='))
+    ?.split('=')[1]
+  if (fromCookie) return fromCookie
+  try {
+    return localStorage.getItem('auth_token')
+  } catch (e) {
+    return null
+  }
+}
 
 const isAuthenticated = () => {
   const user = getStoredUser()
@@ -148,14 +175,9 @@ const routePathMap = {
 }
 
 router.beforeEach(async (to, from, next) => {
+  if (to.path.endsWith('.txt')) return next()
 
-  if (to.path.endsWith('.txt')) {
-  return next()
-}
-
-  const supportedLangs = ['fa', 'en']
-  const langParam = to.params.lang
-  const defaultLang = localStorage.getItem('app_lang') || 'fa'
+  const defaultLang = getSavedLocale()
 
   if (to.path.startsWith('/admin')) {
     if (!isAdmin()) {
@@ -164,10 +186,10 @@ router.beforeEach(async (to, from, next) => {
     return next()
   }
 
-
+  const langParam = to.params.lang
 
   // 2. اصلاح زبان در URL
-  if (!langParam || !supportedLangs.includes(langParam)) {
+  if (!langParam || !SUPPORTED_LOCALES.includes(langParam)) {
     let path = to.path
     if (path.startsWith('/undefined')) path = path.replace('/undefined', '')
     if (path.startsWith('/null')) path = path.replace('/null', '')
@@ -187,13 +209,19 @@ router.beforeEach(async (to, from, next) => {
     return next(`/${defaultLang}${cleanPath}`)
   }
 
-  // 3. همگام‌سازی زبان i18n
+  // 3. همگام‌سازی زبان i18n (فایل ترجمه فقط در صورت نیاز دانلود می‌شود)
   if (i18n.global.locale.value !== langParam) {
-    i18n.global.locale.value = langParam
-    localStorage.setItem('app_lang', langParam)
+    try {
+      await setLocale(langParam)
+    } catch (e) {
+      applyDirection(langParam)
+    }
+  } else {
+    try {
+      await loadLocaleMessages(langParam)
+    } catch (e) {}
+    applyDirection(langParam)
   }
-  // همگام‌سازی جهت صفحه (RTL/LTR) با زبان مسیر — این خط مشکل آینه‌ای شدن را حل می‌کند
-  applyDirection(langParam)
 
   // 4. بررسی احراز هویت
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
@@ -214,16 +242,25 @@ router.beforeEach(async (to, from, next) => {
   next()
 })
 
+// prefetch سبک و کنترل‌شده: فقط بعد از کامل شدن لود صفحه و روی اینترنت مناسب
 if (typeof window !== 'undefined') {
-  const prefetch = () => {
-    import('./components/Products.vue')
-    import('./components/ProductDetails.vue')
-    import('./views/Cart.vue')
-  }
-  if ('requestIdleCallback' in window) {
-    window.requestIdleCallback(prefetch, { timeout: 4000 })
-  } else {
-    setTimeout(prefetch, 3000)
+  const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection
+  const saveData = conn?.saveData === true
+  const slowNet = conn?.effectiveType ? /(^|-)2g$/.test(conn.effectiveType) : false
+
+  if (!saveData && !slowNet) {
+    const prefetch = () => {
+      import('./components/Products.vue')
+    }
+    const start = () => {
+      if ('requestIdleCallback' in window) {
+        window.requestIdleCallback(prefetch, { timeout: 8000 })
+      } else {
+        setTimeout(prefetch, 6000)
+      }
+    }
+    if (document.readyState === 'complete') start()
+    else window.addEventListener('load', start, { once: true })
   }
 }
 

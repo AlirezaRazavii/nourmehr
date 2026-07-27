@@ -1,8 +1,9 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import Navbar from './components/Navbar.vue'
-import Footer from './components/Footer.vue'
+
+const Footer = defineAsyncComponent(() => import('./components/Footer.vue'))
 
 const route = useRoute()
 
@@ -11,6 +12,16 @@ const isUserRoute = computed(() => /(^|\/)user(\/|$)/.test(route.path))
 
 const showLayout = computed(() => !isAdminRoute.value && !isUserRoute.value)
 
+const footerReady = ref(false)
+
+onMounted(() => {
+  const enable = () => { footerReady.value = true }
+  if ('requestIdleCallback' in window) {
+    window.requestIdleCallback(enable, { timeout: 2500 })
+  } else {
+    setTimeout(enable, 1200)
+  }
+})
 
 const viewKey = computed(() =>
   route.name === 'Search' ? route.fullPath : route.path
@@ -22,30 +33,18 @@ const viewKey = computed(() =>
     <Navbar v-if="showLayout" />
 
     <main class="page-content">
-        <router-view v-slot="{ Component }" :key="viewKey">
+      <router-view v-slot="{ Component }" :key="viewKey">
         <transition name="page" mode="out-in">
           <component :is="Component" />
         </transition>
       </router-view>
     </main>
 
-    <Footer v-if="showLayout" />
+    <Footer v-if="showLayout && footerReady" />
   </div>
 </template>
 
 <style>
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  background: #050814;
-  font-family: 'Vazirmatn', system-ui, -apple-system, sans-serif;
-}
-
 #app {
   min-height: 100vh;
   display: flex;
@@ -64,7 +63,6 @@ body {
 .page-enter-active,
 .page-leave-active {
   transition: opacity 0.15s ease, transform 0.15s ease;
-  will-change: opacity, transform;
 }
 
 .page-enter-from {
@@ -81,8 +79,6 @@ body {
   .page-enter-active,
   .page-leave-active { transition: none; }
 }
-
-
 
 ::-webkit-scrollbar {
   width: 8px;
