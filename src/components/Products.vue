@@ -270,11 +270,34 @@ const isInStock = (p) => {
   return true
 }
 
+const getAllSubCategorySlugs = (categorySlug, categoriesList) => {
+  if (categorySlug === 'all') return []
+  
+  const targetCat = categoriesList.find(c => c.slug === categorySlug || c.value === categorySlug)
+  if (!targetCat) return [categorySlug]
+  
+  const targetId = targetCat._id || targetCat.id
+  let slugs = [targetCat.slug || targetCat.value]
+
+  // پیدا کردن فرزندان مسقیم
+  const children = categoriesList.filter(c => c.parents && c.parents.includes(targetId))
+  
+  for (const child of children) {
+    const childSlug = child.slug || child.value
+    if (!slugs.includes(childSlug)) {
+       slugs = [...slugs, ...getAllSubCategorySlugs(childSlug, categoriesList)]
+    }
+  }
+  
+  return [...new Set(slugs)]
+}
+
 const filteredProducts = computed(() => {
   let list = [...products.value]
 
   if (selectedCategory.value !== 'all') {
-    list = list.filter(p => catSlugOf(p) === selectedCategory.value)
+    const validSlugs = getAllSubCategorySlugs(selectedCategory.value, productStore.categories)
+    list = list.filter(p => validSlugs.includes(catSlugOf(p)))
   }
   if (searchQuery.value.trim()) {
     const q = searchQuery.value.trim().toLowerCase()

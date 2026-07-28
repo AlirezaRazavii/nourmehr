@@ -90,7 +90,7 @@ const getProducts = async (req, res) => {
       const [docs, total] = await Promise.all([
         Product.find(filter)
           .select(LIST_FIELDS)
-          .populate('category', 'name slug icon')
+          .populate('category', 'name slug icon parents')
           .sort(SORTS[sortKey])
           .skip((pageNum - 1) * limitNum)
           .limit(limitNum)
@@ -130,7 +130,7 @@ const getProductBySlugOrId = async (req, res) => {
         if (mongoose.Types.ObjectId.isValid(id)) or.push({ _id: id });
 
         const product = await Product.findOne({ $or: or })
-          .populate('category', 'name slug icon')
+          .populate('category', 'name slug icon parents')
           .populate({
             path: 'relatedProducts',
             select: 'name slug mainImage price discountPercent category stock',
@@ -183,7 +183,7 @@ const getCategories = async (req, res) => {
   try {
     const data = await getOrSet(KEYS.PRODUCT_CATEGORIES, 600, () =>
       Category.find({ status: 'active' })
-        .select('name slug icon image sortOrder')
+        .select('name slug icon image sortOrder parents')
         .sort({ sortOrder: 1, _id: 1 })
         .lean()
     );

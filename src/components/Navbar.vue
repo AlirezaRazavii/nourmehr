@@ -82,19 +82,14 @@
 
                 <div class="dropdown-divider"></div>
 
-                <router-link
-                  v-for="cat in categories"
-                  :key="cat._id"
-                  :to="{ name: 'Products', params: { lang: locale }, query: { category: cat.slug } }"
-                  class="dropdown-item"
-                  @click="dropdownOpen = false"
-                >
-                  <span class="item-icon">{{ cat.icon || '◆' }}</span>
-                  <div class="item-content">
-                    <span class="item-title">{{ getLocalizedText(cat.name) }}</span>
-                    <span class="item-desc">{{ getLocalizedText(cat.description) }}</span>
-                  </div>
-                </router-link>
+                <NavCategoryNode 
+                  v-for="cat in rootCategories" 
+                  :key="cat._id" 
+                  :node="cat"
+                  :all-categories="categories"
+                  :locale="locale"
+                  @close="dropdownOpen = false"
+                />
 
                 <div v-if="categories.length === 0" class="dropdown-empty">
                   {{ $t('no_categories') }}
@@ -237,17 +232,25 @@
 
               <div v-if="categoriesLoading" class="mobile-sublink-loading">{{ $t('loading') }}</div>
 
-              <template v-else>
-                <router-link
-                  v-for="cat in categories"
-                  :key="cat._id"
-                  :to="{ name: 'Products', params: { lang: locale }, query: { category: cat.slug } }"
-                  class="mobile-sublink"
-                  @click="closeMobile"
-                >
-                  <span class="sublink-icon">{{ cat.icon || '◆' }}</span>{{ getLocalizedText(cat.name) }}
-                </router-link>
-              </template>
+                <template v-for="cat in rootCategories" :key="cat._id">
+                  <router-link
+                    :to="{ name: 'Products', params: { lang: locale }, query: { category: cat.slug } }"
+                    class="mobile-sublink"
+                    @click="closeMobile"
+                  >
+                    <span class="sublink-icon">{{ cat.icon || '◆' }}</span>{{ getLocalizedText(cat.name) }}
+                  </router-link>
+                  <!-- Children (Level 1) in mobile -->
+                  <router-link
+                    v-for="child in categories.filter(c => c.parents && c.parents.includes(cat._id))"
+                    :key="child._id"
+                    :to="{ name: 'Products', params: { lang: locale }, query: { category: child.slug } }"
+                    class="mobile-sublink mobile-child"
+                    @click="closeMobile"
+                  >
+                    <span class="sublink-icon" style="opacity:0.5">- </span>{{ getLocalizedText(child.name) }}
+                  </router-link>
+                </template>
             </div>
           </div>
 
@@ -286,6 +289,7 @@ import { useAuth } from '../stores/auth'
 import { getPublicCategories } from '../services/categoryApi'
 import { fetchCategoriesCached } from '../services/categoryCache'
 import { applyDirection } from '../i18n'
+import NavCategoryNode from './NavCategoryNode.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -350,6 +354,10 @@ const fetchCategories = async (force = false) => {
     categoriesLoading.value = false
   }
 }
+
+const rootCategories = computed(() => {
+  return categories.value.filter(c => !c.parents || c.parents.length === 0)
+})
 
 // ---------- UI State ----------
 const isScrolled = ref(false)
@@ -707,6 +715,7 @@ onUnmounted(() => {
 .mobile-footer { margin-top: auto; padding-top: 20px; display: flex; flex-direction: column; gap: 10px; }
 .mobile-login-btn { display: block; width: 100%; padding: 12px; background: rgba(255,255,255,0.1); color: #fff; text-align: center; text-decoration: none; border-radius: 6px; font-weight: 500; }
 .mobile-logout-btn { width: 100%; padding: 12px; background: transparent; border: 1px solid #ff6b6b; color: #ff6b6b; text-align: center; border-radius: 6px; cursor: pointer; font-weight: 500; }
+.mobile-child { padding-inline-start: 25px; font-size: 0.85rem; color: #aaa; }
 
 @media (max-width: 1024px) {
   .nav-desktop, .desktop-only { display: none; }

@@ -12,7 +12,8 @@ const categorySchema = new mongoose.Schema({
     en: { type: String, default: '' }
   },
   status: { type: String, enum: ['active', 'inactive'], default: 'active' },
-  sortOrder: { type: Number, default: 0 }
+  sortOrder: { type: Number, default: 0 },
+  parents: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Category' }]
 }, { timestamps: true });
 
 module.exports = mongoose.model('Category', categorySchema);

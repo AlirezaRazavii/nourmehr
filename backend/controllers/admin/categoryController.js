@@ -5,7 +5,7 @@ const { invalidateCategoryCache } = require('../../utils/cache');
 
 const EDITABLE = [
   'name', 'slug', 'description', 'icon', 'image',
-  'sortOrder', 'status', 'parent', 'metaTitle', 'metaDescription',
+  'sortOrder', 'status', 'parents', 'metaTitle', 'metaDescription',
 ];
 
 const pick = (src = {}) =>
@@ -77,7 +77,7 @@ const updateCategory = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ success: false, message: 'شناسه نامعتبر است' });
     }
-    if (String(req.body?.parent || '') === id) {
+    if (req.body?.parents && Array.isArray(req.body.parents) && req.body.parents.includes(id)) {
       return res.status(400).json({ success: false, message: 'دسته‌بندی نمی‌تواند والد خودش باشد' });
     }
 
@@ -106,7 +106,7 @@ const deleteCategory = async (req, res) => {
 
     const [productCount, childCount] = await Promise.all([
       Product.countDocuments({ category: id }),
-      Category.countDocuments({ parent: id }),
+      Category.countDocuments({ parents: id }),
     ]);
 
     if (productCount > 0) {

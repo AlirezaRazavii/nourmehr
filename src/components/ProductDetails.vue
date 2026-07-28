@@ -67,6 +67,33 @@ const redirectToLogin = () => {
 
 const allProducts = computed(() => productStore.products)
 
+const categoryPath = computed(() => {
+  const p = product.value
+  if (!p || !p.category) return []
+  
+  const allCats = productStore.categories || []
+  let catId = typeof p.category === 'object' ? p.category._id || p.category.id || p.category.slug : p.category
+  
+  const path = []
+  
+  for (let i = 0; i < 4; i++) {
+    const cat = allCats.find(c => c._id === catId || c.id === catId || c.slug === catId)
+    if (!cat) {
+      if (i === 0 && typeof p.category === 'object' && p.category.name) {
+        path.unshift(p.category)
+      }
+      break
+    }
+    path.unshift(cat)
+    if (cat.parents && cat.parents.length > 0) {
+      catId = cat.parents[0] // نمایش اولین والد در مسیر
+    } else {
+      break
+    }
+  }
+  return path
+})
+
 const product = computed(() =>
   productStore.currentProduct ||
   allProducts.value.find((p) => p._id === route.params.id || p.slug === route.params.id) ||
@@ -261,6 +288,7 @@ const handleKeydown = (e) => {
 }
 
 onMounted(() => {
+  productStore.fetchCategories()
   loadProduct(route.params.id)
   window.addEventListener('keydown', handleKeydown)
 })
@@ -295,8 +323,14 @@ watch(() => route.params.id, (id) => { if (id) loadProduct(id) })
         <router-link :to="{ name: 'Home', params: { lang: locale } }" class="bc-link">{{ $t('nav_home') }}</router-link>
         <span class="bc-sep">/</span>
         <router-link :to="{ name: 'Products', params: { lang: locale } }" class="bc-link">{{ $t('nav_products') }}</router-link>
-        <span class="bc-sep">/</span>
-        <span class="bc-link">{{ getLocalizedText(product.category?.name || product.category) }}</span>
+        
+        <template v-for="cat in categoryPath" :key="cat._id || cat.slug">
+          <span class="bc-sep">/</span>
+          <router-link :to="{ name: 'Products', params: { lang: locale }, query: { category: cat.slug } }" class="bc-link">
+            {{ getLocalizedText(cat.name) }}
+          </router-link>
+        </template>
+
         <span class="bc-sep">/</span>
         <span class="bc-current">{{ getLocalizedText(product.name) }}</span>
       </nav>

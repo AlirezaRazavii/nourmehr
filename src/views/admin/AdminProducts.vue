@@ -106,6 +106,26 @@ const fetchCategories = async () => {
   }
 }
 
+/* ساخت لیست دسته‌بندی‌های درختی با عنوان کامل برای نمایش در سلکتورها */
+const getCategoryLabel = (cat) => {
+  if (!cat.parents || cat.parents.length === 0) return cat.name?.fa || cat.name || ''
+  const parentNames = cat.parents
+    .map(pid => {
+      const parent = categories.value.find(c => (c._id || c.id) === pid)
+      return parent ? (parent.name?.fa || parent.name || '') : ''
+    })
+    .filter(Boolean)
+  const own = cat.name?.fa || cat.name || ''
+  return parentNames.length ? `${parentNames.join(' / ')} / ${own}` : own
+}
+
+const hierarchicalCategories = computed(() => {
+  return categories.value.map(cat => ({
+    ...cat,
+    label: getCategoryLabel(cat)
+  })).sort((a, b) => a.label.localeCompare(b.label, 'fa'))
+})
+
 /* لیست سبک برای انتخابگر «محصولات مرتبط» (مستقل از صفحه‌بندی جدول) */
 const lookupProducts = ref([])
 const lookupLoaded = ref(false)
@@ -486,7 +506,7 @@ onUnmounted(() => {
       </div>
       <select v-model="categoryFilter" class="filter-select">
         <option value="all">همه دسته‌بندی‌ها</option>
-        <option v-for="cat in categories" :key="cat._id" :value="cat._id">{{ cat.name?.fa || cat.name }}</option>
+        <option v-for="cat in hierarchicalCategories" :key="cat._id" :value="cat._id">{{ cat.label }}</option>
       </select>
       <select v-model="statusFilter" class="filter-select">
         <option value="all">همه وضعیت‌ها</option>
@@ -517,7 +537,7 @@ onUnmounted(() => {
           <div class="product-info">
             <h3 class="product-name">{{ product.name?.fa }}</h3>
             <span v-if="product.name?.en" class="product-en-name">{{ product.name.en }}</span>
-            <span class="product-category">{{ product.category?.name?.fa || 'بدون دسته‌بندی' }}</span>
+            <span class="product-category">{{ getCategoryLabel(categories.find(c => (c._id || c.id) === (product.category?._id || product.category)) || product.category || {}) || 'بدون دسته‌بندی' }}</span>
 
             <div class="product-meta">
               <div class="meta-item">
@@ -579,7 +599,7 @@ onUnmounted(() => {
                 <label class="form-label">دسته‌بندی <span class="req">*</span></label>
                 <select v-model="form.category" class="form-select" :class="{ 'has-error': formErrors.category }">
                   <option value="" disabled>— انتخاب کنید —</option>
-                  <option v-for="cat in categories" :key="cat._id" :value="cat._id">{{ cat.name?.fa || cat.name }}</option>
+                  <option v-for="cat in hierarchicalCategories" :key="cat._id" :value="cat._id">{{ cat.label }}</option>
                 </select>
                 <span v-if="formErrors.category" class="error-text">{{ formErrors.category }}</span>
               </div>

@@ -15,6 +15,7 @@ const form = ref({
   icon: '',
   description: { fa: '', en: '' },
   status: 'active',
+  parents: [],
 })
 
 const statusColors = {
@@ -45,7 +46,7 @@ const filteredCategories = computed(() => {
 
 const openCreate = () => {
   editingCategory.value = null
-  form.value = { name: { fa: '', en: '' }, slug: '', icon: '', description: { fa: '', en: '' }, status: 'active' }
+  form.value = { name: { fa: '', en: '' }, slug: '', icon: '', description: { fa: '', en: '' }, status: 'active', parents: [] }
   showModal.value = true
 }
 
@@ -57,6 +58,7 @@ const openEdit = (cat) => {
     icon: cat.icon || '',
     description: { fa: cat.description?.fa || '', en: cat.description?.en || '' },
     status: cat.status || 'active',
+    parents: cat.parents || [],
   }
   showModal.value = true
 }
@@ -159,6 +161,14 @@ const generateSlug = () => {
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
             <span>{{ cat.createdAt ? new Date(cat.createdAt).toLocaleDateString('fa-IR') : '-' }}</span>
           </div>
+          <div class="meta-chip" v-if="cat.parents && cat.parents.length > 0">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v16m-8-8h16" stroke-linecap="round"/></svg>
+            <span>زیردسته ({{ cat.parents.length }} والد)</span>
+          </div>
+          <div class="meta-chip" v-else>
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>
+            <span>دسته اصلی</span>
+          </div>
         </div>
 
         <div class="category-actions">
@@ -216,6 +226,23 @@ const generateSlug = () => {
                 <label class="form-label">آیکون (emoji یا unicode)</label>
                 <input v-model="form.icon" type="text" class="form-input" placeholder="◆" maxlength="4" />
                 <span class="input-hint">یک emoji یا نماد کوتاه</span>
+              </div>
+              <div class="form-group full">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <label class="form-label">دسته‌بندی‌های والد (اختیاری)</label>
+                  <button type="button" @click="form.parents = []" class="clear-selection-btn">تغییر به دسته اصلی (حذف همه)</button>
+                </div>
+                <div class="checkbox-grid">
+                  <label 
+                    v-for="c in categories.filter(x => x._id !== editingCategory?._id)" 
+                    :key="c._id" 
+                    class="checkbox-label"
+                  >
+                    <input type="checkbox" :value="c._id" v-model="form.parents" />
+                    <span class="checkbox-text">{{ c.name?.fa }}</span>
+                  </label>
+                </div>
+                <span class="input-hint">می‌توانید هر تعداد والد که می‌خواهید برای این دسته تیک بزنید. اگر هیچکدام تیک نخورد، دسته اصلی محسوب می‌شود.</span>
               </div>
               
               <div class="form-group full">
@@ -747,5 +774,50 @@ const generateSlug = () => {
     flex-direction: column;
     gap: 12px;
   }
+}
+.clear-selection-btn {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+.clear-selection-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+
+.checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding: 14px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.checkbox-label input[type="checkbox"] {
+  accent-color: #c5a059;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  margin: 0;
+}
+.checkbox-text {
+  font-size: 0.85rem;
+  color: rgba(255,255,255,0.85);
+  user-select: none;
 }
 </style>
