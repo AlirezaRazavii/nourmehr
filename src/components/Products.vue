@@ -374,11 +374,10 @@ onUnmounted(() => {
 }
 
 .bg-effects { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
-.bg-orb { position: absolute; border-radius: 50%; filter: blur(120px); opacity: 0.3; animation: orbFloat 25s ease-in-out infinite; }
+.bg-orb { position: absolute; border-radius: 50%; opacity: 0.15; }
 .bg-orb-1 { width: 600px; height: 600px; background: radial-gradient(circle, rgba(197,160,89,0.4), transparent 70%); top: -10%; right: -5%; }
-.bg-orb-2 { width: 500px; height: 500px; background: radial-gradient(circle, rgba(56,189,248,0.2), transparent 70%); bottom: 10%; left: -8%; animation-delay: -8s; }
-.bg-orb-3 { width: 400px; height: 400px; background: radial-gradient(circle, rgba(168,85,247,0.15), transparent 70%); top: 50%; left: 40%; animation-delay: -16s; }
-@keyframes orbFloat { 0%,100% { transform: translate(0,0) scale(1); } 25% { transform: translate(30px,-40px) scale(1.1); } 50% { transform: translate(-20px,30px) scale(0.95); } 75% { transform: translate(40px,20px) scale(1.05); } }
+.bg-orb-2 { width: 500px; height: 500px; background: radial-gradient(circle, rgba(56,189,248,0.2), transparent 70%); bottom: 10%; left: -8%; }
+.bg-orb-3 { width: 400px; height: 400px; background: radial-gradient(circle, rgba(168,85,247,0.15), transparent 70%); top: 50%; left: 40%; }
 .bg-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px); background-size: 80px 80px; mask-image: radial-gradient(ellipse at center, black 30%, transparent 70%); }
 .bg-vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 40%, rgba(4,6,9,0.8) 100%); }
 
@@ -448,8 +447,8 @@ onUnmounted(() => {
 .card-inner { position: relative; z-index: 1; border-radius: 16px; background: linear-gradient(165deg, rgba(18,22,36,0.95), rgba(8,10,18,0.98)); border: 1px solid rgba(255,255,255,0.05); overflow: hidden; display: flex; flex-direction: column; height: 100%; transition: transform 0.3s ease, border-color 0.3s, box-shadow 0.3s; }
 
 @media (hover: hover) {
-  .product-card:hover .card-inner { transform: translateY(-6px); border-color: rgba(197,160,89,0.15); box-shadow: 0 18px 50px rgba(0,0,0,0.5), 0 0 30px rgba(197,160,89,0.05); }
-  .product-card:hover .card-image { transform: scale(1.08); }
+  .product-card:hover .card-inner { transform: translateY(-4px); border-color: rgba(197,160,89,0.15); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+  .product-card:hover .card-image { transform: scale(1.05); }
   .product-card:hover .title-underline { width: 34px; }
 }
 
@@ -478,13 +477,13 @@ onUnmounted(() => {
   position: absolute; top: 10px; right: 10px; z-index: 4;
   width: 36px !important; height: 36px !important; border-radius: 50% !important;
   padding: 0 !important;
-  background: rgba(0,0,0,0.5) !important; border: 1px solid rgba(255,255,255,0.12) !important;
+  background: rgba(0,0,0,0.7) !important; border: 1px solid rgba(255,255,255,0.12) !important;
   color: rgba(255,255,255,0.75) !important; display: flex; align-items: center; justify-content: center;
-  cursor: pointer; transition: all 0.25s ease; backdrop-filter: blur(6px);
+  cursor: pointer; transition: all 0.25s ease;
 }
 .wishlist-heart:hover { background: rgba(239,68,68,0.2) !important; color: #ff6b6b !important; border-color: rgba(239,68,68,0.4) !important; transform: scale(1.1); filter: none !important; }
 .wishlist-heart.active { color: #ef4444 !important; background: rgba(239,68,68,0.15) !important; border-color: rgba(239,68,68,0.5) !important; }
-.wishlist-heart svg { display: block; }.card-badge { position: absolute; bottom: 10px; right: 10px; z-index: 3; display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 9px; background: rgba(0,0,0,0.5); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.08); font-size: 0.62rem; color: #f5d78e; font-weight: 500; max-width: calc(100% - 20px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wishlist-heart svg { display: block; }.card-badge { position: absolute; bottom: 10px; right: 10px; z-index: 3; display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 9px; background: rgba(0,0,0,0.7); border: 1px solid rgba(255,255,255,0.08); font-size: 0.62rem; color: #f5d78e; font-weight: 500; max-width: calc(100% - 20px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .badge-icon { font-size: 0.7rem; flex-shrink: 0; }
 
 .card-content { padding: clamp(10px,1.2vw,14px); display: flex; flex-direction: column; gap: 7px; flex: 1; }

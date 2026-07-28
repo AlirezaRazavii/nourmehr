@@ -64,37 +64,6 @@ onMounted(() => {
   })
 })
 
-// throttle با requestAnimationFrame تا روی دستگاه‌های ضعیف لگ نزند
-let rafId = null
-
-function onMouseMove(e) {
-  const cardEl = e.currentTarget // ← درست: خودِ کارت، نه $el
-  if (!cardEl) return
-  if (rafId) return // اگر فریم قبلی هنوز اجرا نشده، صرف‌نظر کن
-
-  const clientX = e.clientX
-  const clientY = e.clientY
-
-  rafId = requestAnimationFrame(() => {
-    const rect = cardEl.getBoundingClientRect()
-    const x = ((clientX - rect.left) / rect.width) * 100
-    const y = ((clientY - rect.top) / rect.height) * 100
-    cardEl.style.setProperty('--mouse-x', `${x}%`)
-    cardEl.style.setProperty('--mouse-y', `${y}%`)
-    rafId = null
-  })
-}
-
-function onMouseLeave(e) {
-  const cardEl = e.currentTarget
-  if (!cardEl) return
-  if (rafId) {
-    cancelAnimationFrame(rafId)
-    rafId = null
-  }
-  cardEl.style.setProperty('--mouse-x', '50%')
-  cardEl.style.setProperty('--mouse-y', '50%')
-}
 </script>
 
 <template>
@@ -107,11 +76,7 @@ function onMouseLeave(e) {
         class="feature-card glass"
         :class="{ 'is-visible': isVisible }"
         :style="{ '--delay': `${index * 0.12}s`, '--accent': item.color }"
-        @mousemove="onMouseMove"
-        @mouseleave="onMouseLeave"
       >
-        <!-- Spotlight glow follows mouse -->
-        <div class="card-spotlight"></div>
 
         <div class="feature-icon">
           <svg
@@ -171,8 +136,6 @@ function onMouseLeave(e) {
 
 /* ─── Card ────────────────────────────────────────────────── */
 .feature-card {
-  --mouse-x: 50%;
-  --mouse-y: 50%;
   --accent: #facc6b;
 
   position: relative;
@@ -212,32 +175,6 @@ function onMouseLeave(e) {
   }
 }
 
-/* ─── Spotlight (follows mouse) ───────────────────────────── */
-.card-spotlight {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(
-    circle 180px at var(--mouse-x) var(--mouse-y),
-    rgba(250, 204, 107, 0.18),
-    transparent 70%
-  );
-  background: radial-gradient(
-    circle 180px at var(--mouse-x) var(--mouse-y),
-    color-mix(in srgb, var(--accent) 18%, transparent),
-    transparent 70%
-  );
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  z-index: 0;
-  pointer-events: none;
-}
-
-/* spotlight فقط روی دستگاه‌های ماوس‌دار */
-@media (hover: hover) and (pointer: fine) {
-  .feature-card:hover .card-spotlight {
-    opacity: 1;
-  }
-}
 
 /* ─── Icon ────────────────────────────────────────────────── */
 .feature-icon {
@@ -394,7 +331,6 @@ function onMouseLeave(e) {
   }
 }
 
-/* ─── Reduced motion ──────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .feature-card,
   .feature-icon svg,
@@ -407,10 +343,6 @@ function onMouseLeave(e) {
   .feature-card.is-visible {
     opacity: 1;
     transform: none;
-  }
-
-  .card-spotlight {
-    display: none;
   }
 }
 </style>

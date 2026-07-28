@@ -462,17 +462,6 @@ onUnmounted(() => {
   transition: padding 0.3s ease, background-color 0.3s ease;
 }
 
-/* blur فقط روی دستگاه‌هایی که pointer دقیق دارند (دسکتاپ) و اگر پشتیبانی شود.
-   روی موبایل/تبلت (pointer: coarse) اصلاً اعمال نمی‌شود تا GPU ضعیف درگیر نشود. */
-@media (hover: hover) and (pointer: fine) {
-  @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
-    .navbar {
-      background: rgba(5, 8, 20, 0.78);
-      -webkit-backdrop-filter: blur(14px);
-      backdrop-filter: blur(14px);
-    }
-  }
-}
 
 .navbar-scrolled .navbar {
   padding: 10px 30px;
