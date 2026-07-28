@@ -9,11 +9,14 @@
 </template>
 
 <script setup>
+import { defineAsyncComponent } from 'vue'
 import Hero from '../components/Hero.vue'
-import Features from '../components/Features.vue'
-import HomeCollections from '../components/HomeCollections.vue'
-import Announcements from '../components/Announcements.vue'
-import Testimonials from '../components/Testimonials.vue'
+
+// Lazy loaded components: These will only be loaded when they are actually needed / requested by the browser
+const Features = defineAsyncComponent(() => import('../components/Features.vue'))
+const HomeCollections = defineAsyncComponent(() => import('../components/HomeCollections.vue'))
+const Announcements = defineAsyncComponent(() => import('../components/Announcements.vue'))
+const Testimonials = defineAsyncComponent(() => import('../components/Testimonials.vue'))
 </script>
 
 <style scoped>
