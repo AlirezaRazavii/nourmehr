@@ -1,0 +1,249 @@
+├── .env.development.example
+├── .gitattributes
+├── .gitignore
+├── .replit
+├── analysis.md
+├── attached_assets
+│   ├── compass-connections_1781708631314.json
+│   └── Screenshot_2026-06-17_183400_1781708650548.png
+├── backend
+│   ├── .env
+│   ├── config
+│   │   ├── db.js
+│   │   ├── gridfs.js
+│   │   ├── passport.js
+│   │   └── permissions.js
+│   ├── controllers
+│   │   ├── admin
+│   │   │   ├── blogController.js
+│   │   │   ├── categoryController.js
+│   │   │   ├── collectionController.js
+│   │   │   ├── dashboardController.js
+│   │   │   ├── discountController.js
+│   │   │   ├── heroController.js
+│   │   │   ├── notificationController.js
+│   │   │   ├── orderController.js
+│   │   │   ├── paymentController.js
+│   │   │   ├── productController.js
+│   │   │   ├── reviewController.js
+│   │   │   ├── settingController.js
+│   │   │   ├── ticketController.js
+│   │   │   └── userController.js
+│   │   ├── authController.js
+│   │   ├── blogController.js
+│   │   ├── cartController.js
+│   │   ├── collectionController.js
+│   │   ├── contactController.js
+│   │   ├── heroController.js
+│   │   ├── heroImageController.js
+│   │   ├── imageController.js
+│   │   ├── orderController.js
+│   │   ├── paymentController.js
+│   │   ├── productController.js
+│   │   ├── publicDiscountController.js
+│   │   ├── reviewController.js
+│   │   ├── ticketController.js
+│   │   ├── userController.js
+│   │   └── wishlistController.js
+│   ├── middleware
+│   │   ├── authMiddleware.js
+│   │   ├── languageMiddleware.js
+│   │   ├── optionalAuth.js
+│   │   ├── permissionMiddleware.js
+│   │   ├── rateLimiter.js
+│   │   ├── upload.js
+│   │   └── uploadHero.js
+│   ├── models
+│   │   ├── Blog.js
+│   │   ├── Cart.js
+│   │   ├── Category.js
+│   │   ├── Collection.js
+│   │   ├── Discount.js
+│   │   ├── Hero.js
+│   │   ├── Notification.js
+│   │   ├── Order.js
+│   │   ├── Payment.js
+│   │   ├── Product.js
+│   │   ├── Review.js
+│   │   ├── Setting.js
+│   │   ├── SmsCode.js
+│   │   ├── Ticket.js
+│   │   └── User.js
+│   ├── package-lock.json
+│   ├── package.json
+│   ├── routes
+│   │   ├── adminRoutes.js
+│   │   ├── authRoutes.js
+│   │   ├── blogRoutes.js
+│   │   ├── cartRoutes.js
+│   │   ├── categoryRoutes.js
+│   │   ├── collectionRoutes.js
+│   │   ├── contactRoutes.js
+│   │   ├── discountRoutes.js
+│   │   ├── heroImageRoutes.js
+│   │   ├── heroRoutes.js
+│   │   ├── imageRoutes.js
+│   │   ├── orderRoutes.js
+│   │   ├── paymentRoutes.js
+│   │   ├── productRoutes.js
+│   │   ├── reviewRoutes.js
+│   │   ├── settingsRoutes.js
+│   │   ├── ticketRoutes.js
+│   │   ├── userRoutes.js
+│   │   └── wishlistRoutes.js
+│   ├── server.js
+│   ├── services
+│   │   ├── categoryApi.js
+│   │   ├── smsService.js
+│   │   └── zarinpalService.js
+│   ├── test.js
+│   └── utils
+│       ├── cache.js
+│       ├── discountEngine.js
+│       ├── generateToken.js
+│       ├── removeOldAdmins.js
+│       ├── seedAdmin.js
+│       ├── seedCategories.js
+│       ├── seedCollections.js
+│       ├── seedSuperAdmin.js
+│       └── smsStore.js
+├── BUGS_AUDIT.md
+├── index.html
+├── LICENSE
+├── package-lock.json
+├── package.json
+├── PROJECT_TREE.md
+├── public
+│   ├── hero
+│   │   ├── hero1.webp
+│   │   ├── hero2.webp
+│   │   └── hero3.webp
+│   ├── login
+│   │   └── README.txt
+│   ├── products
+│   │   ├── 1.png
+│   │   ├── 2.png
+│   │   ├── 3.png
+│   │   └── 4.png
+│   └── robots.txt
+├── QUICK_START.md
+├── src
+│   ├── App.vue
+│   ├── assests
+│   │   ├── backgrounds
+│   │   │   ├── IMG_3306.jpg
+│   │   │   ├── IMG_3306.PNG
+│   │   │   ├── IMG_3308.jpg
+│   │   │   ├── IMG_3308.PNG
+│   │   │   ├── IMG_3309.jpg
+│   │   │   └── IMG_3309.PNG
+│   │   ├── fonts
+│   │   │   ├── dastan.ttf
+│   │   │   ├── DecoType Naskh Extensions.ttf
+│   │   │   ├── DimaShekasteh.ttf
+│   │   │   ├── IranNastaliq.ttf
+│   │   │   ├── Karbala.ttf
+│   │   │   ├── Mohammad RasoolAllah.ttf
+│   │   │   ├── Mola.ttf
+│   │   │   ├── msuighur.ttf
+│   │   │   ├── My Font Mohammad1.ttf
+│   │   │   ├── My Font Quraan.ttf
+│   │   │   ├── Nabi.ttf
+│   │   │   ├── Negaar Bold.ttf
+│   │   │   ├── Negaar Regular.ttf
+│   │   │   ├── Shams.ttf
+│   │   │   ├── Shekari.ttf
+│   │   │   └── Shekasteh.ttf
+│   │   ├── locales
+│   │   │   ├── en.json
+│   │   │   └── fa.json
+│   │   ├── logo
+│   │   │   ├── IMG_3401.PNG
+│   │   │   └── Nourmehr-gold.webp
+│   │   └── main.css
+│   ├── components
+│   │   ├── Announcements.vue
+│   │   ├── ChatWidget.vue
+│   │   ├── Features.vue
+│   │   ├── Footer.vue
+│   │   ├── Hero.vue
+│   │   ├── HomeCollections.vue
+│   │   ├── Navbar.vue
+│   │   ├── oldHero.vue
+│   │   ├── ProductDetails.vue
+│   │   ├── Products.vue
+│   │   ├── Testimonials.vue
+│   │   └── Toast.vue
+│   ├── data
+│   │   └── products.js
+│   ├── i18n.js
+│   ├── layouts
+│   ├── main.js
+│   ├── router
+│   │   └── admin.js
+│   ├── router.js
+│   ├── services
+│   │   ├── adminApi.js
+│   │   ├── api.js
+│   │   ├── blogApi.js
+│   │   ├── categoryApi.js
+│   │   ├── categoryCache.js
+│   │   ├── collectionApi.js
+│   │   ├── discountApi.js
+│   │   ├── heroApi.js
+│   │   ├── paymentApi.js
+│   │   ├── ticketApi.js
+│   │   └── wishlistApi.js
+│   ├── stores
+│   │   ├── addresses.js
+│   │   ├── auth.js
+│   │   ├── cart.js
+│   │   ├── content.js
+│   │   ├── notifications.js
+│   │   ├── orders.js
+│   │   ├── products.js
+│   │   └── wishlist.js
+│   ├── utils
+│   │   ├── imageUrl.js
+│   │   └── loadGoogle.js
+│   └── views
+│       ├── About.vue
+│       ├── admin
+│       │   ├── AdminAdmins.vue
+│       │   ├── AdminBlogs.vue
+│       │   ├── AdminCategories.vue
+│       │   ├── AdminCollections.vue
+│       │   ├── AdminDashboard.vue
+│       │   ├── AdminDiscounts.vue
+│       │   ├── AdminHero.vue
+│       │   ├── AdminLayout.vue
+│       │   ├── AdminOrders.vue
+│       │   ├── AdminPayments.vue
+│       │   ├── AdminProducts.vue
+│       │   ├── AdminReviews.vue
+│       │   ├── AdminSettings.vue
+│       │   ├── AdminTickets.vue
+│       │   └── AdminUsers.vue
+│       ├── Cart.vue
+│       ├── Checkout.vue
+│       ├── Collection.vue
+│       ├── CollectionView.vue
+│       ├── CompleteProfile.vue
+│       ├── Contact.vue
+│       ├── Discounts.vue
+│       ├── Home.vue
+│       ├── Login.vue
+│       ├── News.vue
+│       ├── NewsDetails.vue
+│       ├── NotFound.vue
+│       ├── PaymentCallback.vue
+│       ├── Search.vue
+│       └── user
+│           ├── UserAddresses.vue
+│           ├── UserDashboard.vue
+│           ├── UserLayout.vue
+│           ├── UserOrders.vue
+│           ├── UserProfile.vue
+│           ├── UserTickets.vue
+│           └── UserWishlist.vue
+└── vite.config.js
