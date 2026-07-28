@@ -1,8 +1,9 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import i18n, { applyDirection, setLocale, loadLocaleMessages, SUPPORTED_LOCALES, getSavedLocale } from './i18n'
 
+// --- لود قطعی صفحه اصلی ---
+import Home from './views/Home.vue'
 // --- لود تدریجی (Lazy Loading) ---
-const Home = () => import('./views/Home.vue')
 const About = () => import('./views/About.vue')
 const Contact = () => import('./views/Contact.vue')
 const Collection = () => import('./views/Collection.vue')

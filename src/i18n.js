@@ -4,8 +4,10 @@ import { createI18n } from 'vue-i18n'
 export const SUPPORTED_LOCALES = ['fa', 'en']
 export const DEFAULT_LOCALE = 'fa'
 
+import faMessages from './assests/locales/fa.json'
+
 const loaders = {
-  fa: () => import('./assests/locales/fa.json'),
+  fa: () => Promise.resolve({ default: faMessages }),
   en: () => import('./assests/locales/en.json'),
 }
 
