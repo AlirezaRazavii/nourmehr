@@ -28,7 +28,8 @@ let observer = null
 
 /* ───────── cache (کلید شامل زبان است) ───────── */
 const TTL = 5 * 60 * 1000
-const cacheKey = () => `hero_v2_${locale.value}`
+const cacheKey = () => `hero_v3_${locale.value}`
+
 
 const readCache = () => {
   try {
@@ -130,28 +131,58 @@ const onUp = (e) => {
 }
 
 /* ───────── data ───────── */
+const version = ref(null)
+
 const apply = (data) => {
   const list = Array.isArray(data?.slides) ? data.slides.filter(Boolean) : []
-  if (data?.enabled === false || !list.length) { slides.value = []; return false }
+  if (data?.enabled === false || !list.length) {
+    slides.value = []
+    version.value = data?.version ?? null
+    return false
+  }
   settings.value = { ...settings.value, ...(data.settings || {}) }
   slides.value = list
-  index.value = 0
+  version.value = data.version ?? null
+  if (index.value >= list.length) index.value = 0
   return true
+}
+
+const fetchFresh = async () => {
+  const res = await getPublicHero()
+  return res?.data ?? res
 }
 
 const load = async () => {
   const cached = readCache()
+
+  // ۱) اگر کش داریم فوراً نمایش بده تا صفحه سریع بالا بیاید
   if (cached) {
     apply(cached)
     loading.value = false
     preload(1)
     sync()
+
+    // ۲) در پس‌زمینه نسخهٔ تازه را بگیر؛ اگر version فرق داشت، آپدیت کن
+    try {
+      const fresh = await fetchFresh()
+      const changed = (fresh?.version ?? null) !== (cached?.version ?? null)
+      if (changed) {
+        writeCache(fresh)
+        stop()
+        seen.clear()
+        index.value = 0
+        apply(fresh)
+        preload(1)
+        sync()
+      }
+    } catch { /* آفلاین بودن نباید هیرو را خراب کند */ }
     return
   }
+
+  // ۳) بدون کش: مسیر عادی
   loading.value = true
   try {
-    const res = await getPublicHero()
-    const data = res?.data ?? res
+    const data = await fetchFresh()
     writeCache(data)
     apply(data)
   } catch {
@@ -162,7 +193,6 @@ const load = async () => {
     sync()
   }
 }
-
 /* ───────── lifecycle ───────── */
 const onVisibility = () => { pageVisible.value = document.visibilityState === 'visible'; sync() }
 
