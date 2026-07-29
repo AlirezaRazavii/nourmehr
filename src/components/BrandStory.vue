@@ -27,7 +27,7 @@ const stats = [
         />
 
         <div class="years">
-          <span class="years__value">+{{ t('story_years_value') }}</span>
+          <span class="years__value">{{ t('story_years_value') }}</span>
           <span class="years__label">{{ t('story_years_label') }}</span>
         </div>
       </figure>
