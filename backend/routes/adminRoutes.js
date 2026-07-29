@@ -13,7 +13,14 @@ const { getPayments, verifyPaymentByAdmin, refundPaymentByAdmin } = require('../
 const { getTickets, getTicketById, replyToTicket, updateTicketStatus } = require('../controllers/admin/ticketController');
 const { getDiscounts, createDiscount, updateDiscount, deleteDiscount } = require('../controllers/admin/discountController');
 const { getProducts, getProductById, createProduct, updateProduct, deleteProduct, uploadProductImage, deleteProductImage } = require('../controllers/admin/productController');
-const { getCategories, createCategory, updateCategory, deleteCategory } = require('../controllers/admin/categoryController');
+const {
+  getCategories,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+  uploadCategoryImage,
+  deleteCategoryImage,
+} = require('../controllers/admin/categoryController');
 const { getSettings, updateSettings } = require('../controllers/admin/settingController');
 const { getCollections, createCollection, updateCollection, deleteCollection, setCollectionProducts } = require('../controllers/admin/collectionController');
 const blogController = require('../controllers/admin/blogController');
@@ -86,6 +93,15 @@ router.put('/products/:id', hasPermission(PERMISSIONS.PRODUCTS), updateProduct);
 router.delete('/products/:id', hasPermission(PERMISSIONS.PRODUCTS), deleteProduct);
 
 /* ------------------------------ دسته‌بندی‌ها -------------------------------- */
+router.post(
+  '/categories/upload-image',
+  hasPermission(PERMISSIONS.CATEGORIES),
+  upload.single('image'),
+  handleUploadError,
+  uploadCategoryImage
+);
+router.post('/categories/delete-image', hasPermission(PERMISSIONS.CATEGORIES), deleteCategoryImage);
+
 router.get('/categories', hasPermission(PERMISSIONS.CATEGORIES), getCategories);
 router.post('/categories', hasPermission(PERMISSIONS.CATEGORIES), createCategory);
 router.put('/categories/:id', hasPermission(PERMISSIONS.CATEGORIES), updateCategory);

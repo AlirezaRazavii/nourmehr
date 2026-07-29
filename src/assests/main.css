@@ -17,6 +17,22 @@
   --border: rgba(255, 255, 255, 0.18);
   --gold: #d4af37;
   --text-muted: #9ca3af;
+
+  /* ===== ارتفاع نوار ناوبری (منبع واحد حقیقت) =====
+     هر جای سایت که به ارتفاع نوار وابسته است باید از این‌ها بخواند:
+     App.vue، Hero.vue، کشوی فیلتر و هر عنصر sticky دیگر. */
+  --nav-top-h: 64px;    /* ردیف اول: برند + جستجو + اکشن‌ها */
+  --nav-bar-h: 48px;    /* ردیف دوم: مگامنو + لینک‌ها */
+  --nav-total: 112px;   /* مجموع = top + bar */
+}
+
+/* در تبلت و موبایل ردیف دوم حذف می‌شود */
+@media (max-width: 1024px) {
+  :root {
+    --nav-top-h: 60px;
+    --nav-bar-h: 0px;
+    --nav-total: 60px;
+  }
 }
 
 * {
@@ -41,6 +57,11 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   line-height: 1.8;
+}
+
+/* لنگر انداختن روی id ها زیر نوار ثابت گم نشود */
+:target {
+  scroll-margin-top: calc(var(--nav-total, 112px) + 16px);
 }
 
 /* همه‌ی تصاویر و مدیاها از کادر بیرون نزنند */
@@ -77,7 +98,7 @@ button {
   background: var(--gold);
   color: #000;
   border: none;
-  padding: 10px 20px; 
+  padding: 10px 20px;
   border-radius: 8px;
   font-weight: bold;
   cursor: pointer;
@@ -169,13 +190,17 @@ button:hover {
 .filter-drawer-global .switch input:checked + .slider::before { transform: translateX(-20px); }
 .filter-drawer-global .reset-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); color: rgba(255,255,255,0.65); padding: 10px; border-radius: 10px; font-family: inherit; font-size: 0.8rem; cursor: pointer; }
 
-/* در دسکتاپ کشو همیشه باز و چسبیده در کنار باشد */
+/* در دسکتاپ کشو همیشه باز و چسبیده در کنار باشد
+   top از ارتفاع نوار محاسبه می‌شود تا زیر ناوبار جدید نرود */
 @media (min-width: 861px) {
   .filter-overlay-global { display: none; }
   .filter-drawer-global {
     position: fixed;
-    top: 100px; right: max(24px, calc((100vw - 1400px) / 2 + 24px)); bottom: auto;
-    width: 260px; height: auto; max-height: calc(100vh - 140px);
+    top: calc(var(--nav-total, 112px) + 20px);
+    right: max(24px, calc((100vw - 1400px) / 2 + 24px));
+    bottom: auto;
+    width: 260px; height: auto;
+    max-height: calc(100vh - var(--nav-total, 112px) - 60px);
     border-radius: 18px; border: 1px solid rgba(255,255,255,0.06);
     transform: none;
   }
@@ -203,6 +228,21 @@ button:hover {
 .filter-drawer.is-mobile .switch input:checked + .slider { background: #2bbf9e; }
 
 
+/* ===== خنثی‌سازی استایل سراسری دکمه در نواحی خاص =====
+   قانون بالای فایل به همهٔ button ها پس‌زمینهٔ طلایی می‌دهد.
+   داخل ناوبار و هیرو نمی‌خواهیم این اتفاق بیفتد. */
+.nav-root button,
+.hero button {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  border-radius: 0;
+  font-weight: inherit;
+}
+.nav-root button:hover,
+.hero button:hover {
+  filter: none;
+}
 
 button.nav-btn,
 button.icon-btn,

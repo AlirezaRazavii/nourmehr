@@ -185,12 +185,11 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useProductStore } from '../stores/products'
 import { useWishlist } from '../stores/wishlist'
 import { useAuth } from '../stores/auth'
-import { useRouter } from 'vue-router'
 import { getImageUrl } from '../utils/imageUrl'
 
 const { t, locale } = useI18n()
@@ -198,8 +197,20 @@ const productStore = useProductStore()
 const wishlist = useWishlist()
 const auth = useAuth()
 const router = useRouter()
+const route = useRoute()
 
-// تغییر وضعیت علاقه‌مندی با بررسی لاگین
+/* ───────── i18n helpers ───────── */
+const getLocalizedText = (value) => {
+  if (!value) return ''
+  if (typeof value === 'string') return value
+  if (typeof value === 'object') return value[locale.value] || value.fa || ''
+  return ''
+}
+
+const formatNumber = (n) =>
+  Number(n || 0).toLocaleString(locale.value === 'fa' ? 'fa-IR' : 'en-US')
+
+/* ───────── wishlist ───────── */
 const toggleWishlist = async (productId) => {
   if (!auth.isAuthenticated) {
     router.push({ name: 'Login', params: { lang: locale.value }, query: { redirect: route.fullPath } })
@@ -208,29 +219,21 @@ const toggleWishlist = async (productId) => {
   await wishlist.toggle(productId)
 }
 
-const route = useRoute()
+/* ───────── categories ───────── */
 const categories = computed(() => [
   { value: 'all', label: t('products_all_categories'), icon: '◦' },
-  ...productStore.categories.map(c => ({ value: c.slug, label: getLocalizedText(c.name), icon: c.icon || '◆' }))
+  ...productStore.categories.map(c => ({
+    value: c.slug,
+    label: getLocalizedText(c.name),
+    icon: c.icon || '◆',
+  })),
 ])
 
 const products = computed(() => productStore.products)
 const isLoading = computed(() => productStore.isLoading)
 
+/* ───────── filters state ───────── */
 const selectedCategory = ref('all')
-
-watch(
-  () => route.query.category,
-  (newCategory) => {
-    if (newCategory) {
-      selectedCategory.value = newCategory
-    } else {
-      selectedCategory.value = 'all'
-    }
-  },
-  { immediate: true }
-)
-
 const searchQuery = ref('')
 const onlyInStock = ref(false)
 const sortBy = ref('default')
@@ -240,28 +243,54 @@ const isMobile = ref(false)
 const currentPage = ref(1)
 const perPage = 20
 
+/* هم‌گام‌سازی با کوئری آدرس (category و search از نوبار می‌آیند) */
+watch(
+  () => route.query.category,
+  (v) => { selectedCategory.value = v || 'all' },
+  { immediate: true }
+)
+
+watch(
+  () => route.query.search,
+  (v) => {
+    const q = typeof v === 'string' ? v : ''
+    if (q !== searchQuery.value) searchQuery.value = q
+  },
+  { immediate: true }
+)
+
+/** بروزرسانی آدرس هنگام تایپ در سرچ داخلی صفحه (بدون افزودن به history) */
+let urlSyncTimer = null
+watch(searchQuery, (q) => {
+  clearTimeout(urlSyncTimer)
+  urlSyncTimer = setTimeout(() => {
+    const term = q.trim()
+    const current = typeof route.query.search === 'string' ? route.query.search : ''
+    if (term === current) return
+
+    const query = { ...route.query }
+    if (term) query.search = term
+    else delete query.search
+
+    router.replace({ name: 'Products', params: { lang: locale.value }, query }).catch(() => {})
+  }, 400)
+})
+
+/* ───────── responsive ───────── */
 const updateIsMobile = () => {
   isMobile.value = window.innerWidth <= 860
   if (!isMobile.value) mobileFilterOpen.value = false
 }
 
+/* ───────── reveal animation ───────── */
 const headerVisible = ref(false)
 const filterVisible = ref(false)
 const sectionRef = ref(null)
 
-const formatNumber = (n) => Number(n || 0).toLocaleString(locale.value === 'fa' ? 'fa-IR' : 'en-US')
-
-const getLocalizedText = (value) => {
-  if (!value) return ''
-  if (typeof value === 'string') return value
-  if (typeof value === 'object') {
-    return value[locale.value] || value.fa || ''
-  }
-  return ''
-}
-
+/* ───────── product helpers ───────── */
 const catSlugOf = (p) =>
-  p.category?.slug || (typeof p.category === 'string' ? p.category.toLowerCase().replace(/\s+/g, '-') : null)
+  p.category?.slug ||
+  (typeof p.category === 'string' ? p.category.toLowerCase().replace(/\s+/g, '-') : null)
 
 const isInStock = (p) => {
   if (typeof p.inStock === 'boolean') return p.inStock
@@ -272,26 +301,29 @@ const isInStock = (p) => {
 
 const getAllSubCategorySlugs = (categorySlug, categoriesList) => {
   if (categorySlug === 'all') return []
-  
+
   const targetCat = categoriesList.find(c => c.slug === categorySlug || c.value === categorySlug)
   if (!targetCat) return [categorySlug]
-  
+
   const targetId = targetCat._id || targetCat.id
   let slugs = [targetCat.slug || targetCat.value]
 
-  // پیدا کردن فرزندان مسقیم
-  const children = categoriesList.filter(c => c.parents && c.parents.includes(targetId))
-  
+  const children = categoriesList.filter(c =>
+    Array.isArray(c.parents) &&
+    c.parents.some(p => (typeof p === 'string' ? p : p?._id || p?.id) === targetId)
+  )
+
   for (const child of children) {
     const childSlug = child.slug || child.value
     if (!slugs.includes(childSlug)) {
-       slugs = [...slugs, ...getAllSubCategorySlugs(childSlug, categoriesList)]
+      slugs = [...slugs, ...getAllSubCategorySlugs(childSlug, categoriesList)]
     }
   }
-  
+
   return [...new Set(slugs)]
 }
 
+/* ───────── filtering ───────── */
 const filteredProducts = computed(() => {
   let list = [...products.value]
 
@@ -299,16 +331,17 @@ const filteredProducts = computed(() => {
     const validSlugs = getAllSubCategorySlugs(selectedCategory.value, productStore.categories)
     list = list.filter(p => validSlugs.includes(catSlugOf(p)))
   }
+
   if (searchQuery.value.trim()) {
     const q = searchQuery.value.trim().toLowerCase()
     list = list.filter(p =>
       (getLocalizedText(p.name) || '').toLowerCase().includes(q) ||
-      (getLocalizedText(p.shortDesc) || '').toLowerCase().includes(q)
+      (getLocalizedText(p.shortDesc) || '').toLowerCase().includes(q) ||
+      (p.sku || '').toLowerCase().includes(q)
     )
   }
-  if (onlyInStock.value) {
-    list = list.filter(isInStock)
-  }
+
+  if (onlyInStock.value) list = list.filter(isInStock)
 
   if (sortBy.value === 'cheap') list.sort((a, b) => Number(a.price) - Number(b.price))
   else if (sortBy.value === 'expensive') list.sort((a, b) => Number(b.price) - Number(a.price))
@@ -319,28 +352,23 @@ const filteredProducts = computed(() => {
 
 const paginatedProducts = computed(() => {
   const start = (currentPage.value - 1) * perPage
-  const end = start + perPage
-  return filteredProducts.value.slice(start, end)
+  return filteredProducts.value.slice(start, start + perPage)
 })
 
-const totalPages = computed(() => {
-  return Math.ceil(filteredProducts.value.length / perPage)
-})
+const totalPages = computed(() => Math.ceil(filteredProducts.value.length / perPage))
 
 const changePage = (page) => {
-  if (page >= 1 && page <= totalPages.value) {
-    currentPage.value = page
-    const grid = document.querySelector('.products-grid-inner')
-    if (grid) {
-      window.scrollTo({ top: grid.offsetTop - 100, behavior: 'smooth' })
-    }
-  }
+  if (page < 1 || page > totalPages.value) return
+  currentPage.value = page
+  const grid = document.querySelector('.products-grid-inner')
+  if (grid) window.scrollTo({ top: grid.offsetTop - 100, behavior: 'smooth' })
 }
 
 watch([searchQuery, selectedCategory, onlyInStock, sortBy], () => {
   currentPage.value = 1
 })
 
+/* ───────── UI helpers ───────── */
 const getCount = (catValue) => {
   if (catValue === 'all') return products.value.length
   return products.value.filter(p => catSlugOf(p) === catValue).length
@@ -360,6 +388,11 @@ const resetFilters = () => {
   onlyInStock.value = false
   sortBy.value = 'default'
   currentPage.value = 1
+
+  const query = { ...route.query }
+  delete query.search
+  delete query.category
+  router.replace({ name: 'Products', params: { lang: locale.value }, query }).catch(() => {})
 }
 
 const getProductImage = (product) => getImageUrl(product.mainImage || product.image)
@@ -368,20 +401,27 @@ watch(mobileFilterOpen, (open) => {
   document.body.style.overflow = (open && isMobile.value) ? 'hidden' : ''
 })
 
+/* ───────── lifecycle ───────── */
 onMounted(async () => {
   updateIsMobile()
   window.addEventListener('resize', updateIsMobile)
-  await productStore.fetchProducts()
-  if (!productStore.categories.length) productStore.fetchCategories()
+
+  await Promise.all([
+    productStore.fetchProducts({ limit: 200 }),
+    productStore.categories.length ? Promise.resolve() : productStore.fetchCategories(),
+  ])
+
   setTimeout(() => { headerVisible.value = true }, 200)
   setTimeout(() => { filterVisible.value = true }, 450)
 })
 
 onUnmounted(() => {
+  clearTimeout(urlSyncTimer)
   document.body.style.overflow = ''
   window.removeEventListener('resize', updateIsMobile)
 })
 </script>
+
 
 <style scoped>
 .products-page *, .products-page *::before, .products-page *::after { box-sizing: border-box; }

@@ -1,6 +1,10 @@
 const mongoose = require('mongoose');
+const path = require('path');
+const fsp = require('fs').promises;
+
 const Category = require('../../models/Category');
 const Product = require('../../models/Product');
+const { PRODUCTS_UPLOAD_DIR } = require('../../middleware/upload');
 const { invalidateCategoryCache } = require('../../utils/cache');
 
 const EDITABLE = [
@@ -13,6 +17,25 @@ const pick = (src = {}) =>
     if (src[k] !== undefined) acc[k] = src[k];
     return acc;
   }, {});
+
+const IMAGE_PATH_RE = /^\/uploads\/products\/[A-Za-z0-9._-]+$/;
+
+/* ------------------------- حذف امن فایل از دیسک ------------------------- */
+const deleteImageFile = async (imagePath) => {
+  if (!imagePath || typeof imagePath !== 'string') return;
+
+  const filename = path.basename(imagePath.split('?')[0]);
+  if (!filename || filename === '.' || filename === '..' || filename.includes('\0')) return;
+
+  const full = path.resolve(PRODUCTS_UPLOAD_DIR, filename);
+  if (full !== PRODUCTS_UPLOAD_DIR && !full.startsWith(PRODUCTS_UPLOAD_DIR + path.sep)) return;
+
+  try {
+    await fsp.unlink(full);
+  } catch (err) {
+    if (err.code !== 'ENOENT') console.error('[admin/categoryController:unlink]', full, err.message);
+  }
+};
 
 const fail = (res, error) => {
   console.error('[admin/categoryController]', error);
@@ -81,14 +104,25 @@ const updateCategory = async (req, res) => {
       return res.status(400).json({ success: false, message: 'دسته‌بندی نمی‌تواند والد خودش باشد' });
     }
 
+    const body = pick(req.body);
+
+    // اگر تصویر عوض شد، فایل قدیمی بعد از موفقیت آپدیت پاک می‌شود
+    let oldImage = null;
+    if (body.image !== undefined) {
+      const existing = await Category.findById(id).select('image').lean();
+      if (existing?.image && existing.image !== body.image) oldImage = existing.image;
+    }
+
     const category = await Category.findByIdAndUpdate(
       id,
-      { $set: pick(req.body) },
+      { $set: body },
       { new: true, runValidators: true, context: 'query' }
     );
     if (!category) {
       return res.status(404).json({ success: false, message: 'دسته‌بندی یافت نشد' });
     }
+
+    if (oldImage) deleteImageFile(oldImage);
 
     invalidateCategoryCache();
     res.json({ success: true, data: category });
@@ -127,6 +161,8 @@ const deleteCategory = async (req, res) => {
       return res.status(404).json({ success: false, message: 'دسته‌بندی یافت نشد' });
     }
 
+    if (category.image) deleteImageFile(category.image);
+
     invalidateCategoryCache();
     res.json({ success: true, message: 'دسته‌بندی حذف شد' });
   } catch (error) {
@@ -134,4 +170,59 @@ const deleteCategory = async (req, res) => {
   }
 };
 
-module.exports = { getCategories, createCategory, updateCategory, deleteCategory };
+/* -------------------------- آپلود / حذف تصویر -------------------------- */
+const uploadCategoryImage = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'فایلی ارسال نشده است' });
+    }
+    const filePath = `/uploads/products/${req.file.filename}`;
+    res.status(201).json({
+      success: true,
+      filePath,
+      url: filePath,
+      size: req.file.size,
+      mimetype: req.file.mimetype,
+    });
+  } catch (error) {
+    fail(res, error);
+  }
+};
+
+const deleteCategoryImage = async (req, res) => {
+  try {
+    const { filePath } = req.body;
+    if (!filePath || typeof filePath !== 'string') {
+      return res.status(400).json({ success: false, message: 'مسیر تصویر ارسال نشده است' });
+    }
+    if (!IMAGE_PATH_RE.test(filePath)) {
+      return res.status(400).json({ success: false, message: 'مسیر تصویر نامعتبر است' });
+    }
+
+    const [usedByCategory, usedByProduct] = await Promise.all([
+      Category.exists({ image: filePath }),
+      Product.exists({ $or: [{ mainImage: filePath }, { images: filePath }] }),
+    ]);
+
+    if (usedByCategory || usedByProduct) {
+      return res.status(409).json({
+        success: false,
+        message: 'این تصویر در حال استفاده است و قابل حذف مستقیم نیست',
+      });
+    }
+
+    await deleteImageFile(filePath);
+    res.json({ success: true, message: 'تصویر حذف شد' });
+  } catch (error) {
+    fail(res, error);
+  }
+};
+
+module.exports = {
+  getCategories,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+  uploadCategoryImage,
+  deleteCategoryImage,
+};

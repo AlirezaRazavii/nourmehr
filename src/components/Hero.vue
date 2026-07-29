@@ -350,7 +350,7 @@ watch(locale, () => { stop(); seen.clear(); load() })
 .hero * { box-sizing: border-box; }
 
 .hero {
-  --nav-h: 78px;
+   --nav-h: var(--nav-total, 112px);
   --accent: #c5a059;
   --ink: #f2f2f4;
   --muted: rgba(242, 242, 244, 0.58);
@@ -562,7 +562,6 @@ watch(locale, () => { stop(); seen.clear(); load() })
 
 /* ── ریسپانسیو ── */
 @media (max-width: 900px) {
-  .hero { --nav-h: 66px; }
   .hero__inner {
     grid-template-columns: 1fr;
     text-align: center;

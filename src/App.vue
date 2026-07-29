@@ -56,9 +56,7 @@ const viewKey = computed(() =>
   width: 100%;
 }
 
-.has-navbar {
-  padding-top: 60px;
-}
+.has-navbar { padding-top: var(--nav-total, 112px); }
 
 .page-enter-active,
 .page-leave-active {

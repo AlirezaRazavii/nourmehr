@@ -128,12 +128,10 @@ export const adminApi = {
     return res.data
   },
 
-
   async deleteProductImage(filePath) {
     const res = await api.post('/admin/products/delete-image', { filePath })
     return res.data
   },
-
 
   async getSettings() {
     const res = await api.get('/admin/settings')
@@ -145,6 +143,7 @@ export const adminApi = {
     return res.data
   },
 
+  /* ---------------------------- دسته‌بندی‌ها ---------------------------- */
   async getCategories() {
     const res = await api.get('/admin/categories')
     return res.data
@@ -165,7 +164,20 @@ export const adminApi = {
     return res.data
   },
 
- async getCollections() {
+  async uploadCategoryImage(formData) {
+    const res = await api.post('/admin/categories/upload-image', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return res.data
+  },
+
+  async deleteCategoryImage(filePath) {
+    const res = await api.post('/admin/categories/delete-image', { filePath })
+    return res.data
+  },
+
+  /* ----------------------------- کالکشن‌ها ------------------------------ */
+  async getCollections() {
     const res = await api.get('/admin/collections')
     return res.data
   },
@@ -190,7 +202,6 @@ export const adminApi = {
     return res.data
   },
 
-
   async updateUserPermissions(id, permissions) {
     const res = await api.put(`/admin/users/${id}/permissions`, { permissions })
     return res.data
@@ -200,5 +211,4 @@ export const adminApi = {
     const res = await api.get('/admin/permissions')
     return res.data
   }
-
 }

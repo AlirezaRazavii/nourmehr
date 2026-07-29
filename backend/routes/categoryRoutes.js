@@ -9,7 +9,7 @@ router.get('/', async (req, res) => {
     const data = await getOrSet('public:categories', 600, () =>
       Category.find({ status: 'active' })
         .sort({ sortOrder: 1 })
-        .select('name slug icon description parents')
+        .select('name slug icon image description parents sortOrder')
         .lean()
     );
     res.json({ success: true, data });
@@ -19,3 +19,4 @@ router.get('/', async (req, res) => {
 });
 
 module.exports = router;
+  

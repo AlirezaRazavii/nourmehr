@@ -1,24 +1,22 @@
-import { getPublicCategories } from './categoryApi'
+import {
+  getPublicCategories,
+  clearCategoriesCache as clearApiCache,
+} from './categoryApi'
 
-const TTL = 10 * 60 * 1000
-let cache = { data: null, at: 0 }
-let inflight = null
-
+/**
+ * لایهٔ نازک روی categoryApi.
+ *
+ * categoryApi خودش کش (۱۰ دقیقه) و single-flight دارد،
+ * پس اینجا فقط pass-through می‌کنیم تا:
+ *  ۱) درخواست تکراری به سرور نرود
+ *  ۲) پاک‌کردن کش از هر دو نقطه یک اثر داشته باشد
+ *  ۳) پارامتر force واقعاً به لایهٔ پایین برسد
+ */
 export const fetchCategoriesCached = async (force = false) => {
-  if (!force && cache.data && Date.now() - cache.at < TTL) return cache.data
-  if (inflight) return inflight
-
-  inflight = (async () => {
-    try {
-      const data = await getPublicCategories()
-      cache = { data: Array.isArray(data) ? data : [], at: Date.now() }
-      return cache.data
-    } finally {
-      inflight = null
-    }
-  })()
-
-  return inflight
+  const data = await getPublicCategories({ force })
+  return Array.isArray(data) ? data : []
 }
 
-export const clearCategoriesCache = () => { cache = { data: null, at: 0 } }
+export const clearCategoriesCache = () => clearApiCache()
+
+export default { fetchCategoriesCached, clearCategoriesCache }
