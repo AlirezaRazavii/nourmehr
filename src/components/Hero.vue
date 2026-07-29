@@ -1,2917 +1,580 @@
 <script setup>
-import {
-  ref,
-  computed,
-  onMounted,
-  onUnmounted,
-  nextTick,
-} from 'vue'
-
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { getPublicHero } from '../services/heroApi'
 
-/* =====================================================
-   تنظیمات پیش‌فرض
-===================================================== */
+const { locale } = useI18n()
 
-const defaultSettings = {
+/* ───────── state ───────── */
+const slides = ref([])
+const settings = ref({
   isEnabled: true,
   autoplay: true,
-  autoplayDelay: 7000,
-  pauseOnHover: false,
-  showTimer: true,
+  autoplayDelay: 6000,
+  pauseOnHover: true,
   showCounter: true,
-  showBgTypography: true,
-  showCornerDeco: true,
-  enableFloat: true,
-  transitionType: 'slide',
-  heroHeight: '100svh',
-}
-
-/* =====================================================
-   کش سراسری هیرو
-===================================================== */
-
-const HERO_CACHE_KEY = 'hero_cache_v1'
-const HERO_CACHE_TTL = 5 * 60 * 1000
-
-let heroMemoryCache = null
-
-const readHeroCache = () => {
-  if (
-    heroMemoryCache &&
-    Date.now() - heroMemoryCache.t < HERO_CACHE_TTL
-  ) {
-    return heroMemoryCache.data
-  }
-
-  try {
-    const raw = sessionStorage.getItem(HERO_CACHE_KEY)
-    if (!raw) return null
-
-    const parsed = JSON.parse(raw)
-    if (!parsed || !parsed.t) return null
-    if (Date.now() - parsed.t > HERO_CACHE_TTL) return null
-
-    heroMemoryCache = parsed
-    return parsed.data
-  } catch (error) {
-    return null
-  }
-}
-
-const writeHeroCache = (data) => {
-  const entry = { t: Date.now(), data }
-  heroMemoryCache = entry
-
-  try {
-    sessionStorage.setItem(
-      HERO_CACHE_KEY,
-      JSON.stringify(entry)
-    )
-  } catch (error) {}
-}
-
-const runWhenIdle = (task, timeout = 2000) => {
-  if (typeof window === 'undefined') return
-
-  if ('requestIdleCallback' in window) {
-    window.requestIdleCallback(task, { timeout })
-  } else {
-    window.setTimeout(task, 300)
-  }
-}
-
-/* =====================================================
-   State
-===================================================== */
-
-const heroRef = ref(null)
-
-const currentSlide = ref(0)
+  heroHeight: '',
+})
+const index = ref(0)
 const loading = ref(true)
-const settings = ref({ ...defaultSettings })
-const slides = ref([])
+const rootEl = ref(null)
 
-const isTransitioning = ref(false)
-const renderVersion = ref(0)
-
-const inView = ref(true)
-const pageVisible = ref(true)
 const hoverPaused = ref(false)
+const pageVisible = ref(true)
+const inView = ref(true)
 
-let slideInterval = null
-let transitionUnlockTimer = null
+let timer = null
 let observer = null
-let dataSignature = ''
 
-const preloadedSources = new Set()
+/* ───────── cache (کلید شامل زبان است) ───────── */
+const TTL = 5 * 60 * 1000
+const cacheKey = () => `hero_v2_${locale.value}`
 
-/* =====================================================
-   وضعیت فعال بودن انیمیشن‌ها
-===================================================== */
-
-const isPaused = computed(() => {
-  return !inView.value || !pageVisible.value
-})
-
-const canAutoplay = computed(() => {
-  return (
-    settings.value.autoplay &&
-    slides.value.length > 1 &&
-    inView.value &&
-    pageVisible.value &&
-    !hoverPaused.value
-  )
-})
-
-/* =====================================================
-   اسلاید فعال
-===================================================== */
-
-const active = computed(() => {
-  return slides.value[currentSlide.value] || {}
-})
-
-const activeKey = computed(() => {
-  const id =
-    active.value.id ??
-    active.value._id ??
-    currentSlide.value
-
-  return `${id}-${renderVersion.value}`
-})
-
-const themeColor = computed(() => {
-  return active.value.themeColor || '#c8aa55'
-})
-
-/* =====================================================
-   تشخیص زبان متن
-===================================================== */
-
-const isPersian = (text = '') => {
-  return /[\u0600-\u06FF]/.test(String(text))
+const readCache = () => {
+  try {
+    const raw = sessionStorage.getItem(cacheKey())
+    if (!raw) return null
+    const p = JSON.parse(raw)
+    if (!p?.t || Date.now() - p.t > TTL) return null
+    return p.data
+  } catch { return null }
 }
 
-const titleIsPersian = computed(() => {
-  return isPersian(active.value.title)
-})
-
-const subtitleIsPersian = computed(() => {
-  return isPersian(active.value.subtitle)
-})
-
-const descriptionIsPersian = computed(() => {
-  return isPersian(active.value.description)
-})
-
-const buttonIsPersian = computed(() => {
-  return isPersian(active.value.buttonText)
-})
-
-const titleClasses = computed(() => ({
-  'text-persian': titleIsPersian.value,
-  'text-latin': !titleIsPersian.value,
-}))
-
-const subtitleClasses = computed(() => ({
-  'text-persian': subtitleIsPersian.value,
-  'text-latin': !subtitleIsPersian.value,
-}))
-
-/* =====================================================
-   تصاویر
-===================================================== */
-
-const resolveImg = (url) => {
-  return url || ''
+const writeCache = (data) => {
+  try { sessionStorage.setItem(cacheKey(), JSON.stringify({ t: Date.now(), data })) } catch {}
 }
 
-const slideBackground = (slide) => {
-  return (
-    slide?.bgImage ||
-    slide?.backgroundImage ||
-    slide?.image ||
-    ''
-  )
-}
+/* ───────── derived ───────── */
+const active = computed(() => slides.value[index.value] || {})
+const total = computed(() => slides.value.length)
+const accent = computed(() => active.value.themeColor || '#c5a059')
 
-const activeBackground = computed(() => {
-  return resolveImg(slideBackground(active.value))
+const canAutoplay = computed(() =>
+  settings.value.autoplay &&
+  total.value > 1 &&
+  inView.value &&
+  pageVisible.value &&
+  !hoverPaused.value
+)
+
+const delay = computed(() => {
+  const d = Number(settings.value.autoplayDelay)
+  return Number.isFinite(d) && d >= 2000 ? d : 6000
 })
 
-const activeProductImage = computed(() => {
-  return resolveImg(active.value.image)
-})
-
-/* =====================================================
-   استایل‌های پویا
-===================================================== */
+const isFa = (t = '') => /[\u0600-\u06FF]/.test(String(t))
 
 const heroStyle = computed(() => ({
-  height:
-    settings.value.heroHeight ||
-    defaultSettings.heroHeight,
-
-  '--theme-color': themeColor.value,
+  '--accent': accent.value,
+  ...(settings.value.heroHeight ? { minHeight: settings.value.heroHeight } : {}),
 }))
 
-const backgroundStyle = computed(() => {
-  const brightness =
-    Number(active.value.bgBrightness ?? 0.42)
-
-  return {
-    filter: `brightness(${brightness})`,
-  }
+const bgStyle = computed(() => {
+  const b = Number(active.value.bgBrightness)
+  return { filter: `brightness(${Number.isFinite(b) ? b : 0.38})` }
 })
 
-/* =====================================================
-   تایمر
-===================================================== */
+/* ───────── links ───────── */
+const isExternal = (l) => /^(https?:)?\/\//i.test(String(l || ''))
 
-const autoplayDelay = computed(() => {
-  const delay = Number(settings.value.autoplayDelay)
-
-  if (!Number.isFinite(delay) || delay < 1500) {
-    return 7000
-  }
-
-  return delay
-})
-
-const timerDuration = computed(() => {
-  return `${autoplayDelay.value / 1000}s`
-})
-
-/* =====================================================
-   استانداردسازی نوع ترنزیشن
-===================================================== */
-
-const normalizeTransitionValue = (transition) => {
-  let value = transition
-
-  if (value && typeof value === 'object') {
-    value =
-      value.value ??
-      value.key ??
-      value.name ??
-      value.label ??
-      ''
-  }
-
-  return String(value || 'slide')
-    .trim()
-    .toLowerCase()
-    .replace(/ي/g, 'ی')
-    .replace(/ك/g, 'ک')
-    .replace(/\u200c/g, '')
-    .replace(/[_\-\s]+/g, '')
+const localePath = (link) => {
+  if (!link) return `/${locale.value}/products`
+  const clean = String(link).startsWith('/') ? link : `/${link}`
+  if (/^\/(fa|en)(\/|$)/.test(clean)) return clean
+  return `/${locale.value}${clean === '/' ? '' : clean}`
 }
 
-const normalizedTransitionType = computed(() => {
-  const selected = normalizeTransitionValue(
-    settings.value.transitionType
-  )
-
-  const transitionMap = {
-    slide: 'slide',
-    slider: 'slide',
-    sliding: 'slide',
-    اسلاید: 'slide',
-    اسلایدی: 'slide',
-    حرکت: 'slide',
-    حرکتی: 'slide',
-
-    fade: 'fade',
-    fading: 'fade',
-    faded: 'fade',
-    محو: 'fade',
-    محوشدن: 'fade',
-    فید: 'fade',
-    فیدشدن: 'fade',
-
-    zoom: 'zoom',
-    zooming: 'zoom',
-    زوم: 'zoom',
-    بزرگنمایی: 'zoom',
-  }
-
-  return transitionMap[selected] || 'slide'
-})
-
-/* =====================================================
-   نام ترنزیشن بخش‌ها
-===================================================== */
-
-const backgroundTransitionName = computed(() => {
-  return `background-${normalizedTransitionType.value}`
-})
-
-const titleTransitionName = computed(() => {
-  return `title-${normalizedTransitionType.value}`
-})
-
-const subtitleTransitionName = computed(() => {
-  return `subtitle-${normalizedTransitionType.value}`
-})
-
-const productTransitionName = computed(() => {
-  return `product-${normalizedTransitionType.value}`
-})
-
-const descriptionTransitionName = computed(() => {
-  return `description-${normalizedTransitionType.value}`
-})
-
-/* =====================================================
-   مدت قفل ترنزیشن
-===================================================== */
-
-const transitionLockDuration = computed(() => {
-  const durations = {
-    slide: 1250,
-    fade: 1150,
-    zoom: 1300,
-  }
-
-  return (
-    durations[normalizedTransitionType.value] ||
-    1250
-  )
-})
-
-/* =====================================================
-   مدیریت پخش خودکار
-===================================================== */
-
-const stopAutoSlide = () => {
-  if (slideInterval !== null) {
-    window.clearInterval(slideInterval)
-    slideInterval = null
-  }
+/* ───────── navigation ───────── */
+const go = (i, restart = true) => {
+  if (total.value < 2) return
+  index.value = ((i % total.value) + total.value) % total.value
+  preload(index.value + 1)
+  if (restart) sync()
 }
+const next = () => go(index.value + 1)
+const prev = () => go(index.value - 1)
 
-const startAutoSlide = () => {
-  stopAutoSlide()
-
+const start = () => {
+  stop()
   if (!canAutoplay.value) return
+  timer = window.setInterval(() => go(index.value + 1, false), delay.value)
+}
+const stop = () => { if (timer) { clearInterval(timer); timer = null } }
+const sync = () => (canAutoplay.value ? start() : stop())
 
-  slideInterval = window.setInterval(() => {
-    nextSlide(false)
-  }, autoplayDelay.value)
+/* ───────── preload ───────── */
+const seen = new Set()
+const preload = (i) => {
+  if (total.value < 2) return
+  const s = slides.value[((i % total.value) + total.value) % total.value]
+  ;[s?.image, s?.bgImage].filter(Boolean).forEach((src) => {
+    if (seen.has(src)) return
+    seen.add(src)
+    const img = new Image()
+    img.decoding = 'async'
+    img.src = src
+  })
 }
 
-const syncAutoplay = () => {
-  if (canAutoplay.value) {
-    startAutoSlide()
-  } else {
-    stopAutoSlide()
-  }
+/* ───────── swipe ───────── */
+let sx = 0, sy = 0, swiping = false
+const onDown = (e) => { sx = e.clientX; sy = e.clientY; swiping = true }
+const onUp = (e) => {
+  if (!swiping) return
+  swiping = false
+  const dx = e.clientX - sx
+  const dy = e.clientY - sy
+  if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy)) return
+  const rtl = document.documentElement.getAttribute('dir') === 'rtl'
+  dx > 0 ? (rtl ? next() : prev()) : (rtl ? prev() : next())
 }
 
-/* =====================================================
-   قفل و آزادسازی ترنزیشن
-===================================================== */
-
-const clearTransitionLock = () => {
-  if (transitionUnlockTimer !== null) {
-    window.clearTimeout(transitionUnlockTimer)
-    transitionUnlockTimer = null
-  }
-
-  isTransitioning.value = false
-}
-
-const lockTransition = () => {
-  clearTransitionLock()
-  isTransitioning.value = true
-
-  transitionUnlockTimer = window.setTimeout(() => {
-    isTransitioning.value = false
-    transitionUnlockTimer = null
-  }, transitionLockDuration.value)
-}
-
-/* =====================================================
-   Preload تدریجی تصاویر
-===================================================== */
-
-const preloadSource = (source) => {
-  if (!source) return
-  if (preloadedSources.has(source)) return
-
-  preloadedSources.add(source)
-
-  const image = new Image()
-  image.decoding = 'async'
-  image.fetchPriority = 'low'
-  image.src = source
-}
-
-const preloadSlideAt = (index) => {
-  const total = slides.value.length
-  if (total === 0) return
-
-  const normalized = ((index % total) + total) % total
-  const slide = slides.value[normalized]
-  if (!slide) return
-
-  preloadSource(resolveImg(slide.image))
-  preloadSource(resolveImg(slideBackground(slide)))
-}
-
-const preloadNeighbors = () => {
-  if (slides.value.length <= 1) return
-
-  runWhenIdle(() => {
-    preloadSlideAt(currentSlide.value + 1)
-  }, 3000)
-}
-
-const preloadRemaining = () => {
-  if (slides.value.length <= 2) return
-
-  runWhenIdle(() => {
-    for (let i = 2; i < slides.value.length; i += 1) {
-      preloadSlideAt(currentSlide.value + i)
-    }
-  }, 8000)
-}
-
-/* =====================================================
-   تغییر اسلاید
-===================================================== */
-
-const changeSlide = (
-  targetIndex,
-  restartTimer = true
-) => {
-  if (
-    slides.value.length <= 1 ||
-    isTransitioning.value
-  ) {
-    return
-  }
-
-  const total = slides.value.length
-
-  const normalizedIndex =
-    ((targetIndex % total) + total) % total
-
-  if (normalizedIndex === currentSlide.value) {
-    return
-  }
-
-  stopAutoSlide()
-  lockTransition()
-
-  currentSlide.value = normalizedIndex
-  renderVersion.value += 1
-
-  preloadNeighbors()
-
-  if (restartTimer) {
-    syncAutoplay()
-  } else if (canAutoplay.value) {
-    startAutoSlide()
-  }
-}
-
-const nextSlide = (restartTimer = true) => {
-  changeSlide(
-    currentSlide.value + 1,
-    restartTimer
-  )
-}
-
-const onShowcaseClick = () => {
-  nextSlide(true)
-}
-
-/* =====================================================
-   توقف پخش روی Hover
-===================================================== */
-
-const onMouseEnter = () => {
-  if (settings.value.pauseOnHover) {
-    hoverPaused.value = true
-    stopAutoSlide()
-  }
-}
-
-const onMouseLeave = () => {
-  if (settings.value.pauseOnHover) {
-    hoverPaused.value = false
-    syncAutoplay()
-  }
-}
-
-/* =====================================================
-   مدیریت خطای تصویر
-===================================================== */
-
-const handleImageError = (event) => {
-  const image = event?.target
-
-  if (image) {
-    image.style.visibility = 'hidden'
-  }
-}
-
-/* =====================================================
-   ناظر ورود به دید و وضعیت تب
-===================================================== */
-
-const destroyObserver = () => {
-  if (observer) {
-    observer.disconnect()
-    observer = null
-  }
-}
-
-const setupObserver = () => {
-  if (typeof window === 'undefined') return
-  if (!('IntersectionObserver' in window)) return
-  if (!heroRef.value) return
-
-  destroyObserver()
-
-  observer = new IntersectionObserver(
-    (entries) => {
-      const entry = entries[0]
-      if (!entry) return
-
-      inView.value = entry.isIntersecting
-      syncAutoplay()
-    },
-    { threshold: 0.01 }
-  )
-
-  observer.observe(heroRef.value)
-}
-
-const onVisibilityChange = () => {
-  pageVisible.value =
-    document.visibilityState === 'visible'
-
-  syncAutoplay()
-}
-
-/* =====================================================
-   اعمال داده‌ها
-===================================================== */
-
-const applyHeroData = (data) => {
-  const receivedSlides = Array.isArray(data?.slides)
-    ? data.slides.filter(Boolean)
-    : []
-
-  const hasSlides =
-    data?.enabled !== false &&
-    receivedSlides.length > 0
-
-  if (!hasSlides) {
-    slides.value = []
-    currentSlide.value = 0
-    return false
-  }
-
-  settings.value = {
-    ...defaultSettings,
-    ...(data?.settings || {}),
-    isEnabled: data?.enabled !== false,
-  }
-
-  slides.value = receivedSlides
-  currentSlide.value = 0
-  renderVersion.value += 1
-
+/* ───────── data ───────── */
+const apply = (data) => {
+  const list = Array.isArray(data?.slides) ? data.slides.filter(Boolean) : []
+  if (data?.enabled === false || !list.length) { slides.value = []; return false }
+  settings.value = { ...settings.value, ...(data.settings || {}) }
+  slides.value = list
+  index.value = 0
   return true
 }
 
-const signatureOf = (data) => {
-  try {
-    return JSON.stringify(data)
-  } catch (error) {
-    return ''
-  }
-}
-
-/* =====================================================
-   دریافت اطلاعات هیرو
-===================================================== */
-
-const fetchHero = async () => {
-  const response = await getPublicHero()
-  return response?.data ?? response
-}
-
-const revalidateHero = async () => {
-  try {
-    const data = await fetchHero()
-    const signature = signatureOf(data)
-
-    if (signature && signature === dataSignature) return
-
-    dataSignature = signature
-    writeHeroCache(data)
-
-    const applied = applyHeroData(data)
-
-    if (applied) {
-      await nextTick()
-      setupObserver()
-      syncAutoplay()
-      preloadNeighbors()
-    }
-  } catch (error) {}
-}
-
-const loadHero = async () => {
-  stopAutoSlide()
-  clearTransitionLock()
-
-  const cached = readHeroCache()
-
+const load = async () => {
+  const cached = readCache()
   if (cached) {
-    dataSignature = signatureOf(cached)
-    applyHeroData(cached)
+    apply(cached)
     loading.value = false
-
-    await nextTick()
-    setupObserver()
-    syncAutoplay()
-    preloadNeighbors()
-    preloadRemaining()
-
-    runWhenIdle(revalidateHero, 6000)
+    preload(1)
+    sync()
     return
   }
-
   loading.value = true
-
   try {
-    const data = await fetchHero()
-
-    dataSignature = signatureOf(data)
-    writeHeroCache(data)
-    applyHeroData(data)
-  } catch (error) {
+    const res = await getPublicHero()
+    const data = res?.data ?? res
+    writeCache(data)
+    apply(data)
+  } catch {
     slides.value = []
-    currentSlide.value = 0
   } finally {
     loading.value = false
-
-    await nextTick()
-    setupObserver()
-    syncAutoplay()
-    preloadNeighbors()
-    preloadRemaining()
+    preload(1)
+    sync()
   }
 }
 
-/* =====================================================
-   Lifecycle
-===================================================== */
+/* ───────── lifecycle ───────── */
+const onVisibility = () => { pageVisible.value = document.visibilityState === 'visible'; sync() }
 
-onMounted(() => {
-  pageVisible.value =
-    document.visibilityState === 'visible'
+const onKey = (e) => {
+  if (!inView.value || total.value < 2) return
+  if (e.key === 'ArrowRight') document.documentElement.getAttribute('dir') === 'rtl' ? prev() : next()
+  if (e.key === 'ArrowLeft') document.documentElement.getAttribute('dir') === 'rtl' ? next() : prev()
+}
 
-  document.addEventListener(
-    'visibilitychange',
-    onVisibilityChange,
-    { passive: true }
-  )
+onMounted(async () => {
+  pageVisible.value = document.visibilityState === 'visible'
+  document.addEventListener('visibilitychange', onVisibility, { passive: true })
+  window.addEventListener('keydown', onKey)
 
-  loadHero()
+  await load()
+
+  if ('IntersectionObserver' in window && rootEl.value) {
+    observer = new IntersectionObserver(([e]) => { inView.value = e.isIntersecting; sync() }, { threshold: 0.15 })
+    observer.observe(rootEl.value)
+  }
 })
 
 onUnmounted(() => {
-  stopAutoSlide()
-  clearTransitionLock()
-  destroyObserver()
-
-  document.removeEventListener(
-    'visibilitychange',
-    onVisibilityChange
-  )
+  stop()
+  observer?.disconnect()
+  document.removeEventListener('visibilitychange', onVisibility)
+  window.removeEventListener('keydown', onKey)
 })
+
+// با تعویض زبان، هیرو دوباره و از کشِ همان زبان لود می‌شود
+watch(locale, () => { stop(); seen.clear(); load() })
 </script>
 
 <template>
   <section
-    v-if="
-      !loading &&
-      settings.isEnabled &&
-      slides.length
-    "
-    ref="heroRef"
+    v-if="!loading && settings.isEnabled && total"
+    ref="rootEl"
     class="hero"
-    :class="[
-      `hero--transition-${normalizedTransitionType}`,
-      {
-        'hero--transitioning': isTransitioning,
-        'hero--paused': isPaused,
-      },
-    ]"
     :style="heroStyle"
-    @mouseenter="onMouseEnter"
-    @mouseleave="onMouseLeave"
+    @mouseenter="settings.pauseOnHover && (hoverPaused = true, sync())"
+    @mouseleave="settings.pauseOnHover && (hoverPaused = false, sync())"
+    @pointerdown="onDown"
+    @pointerup="onUp"
   >
     <!-- پس‌زمینه -->
-    <div class="background-stack">
-      <Transition :name="backgroundTransitionName">
+    <div class="hero__bg">
+      <Transition name="bg">
         <img
-          v-if="activeBackground"
-          :key="`${activeKey}-background`"
-          class="hero__background"
-          :src="activeBackground"
-          :style="backgroundStyle"
+          v-if="active.bgImage"
+          :key="`bg-${index}`"
+          :src="active.bgImage"
+          :style="bgStyle"
           alt=""
           aria-hidden="true"
           decoding="async"
-          fetchpriority="high"
           draggable="false"
-          @error="handleImageError"
         />
       </Transition>
+      <span class="hero__veil" aria-hidden="true"></span>
     </div>
 
-    <!-- لایه‌های ثابت روی پس‌زمینه -->
-    <div class="hero__overlay"></div>
+    <div class="hero__inner">
+      <!-- متن -->
+      <div class="hero__text">
+        <Transition name="rise" mode="out-in">
+          <div :key="index" class="stack">
+            <span v-if="active.title" class="eyebrow" :class="{ fa: isFa(active.title) }">
+              <i class="dot"></i>{{ active.title }}
+            </span>
 
-    <div
-      class="hero__texture"
-      aria-hidden="true"
-    ></div>
+            <h1 v-if="active.subtitle" class="title" :class="{ fa: isFa(active.subtitle) }">
+              {{ active.subtitle }}
+            </h1>
 
-    <!-- محتوای اصلی -->
-    <div
-      class="showcase"
-      role="button"
-      tabindex="0"
-      aria-label="نمایش اسلاید بعدی"
-      @click="onShowcaseClick"
-      @keydown.enter="onShowcaseClick"
-      @keydown.space.prevent="onShowcaseClick"
-    >
-      <!-- تایپوگرافی -->
-      <div
-        v-if="settings.showBgTypography"
-        class="typography"
-        aria-hidden="true"
-      >
-        <div class="typography__content">
-          <!-- لایه ثابت عنوان -->
-          <div class="title-slot">
-            <Transition :name="titleTransitionName">
-              <h1
-                :key="`${activeKey}-title`"
-                class="hero-title"
-                :class="titleClasses"
-                :dir="
-                  titleIsPersian ? 'rtl' : 'ltr'
-                "
-              >
-                <span
-                  class="
-                    hero-title__text
-                    preserve-spaces
-                  "
-                  v-text="active.title"
-                ></span>
-              </h1>
-            </Transition>
-          </div>
+            <span class="rule" aria-hidden="true"></span>
 
-          <!-- لایه ثابت زیرعنوان -->
-          <div class="subtitle-slot">
-            <Transition
-              :name="subtitleTransitionName"
+            <p v-if="active.description" class="desc">{{ active.description }}</p>
+
+            <a
+              v-if="isExternal(active.buttonLink)"
+              :href="active.buttonLink"
+              target="_blank"
+              rel="noopener"
+              class="cta"
             >
-              <h2
-                :key="`${activeKey}-subtitle`"
-                class="hero-subtitle"
-                :class="subtitleClasses"
-                :dir="
-                  subtitleIsPersian
-                    ? 'rtl'
-                    : 'ltr'
-                "
-              >
-                <span
-                  class="
-                    hero-subtitle__text
-                    preserve-spaces
-                  "
-                  v-text="active.subtitle"
-                ></span>
-              </h2>
-            </Transition>
+              <span>{{ active.buttonText || $t('hero_explore_btn') }}</span>
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </a>
+            <router-link v-else :to="localePath(active.buttonLink)" class="cta">
+              <span>{{ active.buttonText || $t('hero_explore_btn') }}</span>
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </router-link>
           </div>
-        </div>
-      </div>
-
-      <!-- محصول -->
-      <div class="product">
-        <div
-          class="product__stage"
-          :class="{
-            'product__stage--static':
-              !settings.enableFloat,
-          }"
-        >
-          <div class="product__layers">
-            <Transition
-              :name="productTransitionName"
-            >
-              <div
-                :key="`${activeKey}-product`"
-                class="product__layer"
-              >
-                <img
-                  :key="`${activeKey}-image`"
-                  :src="activeProductImage"
-                  :alt="
-                    active.title ||
-                    'تصویر محصول'
-                  "
-                  class="product__image"
-                  fetchpriority="high"
-                  decoding="async"
-                  draggable="false"
-                  @error="handleImageError"
-                />
-              </div>
-            </Transition>
-          </div>
-
-          <div
-            class="product__shadow"
-            aria-hidden="true"
-          ></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- پنل اطلاعات -->
-    <aside
-      class="info-panel"
-      :dir="
-        descriptionIsPersian
-          ? 'rtl'
-          : 'ltr'
-      "
-      @click.stop
-    >
-      <div class="info-panel__line-wrapper">
-        <span
-          class="info-panel__line"
-          :style="{
-            backgroundColor: themeColor,
-          }"
-        ></span>
-      </div>
-
-      <!-- لایه ثابت توضیحات -->
-      <div class="description-slot">
-        <Transition
-          :name="descriptionTransitionName"
-        >
-          <p
-            :key="`${activeKey}-description`"
-            class="info-panel__description"
-            v-text="active.description"
-          ></p>
         </Transition>
       </div>
 
-      <div class="info-panel__footer">
-        <router-link
-          :to="
-            active.buttonLink || '/products'
-          "
-          class="info-panel__button"
-          :dir="
-            buttonIsPersian ? 'rtl' : 'ltr'
-          "
-          :style="{ color: themeColor }"
-        >
-          <span>
-            {{
-              active.buttonText ||
-              $t('hero_explore_btn')
-            }}
-          </span>
-
-          <svg
-            class="info-panel__button-icon"
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            aria-hidden="true"
-          >
-            <path
-              d="M5 12h14M12 5l7 7-7 7"
-            />
-          </svg>
-        </router-link>
-
-        <div
-          v-if="settings.showCounter"
-          class="slide-counter"
-        >
-          <span
-            class="slide-counter__current"
-            :style="{ color: themeColor }"
-          >
-            {{
-              String(currentSlide + 1).padStart(
-                2,
-                '0'
-              )
-            }}
-          </span>
-
-          <span class="slide-counter__separator">
-            /
-          </span>
-
-          <span class="slide-counter__total">
-            {{
-              String(slides.length).padStart(
-                2,
-                '0'
-              )
-            }}
-          </span>
-        </div>
-      </div>
-    </aside>
-
-    <!-- تایمر -->
-    <div
-      v-if="
-        settings.showTimer &&
-        settings.autoplay &&
-        slides.length > 1
-      "
-      class="hero-timer"
-      aria-hidden="true"
-    >
-      <svg
-        :key="`${activeKey}-timer`"
-        width="48"
-        height="48"
-        viewBox="0 0 50 50"
-      >
-        <circle
-          cx="25"
-          cy="25"
-          r="22"
-          class="hero-timer__background"
-        />
-
-        <circle
-          cx="25"
-          cy="25"
-          r="22"
-          class="hero-timer__progress"
-          :style="{
-            stroke: themeColor,
-            animationDuration: timerDuration,
-          }"
-        />
-      </svg>
-
-      <span class="hero-timer__icon">
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <path
-            d="M7 13l5 5 5-5M7 6l5 5 5-5"
+      <!-- تصویر -->
+      <div class="hero__media">
+        <span class="glow" aria-hidden="true"></span>
+        <Transition name="pop" mode="out-in">
+          <img
+            v-if="active.image"
+            :key="`img-${index}`"
+            class="shot"
+            :src="active.image"
+            :alt="active.subtitle || active.title || ''"
+            :loading="index === 0 ? 'eager' : 'lazy'"
+            :fetchpriority="index === 0 ? 'high' : 'auto'"
+            decoding="async"
+            draggable="false"
           />
-        </svg>
-      </span>
+        </Transition>
+        <span class="shadow" aria-hidden="true"></span>
+      </div>
     </div>
 
-    <!-- تزئین گوشه‌ها -->
-    <template v-if="settings.showCornerDeco">
-      <div
-        class="corner corner--top"
-        aria-hidden="true"
-      ></div>
+    <!-- کنترل‌ها -->
+    <nav v-if="total > 1" class="hero__nav" aria-label="hero">
+      <button class="arrow" :aria-label="$t('hero_prev_aria')" @click="prev">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
 
-      <div
-        class="corner corner--bottom"
-        aria-hidden="true"
-      ></div>
-    </template>
+      <div class="dots">
+        <button
+          v-for="(s, i) in slides"
+          :key="s.id || i"
+          class="dot-btn"
+          :class="{ on: i === index }"
+          :aria-label="`${$t('hero_goto_aria')} ${i + 1}`"
+          :aria-current="i === index"
+          @click="go(i)"
+        >
+          <span class="fill" :style="i === index && canAutoplay ? { animationDuration: delay + 'ms' } : null"></span>
+        </button>
+      </div>
+
+      <button class="arrow" :aria-label="$t('hero_next_aria')" @click="next">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+      </button>
+
+      <span v-if="settings.showCounter" class="counter">
+        <b>{{ String(index + 1).padStart(2, '0') }}</b> / {{ String(total).padStart(2, '0') }}
+      </span>
+    </nav>
   </section>
 
-  <!-- حالت بارگذاری -->
-  <section
-    v-else-if="loading"
-    class="hero-loading"
-    aria-label="در حال بارگذاری"
-  >
-    <span class="hero-loading__spinner"></span>
+  <!-- اسکلت بارگذاری: هم‌ارتفاع با هیرو تا CLS نداشته باشیم -->
+  <section v-else-if="loading" class="hero hero--skeleton" aria-hidden="true">
+    <span class="sk-ring"></span>
   </section>
 </template>
 
 <style scoped>
-/* =====================================================
-   تنظیم عمومی
-===================================================== */
-
 .hero,
-.hero *,
-.hero *::before,
-.hero *::after {
-  box-sizing: border-box;
-}
+.hero * { box-sizing: border-box; }
 
 .hero {
-  --hero-background-color: #050814;
-  --theme-color: #c8aa55;
+  --nav-h: 78px;
+  --accent: #c5a059;
+  --ink: #f2f2f4;
+  --muted: rgba(242, 242, 244, 0.58);
 
   position: relative;
   isolation: isolate;
-
   width: 100%;
-  height: 100svh;
-  min-height: 600px;
-
+  min-height: calc(100svh - var(--nav-h));
+  display: flex;
+  align-items: center;
   overflow: hidden;
-
-  color: #fff;
-  background: var(--hero-background-color);
-
-  perspective: 1400px;
-  perspective-origin: center;
-}
-
-/* =====================================================
-   پس‌زمینه
-===================================================== */
-
-.background-stack {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-
-  display: grid;
-  overflow: hidden;
-}
-
-.hero__background {
-  grid-area: 1 / 1;
-
-  display: block;
-
-  width: 104%;
-  height: 104%;
-  max-width: none;
-  margin: -2%;
-
-  object-fit: cover;
-  object-position: center;
-
+  background: #050814;
+  color: var(--ink);
+  font-family: 'Vazirmatn', system-ui, sans-serif;
   user-select: none;
-  pointer-events: none;
-
-  transform:
-    translate3d(0, 0, 0)
-    scale(1.035);
-
-  transform-origin: center;
-
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
 }
 
-.hero__overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-
-  pointer-events: none;
-
+/* ── پس‌زمینه ── */
+.hero__bg { position: absolute; inset: 0; z-index: 0; display: grid; }
+.hero__bg img {
+  grid-area: 1 / 1;
+  width: 100%; height: 100%;
+  object-fit: cover; object-position: center;
+  transform: scale(1.03);
+}
+.hero__veil {
+  position: absolute; inset: 0; pointer-events: none;
   background:
-    radial-gradient(
-      circle at center,
-      rgba(5, 8, 20, 0.01) 0%,
-      rgba(5, 8, 20, 0.18) 48%,
-      rgba(5, 8, 20, 0.82) 100%
-    ),
-    linear-gradient(
-      to bottom,
-      rgba(5, 8, 20, 0.22) 0%,
-      rgba(5, 8, 20, 0.03) 42%,
-      rgba(5, 8, 20, 0.76) 100%
-    );
+    radial-gradient(120% 90% at 50% 0%, rgba(5,8,20,.15), rgba(5,8,20,.78) 78%),
+    linear-gradient(to bottom, rgba(5,8,20,.35), rgba(5,8,20,.06) 40%, rgba(5,8,20,.92));
 }
 
-.hero__texture {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-
-  pointer-events: none;
-  opacity: 0.05;
-
-  background-image: url(
-    "data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='.5'/%3E%3C/svg%3E"
-  );
-}
-
-/* =====================================================
-   صحنه اصلی
-===================================================== */
-
-.showcase {
-  position: absolute;
-  inset: 0;
-  z-index: 3;
-
-  overflow: hidden;
-  cursor: pointer;
-  outline: none;
-
-  perspective: 1250px;
-  perspective-origin: 50% 46%;
-  transform-style: preserve-3d;
-}
-
-/* =====================================================
-   تایپوگرافی
-===================================================== */
-
-.typography {
-  position: absolute;
-  top: 48%;
-  left: 50%;
-  z-index: 1;
-
+/* ── چیدمان ── */
+.hero__inner {
+  position: relative; z-index: 2;
   width: 100%;
-  max-width: 100%;
-
-  pointer-events: none;
-
-  transform:
-    translate3d(-50%, -50%, -90px);
-
-  transform-style: preserve-3d;
-}
-
-.typography__content {
-  width: 100%;
-
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-
-  text-align: center;
-  transform-style: preserve-3d;
-}
-
-/*
-  هر دو نسخه قدیم و جدید عنوان دقیقاً روی هم قرار
-  می‌گیرند و باعث تغییر ارتفاع یا پرش نمی‌شوند.
-*/
-.title-slot,
-.subtitle-slot {
-  position: relative;
-
-  width: 100%;
-
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: clamp(90px, 11vh, 130px) clamp(20px, 5vw, 64px) clamp(96px, 12vh, 130px);
   display: grid;
-  place-items: center;
-
-  overflow: visible;
-  isolation: isolate;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(24px, 5vw, 64px);
 }
 
-.title-slot > *,
-.subtitle-slot > * {
-  grid-area: 1 / 1;
+/* ── متن ── */
+.hero__text { min-width: 0; }
+.stack { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; }
+
+.eyebrow {
+  display: inline-flex; align-items: center; gap: 9px;
+  font-size: .74rem; font-weight: 600;
+  letter-spacing: .26em; text-transform: uppercase;
+  color: var(--accent);
 }
+.eyebrow.fa { letter-spacing: .08em; text-transform: none; font-size: .86rem; }
+.dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); flex: 0 0 auto; }
 
-.hero-title,
-.hero-subtitle {
-  position: relative;
-
-  width: 100%;
-  max-width: 100%;
-
+.title {
   margin: 0;
-  padding: 0;
-
-  text-align: center;
-  font-weight: 400;
-
-  pointer-events: none;
-
-  transform-origin: center;
-  transform-style: preserve-3d;
-
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-}
-
-.hero-title__text,
-.hero-subtitle__text {
-  display: inline-block;
-  max-width: 100%;
-}
-
-.preserve-spaces {
-  white-space: break-spaces;
-  overflow-wrap: normal;
-  word-break: normal;
-  tab-size: 4;
-}
-
-/* =====================================================
-   لایه‌بندی GPU فقط هنگام ترنزیشن
-===================================================== */
-
-.hero--transitioning .hero__background,
-.hero--transitioning .hero-title,
-.hero--transitioning .hero-subtitle,
-.hero--transitioning .product__layer,
-.hero--transitioning .info-panel__description {
-  will-change:
-    opacity,
-    transform,
-    filter;
-}
-
-/* =====================================================
-   توقف کامل انیمیشن‌ها خارج از دید
-===================================================== */
-
-.hero--paused .product__stage,
-.hero--paused .hero-timer__progress,
-.hero--paused .hero-timer__icon {
-  animation-play-state: paused;
-}
-
-/* =====================================================
-   عنوان و زیرعنوان
-===================================================== */
-
-.hero-title {
-  z-index: 1;
-
-  font-size: clamp(5.5rem, 11.5vw, 12rem);
-  line-height: 0.82;
-
-  color: rgba(197, 160, 89, 0.43);
-
-  text-shadow:
-    0 0 30px rgba(0, 0, 0, 0.62);
-
-  opacity: 0.9;
-}
-
-.hero-subtitle {
-  z-index: 1;
-
-  font-size: clamp(4rem, 7.5vw, 8rem);
-  line-height: 1;
-
-  color: var(--theme-color);
-
-  text-shadow:
-    0 4px 14px rgba(0, 0, 0, 0.9),
-    0 16px 38px rgba(0, 0, 0, 0.55);
-}
-
-/* =====================================================
-   متن لاتین
-===================================================== */
-
-.text-latin {
-  direction: ltr;
-
-  font-family:
-    'Times New Roman',
-    Georgia,
-    serif;
-
-  letter-spacing: 5px;
-  text-transform: uppercase;
-}
-
-.hero-title.text-latin .hero-title__text {
-  color: transparent;
+  font-size: clamp(2.1rem, 5.4vw, 4rem);
+  font-weight: 800;
+  line-height: 1.16;
+  letter-spacing: -.015em;
+  background: linear-gradient(105deg, #fff 25%, var(--accent) 78%);
+  -webkit-background-clip: text; background-clip: text;
   -webkit-text-fill-color: transparent;
+  color: var(--accent);
+}
+.title.fa { font-weight: 800; line-height: 1.34; }
 
-  background-image: linear-gradient(
-    to right,
-    rgba(197, 160, 89, 0.56),
-    rgba(92, 196, 218, 0.45)
-  );
-
-  background-clip: text;
-  -webkit-background-clip: text;
+.rule {
+  width: 56px; height: 2px; border-radius: 2px;
+  background: linear-gradient(90deg, var(--accent), transparent);
 }
 
-.hero-subtitle.text-latin
-  .hero-subtitle__text {
-  color: transparent;
-  -webkit-text-fill-color: transparent;
-
-  background-image: linear-gradient(
-    to right,
-    var(--theme-color),
-    #fff
-  );
-
-  background-clip: text;
-  -webkit-background-clip: text;
+.desc {
+  margin: 0;
+  max-width: 46ch;
+  font-size: clamp(.88rem, 1.1vw, .98rem);
+  line-height: 2;
+  color: var(--muted);
+  white-space: pre-line;
 }
 
-/* =====================================================
-   متن فارسی
-===================================================== */
-
-.text-persian {
-  direction: rtl;
-  unicode-bidi: plaintext;
-
-  font-family:
-    'DimaShekasteh',
-    'IranNastaliq',
-    'Noto Nastaliq Urdu',
-    Tahoma,
-    serif;
-
-  letter-spacing: 0;
-  word-spacing: 0;
+.cta {
+  margin-top: 8px;
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 13px 26px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  font-size: .9rem; font-weight: 700;
+  text-decoration: none;
+  transition: background-color .35s ease, color .35s ease, gap .3s ease, box-shadow .35s ease;
 }
+.cta svg { transition: transform .3s ease; }
+[dir="rtl"] .cta svg { transform: rotate(180deg); }
 
-.hero-title.text-persian {
-  font-size: clamp(5rem, 10.5vw, 11rem);
-  line-height: 1;
-
-  color: rgba(255, 255, 255, 0.4);
-}
-
-.hero-subtitle.text-persian {
-  margin-top: -0.58em;
-
-  font-size: clamp(3.8rem, 7vw, 7.5rem);
-  line-height: 1;
-
-  color: var(--theme-color);
-}
-
-.hero-title.text-persian
-  .hero-title__text {
-  padding:
-    0.62em
-    0.18em
-    0.58em;
-
-  line-height: 1.4;
-
-  color: currentColor;
-  -webkit-text-fill-color: currentColor;
-}
-
-.hero-subtitle.text-persian
-  .hero-subtitle__text {
-  padding:
-    0.58em
-    0.18em
-    0.62em;
-
-  line-height: 1.42;
-
-  color: currentColor;
-  -webkit-text-fill-color: currentColor;
-}
-
-/* =====================================================
-   محصول ـ اندازه اصلاح‌شده دسکتاپ
-===================================================== */
-
-.product {
-  position: absolute;
-  inset: 0;
-  z-index: 3;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  pointer-events: none;
-
-  perspective: 1100px;
-  transform-style: preserve-3d;
-}
-
-.product__stage {
+/* ── تصویر ── */
+.hero__media {
   position: relative;
-
-  width: min(58vw, 820px);
-  height: min(74vh, 760px);
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  transform-style: preserve-3d;
-
-  animation:
-    product-float
-    7s
-    ease-in-out
-    infinite;
-}
-
-.hero:not(.hero--paused) .product__stage {
-  will-change: transform;
-}
-
-.product__stage--static {
-  animation: none;
-}
-
-.product__layers {
-  position: absolute;
-  inset: 0;
-
   display: grid;
   place-items: center;
-
-  isolation: isolate;
-  transform-style: preserve-3d;
+  min-height: min(58vh, 520px);
 }
-
-.product__layer {
-  grid-area: 1 / 1;
-
-  width: 100%;
-  height: 100%;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  pointer-events: none;
-
-  transform:
-    translate3d(0, 0, 80px);
-
-  transform-origin: center;
-  transform-style: preserve-3d;
-
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-}
-
-.product__image {
-  display: block;
-
-  width: auto;
-  height: auto;
-
-  /*
-    محدودیت اصلی اندازه محصول در دسکتاپ
-  */
-  max-width: min(52vw, 720px);
-  max-height: min(68vh, 700px);
-
-  object-fit: contain;
-  object-position: center;
-
-  user-select: none;
-  pointer-events: none;
-
-  transform: translate3d(0, 0, 0.1px);
-  transform-origin: center;
-
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-
-  filter:
-    drop-shadow(
-      0 28px 52px rgba(0, 0, 0, 0.58)
-    );
-}
-
-.product__shadow {
-  position: absolute;
-  left: 50%;
-  bottom: 4%;
-  z-index: -1;
-
-  width: min(30vw, 320px);
-  height: 34px;
-
-  transform: translateX(-50%);
-
+.glow {
+  position: absolute; inset: 12% 8%;
   border-radius: 50%;
-
-  background: rgba(0, 0, 0, 0.52);
-  filter: blur(18px);
-
-  pointer-events: none;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 26%, transparent), transparent 68%);
+  filter: blur(48px);
+  opacity: .7;
 }
-
-/* =====================================================
-   پنل اطلاعات ـ اصلاح خروج از صفحه دسکتاپ
-===================================================== */
-
-.info-panel {
-  position: absolute;
-
-  /*
-    فاصله امن از لبه راست و پایین
-  */
-  right: clamp(36px, 5vw, 90px);
-  bottom: clamp(32px, 5vh, 64px);
-  z-index: 10;
-
-  /*
-    عرض کارت با احتساب padding و border
-  */
-  width: clamp(300px, 24vw, 370px);
-  max-width: calc(100vw - 72px);
-
-  padding: 24px 24px 20px;
-
-  overflow: hidden;
-
-  color: #fff;
-
-  border:
-    1px solid
-    rgba(255, 255, 255, 0.13);
-
-  border-radius: 20px;
-
-  background: rgba(7, 11, 25, 0.91);
-
-  box-shadow:
-    0 20px 55px rgba(0, 0, 0, 0.6);
-
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-
-  transform: translate3d(0, 0, 120px);
-
-  transition:
-    transform 0.3s ease,
-    border-color 0.3s ease;
-}
-
-.info-panel:hover {
-  transform:
-    translate3d(0, -5px, 130px);
-
-  border-color:
-    rgba(255, 255, 255, 0.22);
-}
-
-.info-panel__line-wrapper {
-  width: 100%;
-
-  display: flex;
-
-  margin-bottom: 15px;
-}
-
-.info-panel[dir='rtl']
-  .info-panel__line-wrapper {
-  justify-content: flex-end;
-}
-
-.info-panel[dir='ltr']
-  .info-panel__line-wrapper {
-  justify-content: flex-start;
-}
-
-.info-panel__line {
-  display: block;
-
-  width: 52px;
-  height: 3px;
-
-  border-radius: 100px;
-
-  box-shadow:
-    0 0 14px var(--theme-color);
-
-  transition: width 0.3s ease;
-}
-
-.info-panel:hover .info-panel__line {
-  width: 72px;
-}
-
-/*
-  توضیحات قدیم و جدید روی یکدیگر قرار می‌گیرند.
-*/
-.description-slot {
+.shot {
   position: relative;
-
-  width: 100%;
-
-  display: grid;
-
-  isolation: isolate;
-}
-
-.description-slot > * {
   grid-area: 1 / 1;
+  max-width: min(100%, 500px);
+  max-height: min(62vh, 560px);
+  width: auto; height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 26px 46px rgba(0,0,0,.55));
+}
+.shadow {
+  position: absolute; bottom: 6%; left: 50%;
+  width: min(56%, 260px); height: 26px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: rgba(0,0,0,.5);
+  filter: blur(18px);
 }
 
-.info-panel__description {
-  width: 100%;
-  min-width: 0;
-  min-height: 3.6em;
-
-  margin: 0 0 18px;
-
-  color: rgba(255, 255, 255, 0.9);
-
-  font-size:
-    clamp(0.84rem, 1vw, 0.95rem);
-
-  line-height: 1.9;
-
-  white-space: pre-line;
-  overflow-wrap: anywhere;
-  word-break: normal;
-
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
+/* ── کنترل‌ها ── */
+.hero__nav {
+  position: absolute; z-index: 3;
+  bottom: clamp(20px, 4vh, 38px);
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+  display: flex; align-items: center; gap: 14px;
 }
+[dir="rtl"] .hero__nav { transform: translateX(50%); }
 
-.info-panel[dir='rtl']
-  .info-panel__description {
-  text-align: right;
-
-  font-family:
-    'Vazirmatn',
-    Tahoma,
-    sans-serif;
+.arrow {
+  width: 38px; height: 38px;
+  padding: 0 !important;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.14) !important;
+  background: rgba(255,255,255,.05) !important;
+  color: rgba(255,255,255,.72) !important;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: background-color .3s ease, color .3s ease, border-color .3s ease;
 }
+[dir="rtl"] .arrow svg { transform: rotate(180deg); }
 
-.info-panel[dir='ltr']
-  .info-panel__description {
-  text-align: left;
+.dots { display: flex; align-items: center; gap: 8px; }
+.dot-btn {
+  position: relative;
+  width: 30px; height: 3px;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 999px !important;
+  background: rgba(255,255,255,.16) !important;
+  cursor: pointer;
+  overflow: hidden;
+  transition: width .35s ease, background-color .3s ease;
 }
-
-.info-panel__footer {
-  min-width: 0;
-
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-
-  gap: 14px;
-
-  padding-top: 14px;
-
-  border-top:
-    1px solid
-    rgba(255, 255, 255, 0.09);
+.dot-btn.on { width: 54px; }
+.fill {
+  position: absolute; inset: 0;
+  transform-origin: left center;
+  transform: scaleX(0);
+  background: var(--accent);
+  border-radius: inherit;
 }
+[dir="rtl"] .fill { transform-origin: right center; }
+.dot-btn.on .fill { animation: dotFill linear forwards; }
+@keyframes dotFill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 
-.info-panel__button {
-  min-width: 0;
-
-  display: inline-flex;
-  align-items: center;
-
-  gap: 8px;
-
-  color: var(--theme-color);
-  text-decoration: none;
-
-  font-size: 0.86rem;
-  font-weight: 600;
-
-  transition:
-    gap 0.25s ease,
-    opacity 0.25s ease;
-}
-
-.info-panel__button span {
-  overflow-wrap: anywhere;
-}
-
-.info-panel__button:hover {
-  gap: 12px;
-  opacity: 0.9;
-}
-
-.info-panel__button[dir='rtl']
-  .info-panel__button-icon {
-  transform: rotate(180deg);
-}
-
-.info-panel__button-icon {
-  flex: 0 0 auto;
-}
-
-/* =====================================================
-   شمارنده
-===================================================== */
-
-.slide-counter {
-  flex: 0 0 auto;
-
-  display: flex;
-  align-items: center;
-
-  gap: 4px;
-
+.counter {
+  font-family: ui-monospace, monospace;
+  font-size: .78rem;
+  color: rgba(255,255,255,.4);
   direction: ltr;
+}
+.counter b { color: var(--accent); font-weight: 700; }
 
-  font-family: monospace;
-  font-size: 0.82rem;
+/* ── ترنزیشن‌ها (فقط opacity/transform) ── */
+.bg-enter-active { transition: opacity .9s ease; }
+.bg-leave-active { transition: opacity .9s ease; position: absolute; inset: 0; }
+.bg-enter-from, .bg-leave-to { opacity: 0; }
+
+.rise-enter-active { transition: opacity .5s ease, transform .6s cubic-bezier(.16,1,.3,1); }
+.rise-leave-active { transition: opacity .28s ease, transform .28s ease; }
+.rise-enter-from { opacity: 0; transform: translateY(22px); }
+.rise-leave-to   { opacity: 0; transform: translateY(-14px); }
+
+.pop-enter-active { transition: opacity .55s ease, transform .7s cubic-bezier(.16,1,.3,1); }
+.pop-leave-active { transition: opacity .3s ease, transform .3s ease; }
+.pop-enter-from { opacity: 0; transform: translateY(18px) scale(.965); }
+.pop-leave-to   { opacity: 0; transform: translateY(-10px) scale(.985); }
+
+/* ── hover فقط روی دسکتاپ ── */
+@media (hover: hover) and (pointer: fine) {
+  .cta:hover { background: var(--accent); color: #08090d; gap: 15px; box-shadow: 0 12px 34px color-mix(in srgb, var(--accent) 32%, transparent); }
+  .arrow:hover { background: var(--accent) !important; color: #08090d !important; border-color: var(--accent) !important; }
+  .dot-btn:hover { background: rgba(255,255,255,.3) !important; }
 }
 
-.slide-counter__current {
-  font-weight: 700;
-}
-
-.slide-counter__separator,
-.slide-counter__total {
-  color: rgba(255, 255, 255, 0.4);
-}
-
-/* =====================================================
-   تایمر
-===================================================== */
-
-.hero-timer {
-  position: absolute;
-  left: 50%;
-  bottom: clamp(25px, 4vh, 46px);
-  z-index: 9;
-
-  width: 48px;
-  height: 48px;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  transform:
-    translate3d(-50%, 0, 120px);
-
-  pointer-events: none;
-}
-
-.hero-timer > svg {
-  transform: rotate(-90deg);
-}
-
-.hero-timer__background {
-  fill: rgba(0, 0, 0, 0.4);
-
-  stroke: rgba(255, 255, 255, 0.18);
-  stroke-width: 2;
-}
-
-.hero-timer__progress {
-  fill: none;
-
-  stroke-width: 2.5;
-  stroke-linecap: round;
-
-  stroke-dasharray: 138;
-  stroke-dashoffset: 138;
-
-  animation:
-    timer-progress
-    linear
-    forwards;
-}
-
-.hero-timer__icon {
-  position: absolute;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  color: rgba(255, 255, 255, 0.7);
-
-  animation:
-    timer-bounce
-    2s
-    ease-in-out
-    infinite;
-}
-
-/* =====================================================
-   گوشه‌ها
-===================================================== */
-
-.corner {
-  position: absolute;
-  z-index: 4;
-
-  width: clamp(110px, 13vw, 200px);
-  height: clamp(110px, 13vw, 200px);
-
-  pointer-events: none;
-}
-
-.corner--top {
-  top: clamp(20px, 4vw, 40px);
-  left: clamp(20px, 4vw, 40px);
-
-  border-top:
-    1px solid
-    rgba(255, 255, 255, 0.15);
-
-  border-left:
-    1px solid
-    rgba(255, 255, 255, 0.15);
-}
-
-.corner--bottom {
-  right: clamp(20px, 4vw, 40px);
-  bottom: clamp(20px, 4vw, 40px);
-
-  border-right:
-    1px solid
-    rgba(255, 255, 255, 0.15);
-
-  border-bottom:
-    1px solid
-    rgba(255, 255, 255, 0.15);
-}
-
-/* =====================================================
-   Keyframes
-===================================================== */
-
-@keyframes product-float {
-  0%,
-  100% {
-    transform:
-      translate3d(0, 0, 0)
-      rotateY(0deg);
+/* ── ریسپانسیو ── */
+@media (max-width: 900px) {
+  .hero { --nav-h: 66px; }
+  .hero__inner {
+    grid-template-columns: 1fr;
+    text-align: center;
+    gap: 26px;
+    padding-top: clamp(84px, 12vh, 110px);
+    padding-bottom: 104px;
   }
-
-  50% {
-    transform:
-      translate3d(0, -16px, 18px)
-      rotateY(1.3deg);
-  }
+  .hero__text { order: 2; }
+  .hero__media { order: 1; min-height: 34vh; }
+  .stack { align-items: center; }
+  .desc { max-width: 40ch; }
+  .shot { max-height: 38vh; max-width: 78%; }
+  .glow { filter: blur(36px); opacity: .55; }
 }
-
-@keyframes timer-progress {
-  from {
-    stroke-dashoffset: 138;
-  }
-
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-@keyframes timer-bounce {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-
-  50% {
-    transform: translateY(3px);
-  }
-}
-
-@keyframes spinner {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* =====================================================
-   ترنزیشن پس‌زمینه ـ Slide
-===================================================== */
-
-.background-slide-enter-active,
-.background-slide-leave-active {
-  transition:
-    opacity 1.05s ease,
-    transform 1.35s
-      cubic-bezier(0.22, 1, 0.36, 1),
-    filter 1.05s ease;
-}
-
-.background-slide-enter-from {
-  opacity: 0;
-
-  transform:
-    translate3d(5%, 0, -160px)
-    scale(1.12);
-
-  filter:
-    brightness(0.22)
-    blur(4px);
-}
-
-.background-slide-leave-to {
-  opacity: 0;
-
-  transform:
-    translate3d(-5%, 0, -180px)
-    scale(1.08);
-
-  filter:
-    brightness(0.18)
-    blur(5px);
-}
-
-/* =====================================================
-   ترنزیشن پس‌زمینه ـ Fade
-===================================================== */
-
-.background-fade-enter-active,
-.background-fade-leave-active {
-  transition:
-    opacity 1.2s ease,
-    transform 1.45s ease,
-    filter 1.2s ease;
-}
-
-.background-fade-enter-from {
-  opacity: 0;
-
-  transform:
-    translate3d(0, 0, -180px)
-    scale(1.12);
-
-  filter:
-    brightness(0.2)
-    blur(10px);
-}
-
-.background-fade-leave-to {
-  opacity: 0;
-
-  transform:
-    translate3d(0, 0, -210px)
-    scale(1.06);
-
-  filter:
-    brightness(0.16)
-    blur(9px);
-}
-
-/* =====================================================
-   ترنزیشن پس‌زمینه ـ Zoom
-===================================================== */
-
-.background-zoom-enter-active,
-.background-zoom-leave-active {
-  transition:
-    opacity 1.1s ease,
-    transform 1.5s
-      cubic-bezier(0.22, 1, 0.36, 1),
-    filter 1.05s ease;
-}
-
-.background-zoom-enter-from {
-  opacity: 0;
-
-  transform:
-    translate3d(0, 0, -260px)
-    scale(0.9);
-
-  filter:
-    brightness(0.18)
-    blur(8px);
-}
-
-.background-zoom-leave-to {
-  opacity: 0;
-
-  transform:
-    translate3d(0, 0, 120px)
-    scale(1.2);
-
-  filter:
-    brightness(0.2)
-    blur(7px);
-}
-
-/* =====================================================
-   عنوان ـ Slide
-===================================================== */
-
-.title-slide-enter-active {
-  z-index: 8;
-
-  transition:
-    opacity 0.82s ease 0.1s,
-    transform 1s
-      cubic-bezier(0.16, 1, 0.3, 1)
-      0.1s,
-    filter 0.76s ease 0.1s;
-}
-
-.title-slide-enter-from {
-  opacity: 0;
-
-  transform:
-    translate3d(-10%, -14px, -170px)
-    rotateY(13deg)
-    scale(0.92);
-
-  filter: blur(7px);
-}
-
-.title-slide-enter-to {
-  opacity: 0.9;
-  visibility: visible;
-}
-
-/* =====================================================
-   عنوان ـ Fade
-===================================================== */
-
-.title-fade-enter-active {
-  z-index: 8;
-
-  transition:
-    opacity 0.78s ease 0.14s,
-    transform 0.92s ease 0.14s,
-    filter 0.76s ease 0.14s;
-}
-
-.title-fade-enter-from {
-  opacity: 0;
-
-  transform:
-    translate3d(0, -20px, -130px)
-    scale(0.96);
-
-  filter: blur(11px);
-}
-
-.title-fade-enter-to {
-  opacity: 0.9;
-  visibility: visible;
-}
-
-/* =====================================================
-   عنوان ـ Zoom
-===================================================== */
-
-.title-zoom-enter-active {
-  z-index: 8;
-
-  transition:
-    opacity 0.84s ease 0.12s,
-    transform 1.05s
-      cubic-bezier(0.16, 1, 0.3, 1)
-      0.12s,
-    filter 0.8s ease 0.12s;
-}
-
-.title-zoom-enter-from {
-  opacity: 0;
-
-  transform:
-    translate3d(0, -12px, -260px)
-    rotateX(11deg)
-    scale(0.74);
-
-  filter: blur(10px);
-}
-
-.title-zoom-enter-to {
-  opacity: 0.9;
-  visibility: visible;
-}
-
-/* =====================================================
-   زیرعنوان ـ Slide
-===================================================== */
-
-.subtitle-slide-enter-active {
-  z-index: 8;
-
-  transition:
-    opacity 0.78s ease 0.24s,
-    transform 1s
-      cubic-bezier(0.16, 1, 0.3, 1)
-      0.24s,
-    filter 0.76s ease 0.24s;
-}
-
-.subtitle-slide-enter-from {
-  opacity: 0;
-
-  transform:
-    translate3d(11%, 20px, -90px)
-    rotateY(-11deg)
-    scale(0.94);
-
-  filter: blur(8px);
-}
-
-.subtitle-slide-enter-to {
-  opacity: 1;
-  visibility: visible;
-}
-
-/* =====================================================
-   زیرعنوان ـ Fade
-===================================================== */
-
-.subtitle-fade-enter-active {
-  z-index: 8;
-
-  transition:
-    opacity 0.72s ease 0.28s,
-    transform 0.88s ease 0.28s,
-    filter 0.72s ease 0.28s;
-}
-
-.subtitle-fade-enter-from {
-  opacity: 0;
-
-  transform:
-    translate3d(0, 22px, -80px)
-    scale(0.95);
-
-  filter: blur(12px);
-}
-
-.subtitle-fade-enter-to {
-  opacity: 1;
-  visibility: visible;
-}
-
-/* =====================================================
-   زیرعنوان ـ Zoom
-===================================================== */
-
-.subtitle-zoom-enter-active {
-  z-index: 8;
-
-  transition:
-    opacity 0.78s ease 0.28s,
-    transform 1s
-      cubic-bezier(0.16, 1, 0.3, 1)
-      0.28s,
-    filter 0.75s ease 0.28s;
-}
-
-.subtitle-zoom-enter-from {
-  opacity: 0;
-
-  transform:
-    translate3d(0, 18px, -180px)
-    rotateX(-9deg)
-    scale(0.8);
-
-  filter: blur(11px);
-}
-
-.subtitle-zoom-enter-to {
-  opacity: 1;
-  visibility: visible;
-}
-
-/* =====================================================
-   محصول ـ Slide
-===================================================== */
-
-.product-slide-enter-active {
-  z-index: 8;
-
-  transition:
-    opacity 0.92s ease 0.04s,
-    transform 1.2s
-      cubic-bezier(0.16, 1, 0.3, 1)
-      0.04s,
-    filter 0.86s ease 0.04s;
-}
-
-.product-slide-enter-from {
-  opacity: 0;
-
-  transform:
-    translate3d(150px, 25px, 210px)
-    rotateY(-23deg)
-    rotateX(5deg)
-    scale(0.84);
-
-  filter:
-    blur(10px)
-    brightness(0.72);
-}
-
-.product-slide-enter-to {
-  opacity: 1;
-  visibility: visible;
-}
-
-/* =====================================================
-   محصول ـ Fade
-===================================================== */
-
-.product-fade-enter-active {
-  z-index: 8;
-
-  transition:
-    opacity 1s ease 0.06s,
-    transform 1.15s
-      cubic-bezier(0.22, 1, 0.36, 1)
-      0.06s,
-    filter 0.95s ease 0.06s;
-}
-
-.product-fade-enter-from {
-  opacity: 0;
-
-  transform:
-    translate3d(0, 22px, -180px)
-    rotateX(6deg)
-    scale(0.89);
-
-  filter:
-    blur(14px)
-    brightness(0.72);
-}
-
-.product-fade-enter-to {
-  opacity: 1;
-  visibility: visible;
-}
-
-/* =====================================================
-   محصول ـ Zoom
-===================================================== */
-
-.product-zoom-enter-active {
-  z-index: 8;
-
-  transition:
-    opacity 1s ease 0.03s,
-    transform 1.25s
-      cubic-bezier(0.16, 1, 0.3, 1)
-      0.03s,
-    filter 0.9s ease 0.03s;
-}
-
-.product-zoom-enter-from {
-  opacity: 0;
-
-  transform:
-    translate3d(0, 20px, 300px)
-    rotateY(-13deg)
-    rotateX(5deg)
-    scale(1.3);
-
-  filter:
-    blur(12px)
-    brightness(0.76);
-}
-
-.product-zoom-enter-to {
-  opacity: 1;
-  visibility: visible;
-}
-
-/* =====================================================
-   توضیحات ـ Slide
-===================================================== */
-
-.description-slide-enter-active {
-  z-index: 5;
-
-  transition:
-    opacity 0.55s ease 0.35s,
-    transform 0.7s
-      cubic-bezier(0.22, 1, 0.36, 1)
-      0.35s,
-    filter 0.54s ease 0.35s;
-}
-
-.description-slide-enter-from {
-  opacity: 0;
-
-  transform:
-    translate3d(26px, 9px, -45px);
-
-  filter: blur(4px);
-}
-
-.description-slide-enter-to {
-  opacity: 1;
-  visibility: visible;
-}
-
-/* =====================================================
-   توضیحات ـ Fade
-===================================================== */
-
-.description-fade-enter-active {
-  z-index: 5;
-
-  transition:
-    opacity 0.58s ease 0.4s,
-    transform 0.68s ease 0.4s,
-    filter 0.58s ease 0.4s;
-}
-
-.description-fade-enter-from {
-  opacity: 0;
-
-  transform:
-    translate3d(0, 11px, -30px);
-
-  filter: blur(6px);
-}
-
-.description-fade-enter-to {
-  opacity: 1;
-  visibility: visible;
-}
-
-/* =====================================================
-   توضیحات ـ Zoom
-===================================================== */
-
-.description-zoom-enter-active {
-  z-index: 5;
-
-  transition:
-    opacity 0.58s ease 0.42s,
-    transform 0.72s
-      cubic-bezier(0.22, 1, 0.36, 1)
-      0.42s,
-    filter 0.58s ease 0.42s;
-}
-
-.description-zoom-enter-from {
-  opacity: 0;
-
-  transform:
-    translate3d(0, 9px, -90px)
-    scale(0.94);
-
-  filter: blur(6px);
-}
-
-.description-zoom-enter-to {
-  opacity: 1;
-  visibility: visible;
-}
-
-/* =====================================================
-   رفع قطعی چشمک نسخه قبلی
-===================================================== */
-
-/*
-  عنوان قبلی، زیرعنوان قبلی، محصول قبلی و توضیح قبلی
-  از همان فریم آغاز خروج مخفی می‌شوند.
-
-  چون لایه‌ها Grid هستند، مخفی‌شدن نسخه قبلی باعث
-  پرش، تغییر ارتفاع یا جابه‌جایی نسخه جدید نمی‌شود.
-*/
-
-.title-slide-leave-active,
-.title-slide-leave-from,
-.title-slide-leave-to,
-.title-fade-leave-active,
-.title-fade-leave-from,
-.title-fade-leave-to,
-.title-zoom-leave-active,
-.title-zoom-leave-from,
-.title-zoom-leave-to,
-
-.subtitle-slide-leave-active,
-.subtitle-slide-leave-from,
-.subtitle-slide-leave-to,
-.subtitle-fade-leave-active,
-.subtitle-fade-leave-from,
-.subtitle-fade-leave-to,
-.subtitle-zoom-leave-active,
-.subtitle-zoom-leave-from,
-.subtitle-zoom-leave-to,
-
-.product-slide-leave-active,
-.product-slide-leave-from,
-.product-slide-leave-to,
-.product-fade-leave-active,
-.product-fade-leave-from,
-.product-fade-leave-to,
-.product-zoom-leave-active,
-.product-zoom-leave-from,
-.product-zoom-leave-to,
-
-.description-slide-leave-active,
-.description-slide-leave-from,
-.description-slide-leave-to,
-.description-fade-leave-active,
-.description-fade-leave-from,
-.description-fade-leave-to,
-.description-zoom-leave-active,
-.description-zoom-leave-from,
-.description-zoom-leave-to {
-  z-index: 0 !important;
-
-  opacity: 0 !important;
-  visibility: hidden !important;
-
-  pointer-events: none !important;
-
-  transition: none !important;
-  animation: none !important;
-}
-
-/*
-  نسخه جدید همیشه بالاتر است.
-*/
-.title-slide-enter-active,
-.title-fade-enter-active,
-.title-zoom-enter-active,
-.subtitle-slide-enter-active,
-.subtitle-fade-enter-active,
-.subtitle-zoom-enter-active,
-.product-slide-enter-active,
-.product-fade-enter-active,
-.product-zoom-enter-active,
-.description-slide-enter-active,
-.description-fade-enter-active,
-.description-zoom-enter-active {
-  z-index: 8 !important;
-  visibility: visible !important;
-  pointer-events: none !important;
-}
-
-/* =====================================================
-   دسکتاپ متوسط و لپ‌تاپ
-===================================================== */
-
-@media (max-width: 1280px) {
-  .product__stage {
-    width: min(55vw, 690px);
-    height: min(70vh, 660px);
-  }
-
-  .product__image {
-    max-width: min(49vw, 620px);
-    max-height: min(64vh, 610px);
-  }
-
-  .info-panel {
-    right: clamp(30px, 4vw, 55px);
-
-    width: clamp(290px, 27vw, 350px);
-    max-width: calc(100vw - 60px);
-  }
-}
-
-/* =====================================================
-   تبلت
-===================================================== */
-
-@media (max-width: 1024px) {
-  .hero {
-    min-height: 650px;
-  }
-
-  .hero-title {
-    font-size: clamp(5rem, 15vw, 9rem);
-  }
-
-  .hero-subtitle {
-    font-size: clamp(3.8rem, 10vw, 6.5rem);
-  }
-
-  .hero-title.text-persian {
-    font-size: clamp(4.8rem, 14vw, 8.5rem);
-  }
-
-  .hero-subtitle.text-persian {
-    font-size: clamp(3.6rem, 10vw, 6.2rem);
-  }
-
-  .product__stage {
-    width: min(66vw, 650px);
-    height: min(66vh, 620px);
-  }
-
-  .product__image {
-    max-width: min(60vw, 580px);
-    max-height: min(59vh, 570px);
-  }
-
-  .info-panel {
-    right: 28px;
-    bottom: 34px;
-
-    width: min(330px, calc(100vw - 56px));
-    max-width: calc(100vw - 56px);
-  }
-}
-
-/* =====================================================
-   موبایل
-===================================================== */
-
-@media (max-width: 768px) {
-  .hero {
-    height: 100svh !important;
-    min-height: 640px;
-
-    perspective: 1000px;
-  }
-
-  .hero__texture {
-    display: none;
-  }
-
-  .hero__overlay {
-    background:
-      linear-gradient(
-        to bottom,
-        rgba(5, 8, 20, 0.12) 0%,
-        rgba(5, 8, 20, 0.04) 38%,
-        rgba(5, 8, 20, 0.55) 68%,
-        rgba(5, 8, 20, 0.97) 100%
-      ),
-      radial-gradient(
-        circle at center,
-        transparent 6%,
-        rgba(5, 8, 20, 0.35) 66%,
-        #050814 100%
-      );
-  }
-
-  .typography {
-    top: 29%;
-
-    transform:
-      translate3d(-50%, -50%, -40px);
-  }
-
-  .hero-title {
-    font-size: 19vw;
-  }
-
-  .hero-subtitle {
-    font-size: 13vw;
-  }
-
-  .hero-title.text-persian {
-    font-size: 17vw;
-  }
-
-  .hero-subtitle.text-persian {
-    margin-top: -0.65em;
-    font-size: 12.5vw;
-  }
-
-  .hero-title.text-persian
-    .hero-title__text {
-    padding:
-      0.66em
-      0.12em
-      0.56em;
-  }
-
-  .hero-subtitle.text-persian
-    .hero-subtitle__text {
-    padding:
-      0.6em
-      0.12em
-      0.64em;
-  }
-
-  .product {
-    align-items: flex-start;
-    padding-top: 28vh;
-  }
-
-  .product__stage {
-    width: 100%;
-    height: 43vh;
-
-    animation: none;
-  }
-
-  .hero:not(.hero--paused) .product__stage {
-    will-change: auto;
-  }
-
-  .product__image {
-    max-width: 86vw;
-    max-height: 52vh;
-  }
-
-  .product__shadow {
-    width: min(44vw, 250px);
-    height: 28px;
-  }
-
-  .info-panel {
-    right: 0;
-    bottom: 0;
-    left: 0;
-
-    width: 100%;
-    max-width: 100%;
-
-    padding:
-      18px
-      21px
-      max(16px, env(safe-area-inset-bottom));
-
-    border-right: 0;
-    border-bottom: 0;
-    border-left: 0;
-
-    border-radius: 18px 18px 0 0;
-
-    background: rgba(5, 8, 20, 0.96);
-
-    box-shadow:
-      0 -16px 40px
-      rgba(0, 0, 0, 0.42);
-
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-
-    transform: none;
-  }
-
-  .info-panel:hover {
-    transform: none;
-  }
-
-  .info-panel__description {
-    min-height: auto;
-
-    margin-bottom: 12px;
-
-    font-size: 0.85rem;
-    line-height: 1.7;
-  }
-
-  .info-panel__footer {
-    padding-top: 10px;
-  }
-
-  .hero-timer {
-    top: auto;
-    bottom: 190px;
-  }
-
-  .corner {
-    display: none;
-  }
-
-  .product-slide-enter-from {
-    transform:
-      translate3d(90px, 18px, 130px)
-      rotateY(-17deg)
-      scale(0.86);
-  }
-
-  .product-zoom-enter-from {
-    transform:
-      translate3d(0, 16px, 210px)
-      rotateY(-10deg)
-      scale(1.2);
-  }
-}
-
-/* =====================================================
-   موبایل کوچک
-===================================================== */
 
 @media (max-width: 480px) {
-  .hero {
-    min-height: 610px;
-  }
-
-  .typography {
-    top: 25%;
-  }
-
-  .hero-title {
-    font-size: 21vw;
-    opacity: 0.74;
-  }
-
-  .hero-subtitle {
-    font-size: 14.5vw;
-  }
-
-  .hero-title.text-persian {
-    font-size: 19vw;
-  }
-
-  .hero-subtitle.text-persian {
-    margin-top: -0.68em;
-    font-size: 14vw;
-  }
-
-  .product {
-    padding-top: 27vh;
-  }
-
-  .product__stage {
-    height: 38vh;
-  }
-
-  .product__image {
-    max-width: 88vw;
-    max-height: 46vh;
-  }
-
-  .info-panel {
-    padding:
-      16px
-      18px
-      max(14px, env(safe-area-inset-bottom));
-  }
-
-  .info-panel__line-wrapper {
-    margin-bottom: 9px;
-  }
-
-  .info-panel__line {
-    width: 46px;
-  }
-
-  .info-panel__description {
-    margin-bottom: 9px;
-
-    font-size: 0.8rem;
-    line-height: 1.6;
-  }
-
-  .info-panel__footer {
-    padding-top: 8px;
-  }
-
-  .info-panel__button {
-    font-size: 0.79rem;
-  }
-
-  .hero-timer {
-    bottom: 175px;
-  }
+  .title { font-size: 1.95rem; }
+  .desc { font-size: .85rem; line-height: 1.9; }
+  .cta { width: 100%; justify-content: center; }
+  .hero__nav { gap: 10px; }
+  .counter { display: none; }
+  .arrow { width: 34px; height: 34px; }
 }
 
-/* =====================================================
-   نمایشگرهای موبایل کوتاه
-===================================================== */
-
-@media (max-width: 768px) and (max-height: 700px) {
-  .hero {
-    min-height: 570px;
-  }
-
-  .typography {
-    top: 24%;
-  }
-
-  .product {
-    padding-top: 25vh;
-  }
-
-  .product__stage {
-    height: 36vh;
-  }
-
-  .product__image {
-    max-width: 64vw;
-    max-height: 34vh;
-  }
-
-  .info-panel {
-    padding-top: 12px;
-  }
-
-  .info-panel__line-wrapper {
-    margin-bottom: 6px;
-  }
-
-  .info-panel__description {
-    margin-bottom: 7px;
-
-    font-size: 0.77rem;
-    line-height: 1.48;
-  }
-
-  .info-panel__footer {
-    padding-top: 7px;
-  }
-
-  .hero-timer {
-    display: none;
-  }
+/* ── اسکلت ── */
+.hero--skeleton { display: flex; align-items: center; justify-content: center; }
+.sk-ring {
+  width: 42px; height: 42px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,.12);
+  border-top-color: #c5a059;
+  animation: spin .8s linear infinite;
 }
+@keyframes spin { to { transform: rotate(360deg); } }
 
-/* =====================================================
-   حالت بارگذاری
-===================================================== */
-
-.hero-loading {
-  width: 100%;
-  height: 100svh;
-  min-height: 560px;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  background: #050814;
-}
-
-.hero-loading__spinner {
-  width: 44px;
-  height: 44px;
-
-  border:
-    2px solid
-    rgba(255, 255, 255, 0.14);
-
-  border-top-color: #c8aa55;
-  border-radius: 50%;
-
-  animation:
-    spinner
-    0.8s
-    linear
-    infinite;
-}
-
-/* =====================================================
-   کاهش حرکت
-===================================================== */
-
+/* ── کاهش حرکت ── */
 @media (prefers-reduced-motion: reduce) {
-  .product__stage,
-  .hero-loading__spinner,
-  .hero-timer__progress,
-  .hero-timer__icon {
-    animation: none !important;
-  }
-
-  .hero__background,
-  .hero-title,
-  .hero-subtitle,
-  .product__layer,
-  .info-panel__description {
-    transition-duration:
-      0.2s !important;
-
-    transition-delay:
-      0s !important;
-
-    transform: none;
-    filter: none;
-  }
-
-  .background-slide-enter-from,
-  .background-fade-enter-from,
-  .background-zoom-enter-from,
-  .title-slide-enter-from,
-  .title-fade-enter-from,
-  .title-zoom-enter-from,
-  .subtitle-slide-enter-from,
-  .subtitle-fade-enter-from,
-  .subtitle-zoom-enter-from,
-  .product-slide-enter-from,
-  .product-fade-enter-from,
-  .product-zoom-enter-from,
-  .description-slide-enter-from,
-  .description-fade-enter-from,
-  .description-zoom-enter-from {
-    opacity: 0;
-    transform: none;
-    filter: none;
-  }
+  .bg-enter-active, .bg-leave-active,
+  .rise-enter-active, .rise-leave-active,
+  .pop-enter-active, .pop-leave-active,
+  .cta, .arrow, .dot-btn { transition-duration: .01ms !important; }
+  .rise-enter-from, .pop-enter-from { transform: none; }
+  .dot-btn.on .fill { animation: none; transform: scaleX(1); }
+  .sk-ring { animation: none; }
 }
 </style>
