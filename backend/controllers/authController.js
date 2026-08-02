@@ -2,6 +2,7 @@ const User = require('../models/User');
 const generateToken = require('../utils/generateToken');
 const { sendVerificationCode } = require('../services/smsService');
 const { saveCode, verifyCode, getRemainingTime } = require('../utils/smsStore');
+const crypto = require('crypto');
 
 const buildUserResponse = (user) => ({
   _id: user._id,
@@ -40,7 +41,7 @@ const requestSmsCode = async (req, res) => {
     process.env.SMS_PROVIDER !== 'log' &&
     process.env.SMS_API_KEY;
 
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  const code = String(crypto.randomInt(100000, 1000000));
 
   if (!isSmsConfigured) {
     // حالت توسعه: کد در کنسول چاپ می‌شود

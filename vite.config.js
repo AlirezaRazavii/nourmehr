@@ -1,8 +1,38 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
+const CSP_DIRECTIVES = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+  "font-src 'self' https://cdn.jsdelivr.net data:",
+  "img-src 'self' data: blob:",
+  "connect-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-src 'none'",
+  "worker-src 'self' blob:",
+  "upgrade-insecure-requests",
+].join('; ')
+
+const cspPlugin = () => ({
+  name: 'nourmehr-csp',
+  transformIndexHtml: {
+    order: 'post',
+    handler(html, ctx) {
+      if (!ctx.bundle) return html
+      return html.replace(
+        '<head>',
+        `<head>\n    <meta http-equiv="Content-Security-Policy" content="${CSP_DIRECTIVES}" />`
+      )
+    },
+  },
+})
+
+
 export default defineConfig(({ command }) => ({
-  plugins: [vue()],
+  plugins: [vue(), cspPlugin()],
 
   define: {
     __VUE_PROD_DEVTOOLS__: false,

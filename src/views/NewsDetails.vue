@@ -22,7 +22,7 @@
           <img :src="getImageUrl(blog.image)" :alt="getLocalizedText(blog.title)" />
         </div>
 
-        <div class="blog-text" v-html="getLocalizedText(blog.content)"></div>
+        <div class="blog-text" v-html="safeContent"></div>
       </div>
 
       <div v-else class="empty-state">
@@ -33,11 +33,20 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import DOMPurify from 'dompurify'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { getBlogBySlug } from '../services/blogApi'
 import { getImageUrl } from '../utils/imageUrl'
+
+
+DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+  if (node.tagName === 'A' && node.hasAttribute('href')) {
+    node.setAttribute('target', '_blank')
+    node.setAttribute('rel', 'noopener noreferrer nofollow')
+  }
+})
 
 const { t, te, locale } = useI18n()
 const route = useRoute()
@@ -51,6 +60,25 @@ const getLocalizedText = (value) => {
   if (typeof value === 'object') return value[locale.value] || value.fa || value.en || ''
   return ''
 }
+
+const safeContent = computed(() => {
+  const raw = getLocalizedText(blog.value?.content)
+  if (!raw) return ''
+  return DOMPurify.sanitize(raw, {
+    ALLOWED_TAGS: [
+      'p','br','hr','strong','b','em','i','u','s','mark','small',
+      'h2','h3','h4','h5','h6',
+      'ul','ol','li','blockquote','pre','code',
+      'a','img','figure','figcaption',
+      'table','thead','tbody','tr','th','td',
+      'span','div'
+    ],
+    ALLOWED_ATTR: ['href','src','alt','title','class','dir','width','height','loading'],
+    ALLOW_DATA_ATTR: false,
+    ALLOWED_URI_REGEXP: /^(?:https?:|mailto:|tel:|\/|#)/i,
+  })
+})
+
 
 const getTypeLabel = (type) => {
   const key = 'news_type_' + (type || 'general')

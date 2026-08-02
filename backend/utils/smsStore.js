@@ -1,70 +1,58 @@
+const crypto = require('crypto');
 const SmsCode = require('../models/SmsCode');
 
-const CODE_TTL_MS = 2 * 60 * 1000; // ۲ دقیقه
+const CODE_TTL_MS = 2 * 60 * 1000;
+const MAX_ATTEMPTS = 5;
 
-/**
- * ذخیره کد تایید برای شماره موبایل (کد قبلی همین شماره جایگزین می‌شود)
- * @param {string} phone
- * @param {string} code
- */
+// کد هرگز به‌صورت خام ذخیره نمی‌شود
+const hashCode = (phone, code) =>
+  crypto
+    .createHmac('sha256', process.env.SMS_CODE_PEPPER || process.env.JWT_SECRET)
+    .update(`${phone}:${code}`)
+    .digest('hex');
+
 const saveCode = async (phone, code) => {
-  const expiresAt = new Date(Date.now() + CODE_TTL_MS);
-  // upsert: اگر رکوردی برای این شماره هست به‌روزرسانی، وگرنه بساز
   await SmsCode.findOneAndUpdate(
     { phone },
-    { phone, code, expiresAt, attempts: 0 },
-    { upsert: true, new: true }
+    {
+      phone,
+      code: hashCode(phone, code),
+      expiresAt: new Date(Date.now() + CODE_TTL_MS),
+      attempts: 0,
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
   );
 };
 
-/**
- * زمان باقی‌مانده (به ثانیه) تا انقضای کد فعلی برای این شماره
- * اگر کدی نباشد یا منقضی شده باشد، ۰ برمی‌گرداند
- * @param {string} phone
- * @returns {Promise<number>}
- */
 const getRemainingTime = async (phone) => {
-  const record = await SmsCode.findOne({ phone });
+  const record = await SmsCode.findOne({ phone }).lean();
   if (!record) return 0;
-  const remainingMs = record.expiresAt.getTime() - Date.now();
-  if (remainingMs <= 0) {
-    await SmsCode.deleteOne({ phone });
-    return 0;
-  }
-  return Math.ceil(remainingMs / 1000);
+  const ms = new Date(record.expiresAt).getTime() - Date.now();
+  return ms > 0 ? Math.ceil(ms / 1000) : 0;
 };
 
-/**
- * بررسی و حذف کد تایید
- * @param {string} phone
- * @param {string} code
- * @returns {Promise<boolean>}
- */
 const verifyCode = async (phone, code) => {
-  const record = await SmsCode.findOne({ phone });
-  if (!record) return false;
+  const hashed = hashCode(phone, code);
 
-  // اگر منقضی شده
-  if (Date.now() > record.expiresAt.getTime()) {
+  // یک عملیات اتمیک: اگر کد درست، منقضی‌نشده و زیر سقف تلاش بود → حذف و true
+  const matched = await SmsCode.findOneAndDelete({
+    phone,
+    code: hashed,
+    expiresAt: { $gt: new Date() },
+    attempts: { $lt: MAX_ATTEMPTS },
+  });
+  if (matched) return true;
+
+  // شمارش اتمیک تلاش ناموفق
+  const rec = await SmsCode.findOneAndUpdate(
+    { phone },
+    { $inc: { attempts: 1 } },
+    { new: true }
+  );
+  if (rec && rec.attempts >= MAX_ATTEMPTS) {
     await SmsCode.deleteOne({ phone });
-    return false;
   }
-
-  // اگر کد اشتباه است: شمارنده تلاش را زیاد کن (محافظت در برابر حدس زدن)
-  if (record.code !== code) {
-    record.attempts += 1;
-    // بعد از ۵ تلاش اشتباه، کد را باطل کن
-    if (record.attempts >= 5) {
-      await SmsCode.deleteOne({ phone });
-    } else {
-      await record.save();
-    }
-    return false;
-  }
-
-  // کد درست: حذف و موفقیت
-  await SmsCode.deleteOne({ phone });
-  return true;
+  return false;
 };
 
 module.exports = { saveCode, verifyCode, getRemainingTime };

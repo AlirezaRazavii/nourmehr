@@ -1,39 +1,57 @@
 const mongoose = require('mongoose');
-const User = require('../models/User');
-const { PERMISSIONS } = require('../config/permissions');
 const dotenv = require('dotenv');
-
 dotenv.config();
 
-// همه‌ی دسترسی‌ها (چون در permissions.js آرایه‌ی آماده نبود، اینجا می‌سازیم)
-const ALL_PERMISSIONS = Object.values(PERMISSIONS);
+const User = require('../models/User');
+const { PERMISSIONS } = require('../config/permissions');
 
-// شماره‌های ادمین اصلی
-const SUPER_ADMIN_PHONES = ['09132256122', '09132249808'];
+const ALL_PERMISSIONS = Object.values(PERMISSIONS);
+const IS_STANDALONE = require.main === module;
+
+// شماره‌ها فقط از env خوانده می‌شوند و اعتبارسنجی می‌شوند
+const parsePhones = () =>
+  String(process.env.SUPER_ADMIN_PHONES || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => /^09\d{9}$/.test(s));
+
+// در لاگ شماره کامل چاپ نشود
+const maskPhone = (p) => `${p.slice(0, 4)}***${p.slice(-2)}`;
 
 const seedAdmin = async () => {
+  // بدون فلگ صریح هرگز اجرا نمی‌شود
+  if (process.env.RUN_SEED_ADMIN !== 'true') {
+    console.log('ℹ️ Admin seeding skipped (RUN_SEED_ADMIN !== "true")');
+    return;
+  }
+
+  const phones = parsePhones();
+  if (!phones.length) {
+    console.warn('⚠️ SUPER_ADMIN_PHONES تعریف نشده یا نامعتبر است — seed انجام نشد');
+    return;
+  }
+
   try {
-    if (require.main === module) {
+    if (IS_STANDALONE) {
+      if (!process.env.MONGODB_URI) throw new Error('MONGODB_URI تعریف نشده است');
       await mongoose.connect(process.env.MONGODB_URI);
     }
 
-    for (const phone of SUPER_ADMIN_PHONES) {
-      let user = await User.findOne({ phone });
+    for (const phone of phones) {
+      const existing = await User.findOne({ phone });
 
-      if (user) {
-        // کاربر از قبل وجود دارد (مثلاً قبلاً با پیامک وارد شده) → ارتقا به مدیرکل
-        user.role = 'admin';
-        user.isSuperAdmin = true;
-        user.permissions = ALL_PERMISSIONS;
-        user.status = 'active';
-        if (!user.isProfileComplete && !user.name) {
-          user.name = 'مدیر';
-          user.isProfileComplete = true;
+      if (existing) {
+        existing.role = 'admin';
+        existing.isSuperAdmin = true;
+        existing.permissions = ALL_PERMISSIONS;
+        existing.status = 'active';
+        if (!existing.name) {
+          existing.name = 'مدیر';
+          existing.isProfileComplete = true;
         }
-        await user.save();
-        console.log(`👑 Super admin ensured: ${phone}`);
+        await existing.save();
+        console.log(`👑 Super admin ensured: ${maskPhone(phone)}`);
       } else {
-        // کاربر هنوز نیست → همین‌جا ساخته می‌شود
         await User.create({
           name: 'مدیر',
           phone,
@@ -43,21 +61,17 @@ const seedAdmin = async () => {
           status: 'active',
           isProfileComplete: true,
         });
-        console.log(`👑 Super admin created: ${phone}`);
+        console.log(`👑 Super admin created: ${maskPhone(phone)}`);
       }
     }
-
-    if (require.main === module) {
-      await mongoose.disconnect();
-    }
   } catch (error) {
-    console.error('❌ Seed error:', error);
-    if (require.main === module) process.exit(1);
+    console.error('❌ Seed admin error:', error.message);
+    if (IS_STANDALONE) process.exitCode = 1;
+  } finally {
+    if (IS_STANDALONE) await mongoose.disconnect();
   }
 };
 
-if (require.main === module) {
-  seedAdmin();
-}
+if (IS_STANDALONE) seedAdmin();
 
 module.exports = seedAdmin;

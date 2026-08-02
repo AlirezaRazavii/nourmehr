@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const smsCodeSchema = new mongoose.Schema({
-  phone: { type: String, required: true, index: true },
+  phone: { type: String, required: true, unique: true, index: true },
   code: { type: String, required: true },
   // زمان انقضا: مانگو با TTL index خودش بعد از رسیدن به این زمان داکیومنت را حذف می‌کند
   expiresAt: { type: Date, required: true },
