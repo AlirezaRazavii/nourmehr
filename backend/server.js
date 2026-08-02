@@ -81,7 +81,16 @@ mongoose.connection.on('disconnected', () => console.warn('🟡 MongoDB disconne
 const app = express();
 
 app.disable('x-powered-by');
-app.set('trust proxy', 1);
+/* ---- trust proxy: از env خوانده می‌شود ---- */
+const parseTrustProxy = (raw) => {
+  if (raw === undefined || raw === '') return IS_PROD ? 'loopback' : false;
+  if (raw === 'false') return false;
+  if (raw === 'true') return true;
+  if (/^\d+$/.test(raw)) return Number(raw);
+  return raw;
+};
+app.set('trust proxy', parseTrustProxy(process.env.TRUST_PROXY));
+
 app.set('etag', 'strong');
 
 // هدرهای امنیتی قبل از هر چیز، تا فایل‌های استاتیک را هم پوشش بدهد
@@ -181,6 +190,8 @@ app.get('/api/health', (req, res) => {
     uptime: Math.round(process.uptime()),
     db: states[mongoose.connection.readyState] || 'unknown',
     env: process.env.NODE_ENV || 'development',
+    clientIp: req.ip,
+    xff: req.headers['x-forwarded-for'] || null,
   });
 });
 
@@ -252,9 +263,17 @@ app.use((err, req, res, next) => {
 });
 
 /* --------------------------------- Bootstrap -------------------------------- */
-const server = app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}  [${process.env.NODE_ENV || 'development'}]`);
+const HOST = process.env.HOST || (IS_PROD ? '127.0.0.1' : '0.0.0.0');
+
+const server = app.listen(PORT, HOST, () => {
+  console.log(`🚀 Server running on http://${HOST}:${PORT}  [${process.env.NODE_ENV || 'development'}]`);
+  console.log(`   trust proxy = ${JSON.stringify(app.get('trust proxy'))}`);
+
+  if (IS_PROD && HOST === '0.0.0.0' && app.get('trust proxy')) {
+    console.warn('🟡 هشدار: سرور روی 0.0.0.0 است و trust proxy فعال — پورت باید با فایروال بسته باشد.');
+  }
 });
+
 
 server.keepAliveTimeout = 65_000;
 server.headersTimeout = 66_000;
