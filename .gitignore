@@ -137,3 +137,5 @@ dist
 
 # local backups
 *.bak
+
+uploads/
