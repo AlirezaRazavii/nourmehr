@@ -1,20 +1,3 @@
-const Collection = require('../models/Collection');
-
-
-
-const seedCollections = async () => {
-  try {
-    for (const col of defaultCollections) {
-      await Collection.findOneAndUpdate(
-        { slug: col.slug },
-        { $setOnInsert: col },
-        { upsert: true, new: true }
-      );
-    }
-    console.log('✅ Default collections seeded');
-  } catch (err) {
-    console.error('❌ Collection seed error:', err.message);
-  }
-};
-
+// seed خودکار غیرفعال است
+const seedCollections = async () => {};
 module.exports = seedCollections;
