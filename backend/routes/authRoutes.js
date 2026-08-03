@@ -10,7 +10,14 @@ const {
   googleCallback,
 } = require('../controllers/authController');
 const { protect } = require('../middleware/authMiddleware');
-const { smsRequestLimiter, smsVerifyLimiter } = require('../middleware/rateLimiter');
+const {
+  smsRequestByIp,
+  smsRequestByPhone,
+  smsGlobalBudget,
+  smsVerifyByIp,
+  smsVerifyByPhone,
+} = require('../middleware/rateLimiter');
+
 
 const router = express.Router();
 
@@ -20,8 +27,21 @@ const phoneValidation = [
 ];
 
 // --- اندپوینت‌های پیامکی ---
-router.post('/sms/request', smsRequestLimiter, phoneValidation, requestSmsCode);
-router.post('/sms/verify', smsVerifyLimiter, verifySmsCode);
+router.post(
+  '/sms/request',
+  smsRequestByIp,
+  smsRequestByPhone,
+  smsGlobalBudget,
+  phoneValidation,
+  requestSmsCode
+);
+
+router.post(
+  '/sms/verify',
+  smsVerifyByIp,
+  smsVerifyByPhone,
+  verifySmsCode
+);
 
 // --- تکمیل پروفایل (نیازمند توکن) ---
 router.post('/complete-profile', protect, completeProfile);

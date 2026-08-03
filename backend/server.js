@@ -168,7 +168,7 @@ app.use('/api', apiLimiter);
 // نه روی GET هایی مثل /api/auth/me که در هر بار رفرش صفحه صدا زده می‌شوند.
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 25,
+  max: 60,
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => req.method === 'GET' || req.method === 'OPTIONS',
