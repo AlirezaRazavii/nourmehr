@@ -70,13 +70,15 @@ const stats = [
 
 <style scoped>
 .story {
-  --gold: var(--brand-gold, #d8b46a);
+  --gold: #d8b46a;
+  --gold-light: #e7ca8f;   /* سر روشن گرادیان */
+  --gold-dark:  #b6974f;   /* سر تیره گرادیان */
   --gold-line: rgba(216, 180, 106, 0.22);
   --ink: #211705;                 /* متن روی پنل طلایی */
   --ink-soft: rgba(33, 23, 5, 0.74);
-  --surface: var(--card-bg, #0d0d10);
-  --title-color: var(--text-main, #f4efe6);
-  --desc-color: var(--text-muted, rgba(244, 239, 230, 0.55));
+  --surface: #0d0d10;
+  --title-color: #f4efe6;
+  --desc-color: rgba(244, 239, 230, 0.55);
 
   padding: clamp(36px, 5vw, 84px) clamp(12px, 4vw, 32px);
   direction: rtl;
@@ -149,12 +151,12 @@ const stats = [
   margin-inline-start: clamp(-72px, -5vw, -32px);
   padding: clamp(20px, 2.6vw, 32px);
   border-radius: 18px;
-  background: var(--gold);
-  background: linear-gradient(
+  background-color: #d8b46a;   /* پشتیبان مطلق */
+  background-image: linear-gradient(
     152deg,
-    color-mix(in srgb, var(--gold) 88%, #fff) 0%,
+    var(--gold-light) 0%,
     var(--gold) 46%,
-    color-mix(in srgb, var(--gold) 84%, #000) 100%
+    var(--gold-dark) 100%
   );
   box-shadow: 0 18px 44px rgba(0, 0, 0, 0.34);
 }
@@ -188,7 +190,7 @@ const stats = [
   display: grid;
   place-items: center;
   width: clamp(52px, 8vw, 66px);
-  aspect-ratio: 1;
+  height: clamp(52px, 8vw, 66px);
   border-radius: 16px;
   background: #14110c;
   box-shadow: inset 0 0 0 1px rgba(216, 180, 106, 0.4);
@@ -204,7 +206,7 @@ const stats = [
 }
 .panel__text:last-of-type { margin-bottom: 0; }
 
-/* آمارها: فقط خط نازک، بدون کادر سنگین */
+/* آمارها */
 .panel__stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
