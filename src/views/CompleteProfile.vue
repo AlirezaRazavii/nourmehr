@@ -5,6 +5,8 @@ import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import { useAuth } from '../stores/auth'
 import Toast from '../components/Toast.vue'
+import { sanitizeRedirect } from '../utils/safeRedirect'
+
 
 const { t, locale } = useI18n()
 const router = useRouter()
@@ -32,8 +34,8 @@ const handleSubmit = async () => {
   }
   showToast(t('profile_success') || 'خوش آمدید!', 'success')
   setTimeout(() => {
-    const redirect = router.currentRoute.value.query.redirect
-    if (typeof redirect === 'string' && redirect) {
+    const redirect = sanitizeRedirect(router.currentRoute.value.query.redirect, '')
+    if (redirect) {
       window.location.href = redirect
     } else {
       router.push({ name: 'UserDashboard', params: { lang: locale.value } })

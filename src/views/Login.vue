@@ -6,6 +6,8 @@ import { storeToRefs } from 'pinia'
 import { useAuth } from '../stores/auth'
 import Toast from '../components/Toast.vue'
 import logoImg from '../assests/logo/Nourmehr-gold.webp'
+import { sanitizeRedirect } from '../utils/safeRedirect'
+
 
 const { t, locale } = useI18n()
 const router = useRouter()
@@ -37,21 +39,31 @@ const startCountdown = (seconds = 120) => {
 const validatePhone = (value) => /^09\d{9}$/.test(value)
 
 const redirectAfterLogin = (result) => {
-  const redirect = router.currentRoute.value.query.redirect
+  // fallback خالی می‌دهیم تا بتوانیم «مقصدی وجود ندارد» را از «/» تشخیص دهیم
+  const redirect = sanitizeRedirect(router.currentRoute.value.query.redirect, '')
+
   if (result.needsProfile) {
-    router.push({ name: 'CompleteProfile', params: { lang: locale.value } })
+    router.push({
+      name: 'CompleteProfile',
+      params: { lang: locale.value },
+      // مقصد را حفظ می‌کنیم تا بعد از تکمیل پروفایل گم نشود
+      query: redirect ? { redirect } : {},
+    })
     return
   }
-  if (typeof redirect === 'string' && redirect) {
+
+  if (redirect) {
     window.location.href = redirect
     return
   }
+
   if (result.user?.role === 'admin') {
     window.location.href = '/admin/dashboard'
   } else {
     router.push({ name: 'UserDashboard', params: { lang: locale.value } })
   }
 }
+
 
 const handleSendCode = async () => {
   if (!validatePhone(phone.value)) {
