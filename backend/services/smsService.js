@@ -72,7 +72,6 @@ const melipayamakProvider = {
  * @param {string} code - کد تایید ۶ رقمی
  */
 const sendVerificationCode = async (phone, code) => {
-  console.log('[SMS RUNTIME] provider:', process.env.SMS_PROVIDER, '| apiKey len:', (process.env.SMS_API_KEY || '').length);
   // provider را در لحظه‌ی ارسال می‌خوانیم تا مطمئن باشیم dotenv اجرا شده
   const PROVIDER = process.env.SMS_PROVIDER || 'log';
 
@@ -92,7 +91,8 @@ const sendVerificationCode = async (phone, code) => {
     return await activeProvider.send(phone, code);
   } catch (error) {
     const kavenegarMsg = error.response?.data?.return?.message;
-    console.error('SMS send error:', kavenegarMsg || error.message);
+    // جزئیات کامل فقط در لاگ سرور — کنترلر این را به کاربر نشان نمی‌دهد
+    console.error('[SMS] provider error:', kavenegarMsg || error.message);
     return { success: false, message: kavenegarMsg || error.message };
   }
 };

@@ -3,6 +3,8 @@ const generateToken = require('../utils/generateToken');
 const { sendVerificationCode } = require('../services/smsService');
 const { saveCode, verifyCode, getRemainingTime } = require('../utils/smsStore');
 const crypto = require('crypto');
+const IS_PROD = process.env.NODE_ENV === 'production';
+
 
 const buildUserResponse = (user) => ({
   _id: user._id,
@@ -36,7 +38,7 @@ const requestSmsCode = async (req, res) => {
     });
   }
 
-  const isSmsConfigured =
+    const isSmsConfigured =
     process.env.SMS_PROVIDER &&
     process.env.SMS_PROVIDER !== 'log' &&
     process.env.SMS_API_KEY;
@@ -44,7 +46,18 @@ const requestSmsCode = async (req, res) => {
   const code = String(crypto.randomInt(100000, 1000000));
 
   if (!isSmsConfigured) {
-    // حالت توسعه: کد در کنسول چاپ می‌شود
+    // ⛔ در پروداکشن هرگز کد را چاپ نکن و success برنگردان.
+    // اگر پیکربندی پیامک خراب شود، باید صریحاً خطا بدهیم تا
+    // متوجه شویم — نه اینکه بی‌سروصدا کد را در لاگ بنویسیم.
+    if (IS_PROD) {
+      console.error('🔴 CRITICAL: SMS provider is not configured in production. OTP request rejected.');
+      return res.status(503).json({
+        success: false,
+        message: 'سرویس پیامک در دسترس نیست. لطفاً کمی بعد تلاش کنید.',
+      });
+    }
+
+    // فقط در محیط توسعه: کد در کنسول چاپ می‌شود
     await saveCode(phone, code);
     console.log(`[SMS MOCK] کد تایید برای شماره ${phone}: ${code}`);
     return res.json({
@@ -59,8 +72,15 @@ const requestSmsCode = async (req, res) => {
     await saveCode(phone, code);
     return res.json({ success: true, message: 'کد تایید ارسال شد', remaining: 120 });
   }
-  return res.status(500).json({ success: false, message: result.message || 'خطا در ارسال پیامک' });
+
+  // جزئیات خام پرووایدر فقط در لاگ سرور می‌ماند، نه در پاسخ کاربر
+  console.error('[SMS] send failed:', result.message || 'unknown provider error');
+  return res.status(502).json({
+    success: false,
+    message: 'ارسال پیامک با مشکل مواجه شد. لطفاً چند لحظه بعد تلاش کنید.',
+  });
 };
+
 
 // ==================== تایید کد و ورود/ثبت‌نام ====================
 const verifySmsCode = async (req, res) => {
