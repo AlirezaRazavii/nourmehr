@@ -24,7 +24,6 @@ const getLocalizedDesc = (desc) => {
 }
 
 const discountLabel = (d) => {
-  if (d.type === 'freeShipping') return t('discounts_type_free_shipping')
   if (d.type === 'percent') return t('discounts_type_percent', { value: d.value })
   return t('discounts_type_fixed', { value: formatPrice(d.value) })
 }

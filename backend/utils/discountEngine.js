@@ -6,23 +6,22 @@ const Order = require('../models/Order');
 const VALID_ORDER_STATUSES = ['paid', 'confirmed', 'processing', 'shipped', 'delivered'];
 
 /**
- * محاسبه مبلغ تخفیف روی کالاها (برای percent و fixed)
- * برای freeShipping اینجا صفر برمی‌گردد چون تخفیفش روی ارسال است.
+ * محاسبه مبلغ تخفیف روی کالاها (percent و fixed)
  */
 function calcDiscountAmount(discount, subtotal) {
   let amount = 0;
+
   if (discount.type === 'percent') {
     amount = Math.round((subtotal * discount.value) / 100);
   } else if (discount.type === 'fixed') {
     amount = discount.value;
-  } else if (discount.type === 'freeShipping') {
-    return 0; // تخفیف روی ارسال است نه کالا
   }
 
   if (discount.maxDiscount != null && discount.maxDiscount > 0 && amount > discount.maxDiscount) {
     amount = discount.maxDiscount;
   }
   if (amount > subtotal) amount = subtotal;
+
   return Math.max(0, amount);
 }
 
@@ -31,7 +30,7 @@ function calcDiscountAmount(discount, subtotal) {
  * @param {string} code
  * @param {number} subtotal
  * @param {string} userId - شناسه کاربر لاگین‌شده (برای محدودیت هر کاربر و اولین خرید)
- * @returns { discount, amount, freeShipping }
+ * @returns { discount, amount }
  */
 async function validateDiscount(code, subtotal, userId = null) {
   if (!code || !String(code).trim()) {
@@ -81,7 +80,6 @@ async function validateDiscount(code, subtotal, userId = null) {
 
   // --- بررسی‌های وابسته به کاربر ---
   if (userId) {
-    // محدودیت هر کاربر: چند سفارش معتبر با این کد قبلاً داشته؟
     const userUsedCount = await Order.countDocuments({
       user: userId,
       discountCode: normalized,
@@ -94,7 +92,6 @@ async function validateDiscount(code, subtotal, userId = null) {
       throw err;
     }
 
-    // فقط اولین خرید: کاربر نباید هیچ سفارش معتبری داشته باشد
     if (discount.firstPurchaseOnly) {
       const previousOrders = await Order.countDocuments({
         user: userId,
@@ -109,16 +106,14 @@ async function validateDiscount(code, subtotal, userId = null) {
   }
 
   const amount = calcDiscountAmount(discount, subtotal);
-  const freeShipping = discount.type === 'freeShipping';
 
-  // برای percent/fixed اگر مبلغ صفر شد یعنی بی‌اثر است
-  if (!freeShipping && amount <= 0) {
+  if (amount <= 0) {
     const err = new Error('این کد تخفیف برای سبد فعلی قابل اعمال نیست');
     err.statusCode = 400;
     throw err;
   }
 
-  return { discount, amount, freeShipping };
+  return { discount, amount };
 }
 
 /**

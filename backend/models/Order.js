@@ -19,7 +19,7 @@ const shippingInfoSchema = new mongoose.Schema({
   address: { type: String, required: true, minlength: 10 },
   postalCode: { type: String, required: true, match: /^\d{10}$/ },
   note: String,
-  shippingMethod: { type: String, enum: ['express', 'normal', 'free'], default: 'normal' }
+  shippingMethod: { type: String, enum: ['express', 'normal'], default: 'normal' }
 });
 
 const orderSchema = new mongoose.Schema({

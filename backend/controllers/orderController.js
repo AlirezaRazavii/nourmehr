@@ -11,6 +11,12 @@ const {
 
 const generateOrderRef = () => 'NM-' + Date.now();
 
+
+// نرخ ارسال فقط سمت سرور تعیین می‌شود — کلاینت هیچ نقشی در قیمت ندارد
+const SHIPPING_RATES = Object.freeze({ express: 150000, normal: 80000 });
+const ALLOWED_SHIPPING_METHODS = Object.keys(SHIPPING_RATES);
+
+
 // روش‌های پرداخت مجاز
 const ALLOWED_PAYMENT_METHODS = ['cod', 'online'];
 
@@ -40,11 +46,7 @@ const getUnitPrice = (product, sizeName) => {
 };
 
 // محاسبه هزینه ارسال بر اساس روش انتخابی
-const calculateShippingCost = (subtotal, method) => {
-  if (method === 'free') return 0;
-  if (method === 'express') return 150000;
-  return 80000; // normal
-};
+const calculateShippingCost = (method) => SHIPPING_RATES[method] ?? SHIPPING_RATES.normal;
 
 // اعتبارسنجی کد تخفیف (بدون مصرف) — برای فرم Checkout
 const validateDiscount = async (req, res) => {
@@ -54,21 +56,15 @@ const validateDiscount = async (req, res) => {
       return res.status(400).json({ success: false, message: 'مبلغ سبد خرید نامعتبر است' });
     }
     const userId = req.user._id;
-    const { discount, amount, freeShipping } = await validateDiscountEngine(code, Number(subtotal), userId);
+    const { discount, amount } = await validateDiscountEngine(code, Number(subtotal), userId);
 
-    let message;
-    if (freeShipping) {
-      message = 'کد تخفیف ارسال رایگان اعمال شد';
-    } else if (discount.type === 'percent') {
-      message = `کد تخفیف ${discount.value}٪ اعمال شد`;
-    } else {
-      message = `کد تخفیف ${amount.toLocaleString('fa-IR')} تومانی اعمال شد`;
-    }
+    const message = discount.type === 'percent'
+      ? `کد تخفیف ${discount.value}٪ اعمال شد`
+      : `کد تخفیف ${amount.toLocaleString('fa-IR')} تومانی اعمال شد`;
 
     return res.json({
       success: true,
       discountAmount: amount,
-      freeShipping,
       discountType: discount.type,
       discountValue: discount.value,
       description: discount.description || '',
@@ -94,6 +90,10 @@ const createOrder = async (req, res) => {
     if (!shippingInfo || typeof shippingInfo !== 'object') {
       return res.status(400).json({ success: false, message: 'اطلاعات ارسال ناقص است' });
     }
+        const shippingMethod = ALLOWED_SHIPPING_METHODS.includes(shippingInfo.shippingMethod)
+      ? shippingInfo.shippingMethod
+      : 'normal';
+    shippingInfo.shippingMethod = shippingMethod;
 
     const cart = await Cart.findOne({ user: userId }).populate('items.product');
     if (!cart || cart.items.length === 0) {
@@ -128,22 +128,20 @@ const createOrder = async (req, res) => {
     // اعتبارسنجی کد تخفیف بدون مصرف کردن آن
     let discountAmount = 0;
     let validDiscountCode = null;
-    let freeShipping = false;
     if (discountCode) {
       try {
         const result = await validateDiscountEngine(discountCode, subtotal, userId);
         discountAmount = result.amount;
         validDiscountCode = result.discount.code;
-        freeShipping = result.freeShipping;
       } catch (err) {
         return res.status(err.statusCode || 400).json({ success: false, message: err.message });
       }
     }
 
-    let shippingCost = calculateShippingCost(subtotal, shippingInfo?.shippingMethod || 'normal');
-    if (freeShipping) shippingCost = 0;
+    const shippingCost = calculateShippingCost(shippingMethod);
 
-    const total = subtotal - discountAmount + shippingCost;
+    const total = Math.max(0, subtotal - discountAmount) + shippingCost;
+
 
     // کاهش موجودی (اتمیک، سازگار با MongoDB standalone)
     // فهرست محصولاتی که موجودی‌شان کم شده تا در صورت خطا برگردانده شوند

@@ -174,7 +174,8 @@ const deleteDiscount = async (id) => {
         <div class="discount-details">
           <div class="detail-item">
             <span class="detail-label">نوع:</span>
-            <span class="detail-value">{{ discount.type === 'percent' ? 'درصدی' : (discount.type === 'freeShipping' ? 'ارسال رایگان' : 'ثابت') }}</span>
+            <span class="detail-value">{{ discount.type === 'percent' ? 'درصدی' : 'ثابت' }}</span>
+
           </div>
           <div class="detail-item">
             <span class="detail-label">مقدار:</span>
@@ -233,7 +234,6 @@ const deleteDiscount = async (id) => {
                 <select v-model="form.type" class="form-select">
                   <option value="percent">درصدی</option>
                   <option value="fixed">ثابت (تومان)</option>
-                  <option value="freeShipping">ارسال رایگان</option>
                 </select>
               </div>
               <div class="form-group">

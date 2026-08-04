@@ -407,7 +407,6 @@ const errorMessage = ref('')
 const orderData = ref(null)
 
 const shippingCost = computed(() => {
-  if (appliedDiscount.value?.freeShipping) return 0
   const method = shippingMethods.find(m => m.id === selectedShipping.value)
   return method ? (method.price || 0) : 0
 })
@@ -498,7 +497,6 @@ const applyDiscount = async () => {
     appliedDiscount.value = {
       code: discountCode.value.trim().toUpperCase(),
       amount: res.data.discountAmount,
-      freeShipping: res.data.freeShipping || false,
     }
     discountSuccess.value = res.data.message
   } catch (err) {
