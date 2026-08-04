@@ -207,6 +207,17 @@ export const adminApi = {
     return res.data
   },
 
+    async revokeUserSessions(id) {
+    const res = await api.put(`/admin/users/${id}/revoke-sessions`)
+    return res.data
+  },
+
+  async revokeAllSessions(includeSelf = false) {
+    const res = await api.post('/admin/users/revoke-all-sessions', { includeSelf })
+    return res.data
+  },
+
+
   async getPermissionList() {
     const res = await api.get('/admin/permissions')
     return res.data

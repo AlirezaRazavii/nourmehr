@@ -1,9 +1,17 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { storeToRefs } from 'pinia'
 import { adminApi } from '../../services/adminApi'
+import { useAuth } from '../../stores/auth'
+
+const authStore = useAuth()
+const { user: currentUser } = storeToRefs(authStore)
+const isSuperAdmin = computed(() => currentUser.value?.isSuperAdmin === true)
 
 const loading = ref(true)
 const users = ref([])
+const revokingId = ref(null)
+const revokingAll = ref(false)
 const searchQuery = ref('')
 const roleFilter = ref('all')
 const statusFilter = ref('all')
@@ -57,6 +65,63 @@ const toggleStatus = async (user) => {
     alert('خطا: ' + (err.response?.data?.message || err.message || 'عملیات ناموفق بود'))
   }
 }
+
+const revokeSessions = async (user) => {
+  const id = user._id || user.id
+  const label = user.name || user.phone
+
+  if (!confirm(
+    `همه‌ی نشست‌های «${label}» بسته شود؟\n\n` +
+    'این کاربر روی تمام دستگاه‌هایش از حساب خارج می‌شود و باید دوباره وارد شود.'
+  )) return
+
+  revokingId.value = id
+  try {
+    const res = await adminApi.revokeUserSessions(id)
+    if (!res.success) throw new Error(res.message)
+
+    alert(res.message)
+
+    // اگر ادمین نشست خودش را بست، توکن فعلی باطل شده
+    if (res.self) {
+      await authStore.logout({ callApi: false })
+      window.location.href = '/fa/login'
+    }
+  } catch (err) {
+    alert('خطا: ' + (err.response?.data?.message || err.message || 'عملیات ناموفق بود'))
+  } finally {
+    revokingId.value = null
+  }
+}
+
+const revokeAll = async () => {
+  if (!confirm(
+    '⚠️ هشدار جدی\n\n' +
+    'نشست تمام کاربران سایت بسته می‌شود و همه باید دوباره وارد شوند.\n' +
+    'این کار فقط در مواقع اضطراری (نشت اطلاعات، تعویض کلید) انجام می‌شود.\n\n' +
+    'ادامه می‌دهید؟'
+  )) return
+
+  const typed = prompt('برای تأیید نهایی، عبارت زیر را دقیقاً تایپ کنید:\n\nخروج همه')
+  if (typed !== 'خروج همه') {
+    alert('عملیات لغو شد.')
+    return
+  }
+
+  revokingAll.value = true
+  try {
+    // includeSelf = false تا خود شما از پنل بیرون نیفتید
+    const res = await adminApi.revokeAllSessions(false)
+    if (!res.success) throw new Error(res.message)
+    alert(res.message)
+  } catch (err) {
+    alert('خطا: ' + (err.response?.data?.message || err.message || 'عملیات ناموفق بود'))
+  } finally {
+    revokingAll.value = false
+  }
+}
+
+
 </script>
 
 <template>
@@ -68,6 +133,15 @@ const toggleStatus = async (user) => {
       </div>
       <div class="header-stats">
         <span class="stat-pill">{{ users.length }} کاربر</span>
+        <button
+          v-if="isSuperAdmin"
+          class="danger-pill"
+          :disabled="revokingAll"
+          title="بستن نشست تمام کاربران — فقط در مواقع اضطراری"
+          @click="revokeAll"
+        >
+          {{ revokingAll ? 'در حال اجرا...' : '🚪 خروج اجباری همه' }}
+        </button>
       </div>
     </div>
 
@@ -135,6 +209,14 @@ const toggleStatus = async (user) => {
                 <div class="action-btns">
                   <button class="action-btn" :class="user.status === 'blocked' ? 'unblock' : 'block'" @click="toggleStatus(user)">
                     {{ user.status === 'blocked' ? 'رفع مسدودی' : 'مسدود کن' }}
+                  </button>
+                  <button
+                    class="action-btn revoke"
+                    :disabled="revokingId === (user._id || user.id)"
+                    title="خروج اجباری از تمام دستگاه‌ها"
+                    @click="revokeSessions(user)"
+                  >
+                    {{ revokingId === (user._id || user.id) ? '...' : 'خروج اجباری' }}
                   </button>
                 </div>
               </td>
@@ -405,4 +487,31 @@ const toggleStatus = async (user) => {
 .empty-icon {
   font-size: 2.5rem;
 }
+
+
+.danger-pill {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(239,68,68,0.4);
+  background: rgba(239,68,68,0.1);
+  color: #f87171;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.2s ease;
+}
+.danger-pill:hover:not(:disabled) { background: rgba(239,68,68,0.2); }
+.danger-pill:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.action-btn.revoke {
+  background: rgba(245,158,11,0.15);
+  color: #f59e0b;
+  white-space: nowrap;
+}
+.action-btn.revoke:hover:not(:disabled) { background: rgba(245,158,11,0.25); }
+.action-btn.revoke:disabled { opacity: 0.5; cursor: not-allowed; }
+
+
+
 </style>

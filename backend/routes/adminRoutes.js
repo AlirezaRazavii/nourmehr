@@ -8,7 +8,15 @@ const uploadHero = require('../middleware/uploadHero');
 
 const { getDashboardStats } = require('../controllers/admin/dashboardController');
 const { getOrders, getOrderById, updateOrderStatus } = require('../controllers/admin/orderController');
-const { getUsers, updateUserStatus, updateUserRole, updateUserPermissions } = require('../controllers/admin/userController');
+const {
+  getUsers,
+  updateUserStatus,
+  updateUserRole,
+  updateUserPermissions,
+  revokeUserSessions,
+  revokeAllSessions,
+} = require('../controllers/admin/userController');
+
 const { getPayments, verifyPaymentByAdmin, refundPaymentByAdmin } = require('../controllers/admin/paymentController');
 const { getTickets, getTicketById, replyToTicket, updateTicketStatus } = require('../controllers/admin/ticketController');
 const { getDiscounts, createDiscount, updateDiscount, deleteDiscount } = require('../controllers/admin/discountController');
@@ -54,7 +62,9 @@ router.put('/orders/:id/status', hasPermission(PERMISSIONS.ORDERS), updateOrderS
 
 /* --------------------------------- کاربران --------------------------------- */
 router.get('/users', hasPermission(PERMISSIONS.USERS), getUsers);
+router.post('/users/revoke-all-sessions', superAdminOnly, revokeAllSessions);
 router.put('/users/:id/status', hasPermission(PERMISSIONS.USERS), updateUserStatus);
+router.put('/users/:id/revoke-sessions', hasPermission(PERMISSIONS.USERS), revokeUserSessions);
 router.put('/users/:id/role', superAdminOnly, updateUserRole);
 router.put('/users/:id/permissions', superAdminOnly, updateUserPermissions);
 
