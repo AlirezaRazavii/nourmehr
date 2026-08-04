@@ -11,14 +11,15 @@ const num = (v, def) => {
 /* ---------------------------------------------------------------
    سقف‌ها از env قابل تنظیم‌اند تا بدون تغییر کد بتوان تیون کرد.
 
-   نکته مهم: یک CDN جلوی سایت است و IP واقعی کاربر به اپ نمی‌رسد،
-   پس صدها کاربر یک IP مشترک دارند. به همین دلیل سقف IP سخاوتمندانه
-   است؛ محافظت واقعی روی «شماره موبایل» و «سقف کل ساعتی» است.
+   IP واقعی کاربر از طریق Cloudflare (هدر CF-Connecting-IP) و ماژول
+   realip نگینکس به اپ می‌رسد و trust proxy روی loopback است،
+   پس req.ip قابل جعل نیست و سقف IP معنادار است.
+   سه لایه محافظت: IP، شماره موبایل، و سقف کل ساعتی (بودجه مالی).
 --------------------------------------------------------------- */
-const IP_REQ_MAX        = num(process.env.SMS_IP_MAX,           IS_PROD ? 40 : 200);
+const IP_REQ_MAX        = num(process.env.SMS_IP_MAX,           IS_PROD ? 6 : 200);
 const PHONE_REQ_MAX     = num(process.env.SMS_PHONE_MAX,        IS_PROD ? 5  : 100);
 const GLOBAL_MAX        = num(process.env.SMS_HOURLY_BUDGET,    200);
-const IP_VERIFY_MAX     = num(process.env.SMS_VERIFY_IP_MAX,    IS_PROD ? 80 : 300);
+const IP_VERIFY_MAX     = num(process.env.SMS_VERIFY_IP_MAX,    IS_PROD ? 15 : 300);
 const PHONE_VERIFY_MAX  = num(process.env.SMS_VERIFY_PHONE_MAX, IS_PROD ? 8  : 200);
 
 /* نرمال‌سازی ارقام فارسی/عربی به انگلیسی
