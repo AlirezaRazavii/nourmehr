@@ -10,6 +10,8 @@ const {
   googleCallback,
 } = require('../controllers/authController');
 const { protect } = require('../middleware/authMiddleware');
+const { optionalAuth } = require('../middleware/optionalAuth');
+
 const {
   smsRequestByIp,
   smsRequestByPhone,
@@ -48,8 +50,7 @@ router.post('/complete-profile', protect, completeProfile);
 
 // --- سایر ---
 router.get('/me', protect, getMe);
-router.post('/logout', logout);
-
+router.post('/logout', optionalAuth, logout);
 // --- Google OAuth (شرطی) ---
 if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
   router.get('/google', googleAuth);

@@ -17,9 +17,12 @@ const optionalAuth = async (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
     const user = await User.findById(decoded.userId).select('-password');
-    if (user && user.status !== 'blocked') {
+
+    // همان قوانین protect، فقط بدون خطا دادن
+    const versionOk = (decoded.tv ?? 0) === (user?.tokenVersion ?? 0);
+    if (user && versionOk && user.status === 'active') {
       req.user = user;
     }
   } catch (err) {
@@ -27,5 +30,6 @@ const optionalAuth = async (req, res, next) => {
   }
   next();
 };
+
 
 module.exports = { optionalAuth };

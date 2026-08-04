@@ -110,15 +110,23 @@ const verifySmsCode = async (req, res) => {
     isNewUser = true;
   }
 
-  // اگر کاربر مسدود است
-  if (user.status === 'blocked') {
-    return res.status(403).json({ success: false, message: 'حساب کاربری شما مسدود شده است' });
+   // فقط حساب فعال اجازه ورود دارد (blocked و inactive هر دو رد می‌شوند)
+  if (user.status !== 'active') {
+    return res.status(403).json({
+      success: false,
+      message:
+        user.status === 'blocked'
+          ? 'حساب کاربری شما مسدود شده است'
+          : 'حساب کاربری شما غیرفعال است',
+    });
   }
 
   user.lastLogin = Date.now();
   await user.save();
 
-  const token = generateToken(user._id);
+  // نسخه‌ی فعلی سشن داخل توکن قرار می‌گیرد
+  const token = generateToken(user._id, user.tokenVersion ?? 0);
+
   res.json({
     success: true,
     token,
@@ -166,9 +174,18 @@ const getMe = async (req, res) => {
   }
 };
 
-const logout = (req, res) => {
+const logout = async (req, res) => {
+  try {
+    // با یک واحد افزایش، همه‌ی توکن‌های قبلی این کاربر باطل می‌شوند
+    if (req.user?._id) {
+      await User.updateOne({ _id: req.user._id }, { $inc: { tokenVersion: 1 } });
+    }
+  } catch (err) {
+    // خروج باید همیشه از دید کاربر موفق باشد
+    console.error('[AUTH] logout error:', err.message);
+  }
   res.clearCookie('auth_token');
-  res.json({ success: true, message: 'Logged out successfully' });
+  res.json({ success: true, message: 'خروج با موفقیت انجام شد' });
 };
 
 // ==================== Google OAuth (شرطی) ====================
@@ -189,7 +206,7 @@ const googleCallback = (req, res, next) => {
     if (err || !user) {
       return res.redirect(`${process.env.CLIENT_URL}/login?error=google_auth_failed`);
     }
-    const token = generateToken(user._id);
+    const token = generateToken(user._id, user.tokenVersion ?? 0);
     user.lastLogin = Date.now();
     await user.save();
     res.redirect(`${process.env.CLIENT_URL}/login?token=${token}`);

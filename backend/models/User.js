@@ -26,6 +26,7 @@ const userSchema = new mongoose.Schema(
     role: { type: String, enum: ['user', 'admin'], default: 'user' },
     isSuperAdmin: { type: Boolean, default: false },
     permissions: { type: [String], default: [] },
+    tokenVersion: { type: Number, default: 0 },
     status: { type: String, enum: ['active', 'inactive', 'blocked'], default: 'active' },
     isProfileComplete: { type: Boolean, default: false },
    addresses: [addressSchema],
