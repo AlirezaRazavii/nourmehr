@@ -92,8 +92,8 @@
 
       <!-- پاورد بای -->
       <div class="powered-by">
-        Powered by <strong>inconnection</strong>
-      </div>
+        Powered by <strong><a href="https://ifconnection.ir/" target="_blank">IFCONNECTION</a></strong>
+      </div>  
     </div>
   </footer>
 </template>
