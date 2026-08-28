@@ -128,9 +128,12 @@ exports.getBlogs = async (req, res) => {
         .lean()
     ]);
 
+    // خروجی لیست هم باید مثل بقیه اندپوینت‌ها محلی باشد وگرنه متن خام {fa,en} به فرانت می‌رود
+    const localized = (await withCategory(blogs, lang)).map(b => localizeBlog(b, lang));
+
     res.json({
       success: true,
-      data: await withCategory(blogs, lang),
+      data: localized,
       meta: { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) }
     });
   } catch (err) {
@@ -207,7 +210,17 @@ exports.getBlogBySlug = async (req, res) => {
     blog.viewsCount = (blog.viewsCount || 0) + 1;
     if (blog.author && !blog.authorName) blog.authorName = blog.author.name || '';
 
-    res.json({ success: true, data: localizeBlog(blog, lang, { full: true }) });
+    const localized = localizeBlog(blog, lang, { full: true });
+    // دسته‌بندی populate شده خام است ({fa,en}) — به آبجکت سبک محلی تبدیل می‌شود
+    if (blog.category) {
+      localized.category = {
+        _id: blog.category._id,
+        slug: blog.category.slug,
+        name: pick(blog.category.name, lang)
+      };
+    }
+
+    res.json({ success: true, data: localized });
   } catch (err) {
     console.error('Error fetching blog:', err);
     res.status(500).json({ success: false, message: 'Server Error' });

@@ -57,15 +57,15 @@
         <!-- پست ویژه -->
         <article v-if="featuredPost && page === 1 && !filters.search && !filters.category && !filters.type" class="featured glass" @click="goToBlog(featuredPost.slug)">
           <div class="featured-img" v-if="featuredPost.image">
-            <img :src="getImageUrl(featuredPost.image)" :alt="featuredPost.imageAlt || featuredPost.title" loading="eager" />
+            <img :src="getImageUrl(featuredPost.image)" :alt="getLocalizedText(featuredPost.imageAlt) || getLocalizedText(featuredPost.title)" loading="eager" />
           </div>
           <div class="featured-body">
             <div class="featured-badges">
               <span class="news-type">{{ getTypeLabel(featuredPost.type) }}</span>
-              <span v-if="featuredPost.category" class="cat-badge">{{ featuredPost.category.name }}</span>
+              <span v-if="featuredPost.category" class="cat-badge">{{ getLocalizedText(featuredPost.category.name) }}</span>
             </div>
-            <h2>{{ featuredPost.title }}</h2>
-            <p>{{ featuredPost.excerpt }}</p>
+            <h2>{{ getLocalizedText(featuredPost.title) }}</h2>
+            <p>{{ getLocalizedText(featuredPost.excerpt) }}</p>
             <div class="news-footer">
               <span class="news-date">{{ formatDate(featuredPost.publishedAt || featuredPost.createdAt) }}</span>
               <span v-if="featuredPost.readingTime" class="reading-time">⏱ {{ featuredPost.readingTime }} {{ $t('news_min_read') }}</span>
@@ -77,15 +77,15 @@
         <div v-if="blogs.length" class="news-grid">
           <article v-for="blog in blogs" :key="blog._id" class="news-card glass" @click="goToBlog(blog.slug)">
             <div class="news-img" v-if="blog.image">
-              <img :src="getImageUrl(blog.image)" :alt="blog.imageAlt || blog.title" loading="lazy" />
+              <img :src="getImageUrl(blog.image)" :alt="getLocalizedText(blog.imageAlt) || getLocalizedText(blog.title)" loading="lazy" />
             </div>
             <div class="news-body">
               <div class="badges">
                 <span class="news-type">{{ getTypeLabel(blog.type) }}</span>
-                <span v-if="blog.category" class="cat-badge">{{ blog.category.name }}</span>
+                <span v-if="blog.category" class="cat-badge">{{ getLocalizedText(blog.category.name) }}</span>
               </div>
-              <h3>{{ blog.title }}</h3>
-              <p>{{ blog.excerpt }}</p>
+              <h3>{{ getLocalizedText(blog.title) }}</h3>
+              <p>{{ getLocalizedText(blog.excerpt) }}</p>
               <div class="news-footer">
                 <span class="news-date">{{ formatDate(blog.publishedAt || blog.createdAt) }}</span>
                 <span class="news-read-more">{{ $t('news_read_more') }} →</span>
