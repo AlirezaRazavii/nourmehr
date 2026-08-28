@@ -5,6 +5,7 @@ require('dotenv').config();
 
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
@@ -35,10 +36,12 @@ const ticketRoutes = require('./routes/ticketRoutes');
 const heroRoutes = require('./routes/heroRoutes');
 const heroImageRoutes = require('./routes/heroImageRoutes');
 const discountRoutes = require('./routes/discountRoutes');
+const seoController = require('./controllers/seoController');
 
 const seedAdmin = require('./utils/seedAdmin');
 const seedCategories = require('./utils/seedCategories');
 const seedCollections = require('./utils/seedCollections');
+const Blog = require('./models/Blog');
 const { invalidateCategoryCache, invalidateProductCache } = require('./utils/cache');
 
 const IS_PROD = process.env.NODE_ENV === 'production';
@@ -76,6 +79,14 @@ mongoose.connection.once('open', async () => {
 
 mongoose.connection.on('error', (err) => console.error('🔴 MongoDB connection error:', err));
 mongoose.connection.on('disconnected', () => console.warn('🟡 MongoDB disconnected'));
+
+// انتشار خودکار مقالات زمان‌بندی‌شده — هر یک دقیقه
+setInterval(() => {
+  Blog.updateMany(
+    { status: 'scheduled', publishedAt: { $lte: new Date() } },
+    { $set: { status: 'published' } }
+  ).catch(() => {});
+}, 60_000).unref();
 
 /* ----------------------------------- اپ ------------------------------------ */
 const app = express();
@@ -215,6 +226,41 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/hero', heroRoutes);
 app.use('/api/hero-images', heroImageRoutes);
+
+/* ------------------------- سئو: فیدها و رندر ربات‌ها ------------------------- */
+// فیدهای سئو در سطح روت — خارج از /api
+app.get('/sitemap.xml', seoController.sitemap);
+app.get('/rss.xml', seoController.rss);
+app.get('/robots.txt', seoController.robots);
+
+const DIST_DIR = path.join(__dirname, '../dist');
+if (fs.existsSync(DIST_DIR)) {
+  // رندر داینامیک صفحات اخبار برای ربات‌های موتور جستجو + ریدایرکت ۳۰۱ slugهای قدیمی
+  app.get('/:lang/news/:slug', seoController.newsBotRenderer, seoController.newsSlugRedirect);
+  app.get('/:lang/news', seoController.newsBotRenderer);
+
+  // فایل‌های استاتیک بیلد فرانت
+  app.use(
+    express.static(DIST_DIR, {
+      index: false,
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.html')) {
+          res.setHeader('Cache-Control', 'no-cache');
+        } else {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        }
+      },
+    })
+  );
+
+  // SPA fallback — هر مسیر GET غیر API به اپ فرانت می‌رسد
+  app.get('*', (req, res, next) => {
+    if (req.method !== 'GET' || req.path.startsWith('/api') || req.path.startsWith('/uploads')) return next();
+    if (req.path.endsWith('.xml') || req.path.endsWith('.txt')) return next();
+    res.setHeader('Cache-Control', 'no-cache');
+    res.sendFile(path.join(DIST_DIR, 'index.html'));
+  });
+}
 
 /* ----------------------------------- 404 ------------------------------------ */
 app.use((req, res) => {

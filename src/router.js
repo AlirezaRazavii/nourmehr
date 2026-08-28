@@ -73,6 +73,8 @@ const routes = [
     children: [
       { path: '', redirect: '/admin/dashboard' },
       { path: 'blogs', name: 'AdminBlogs', component: () => import('./views/admin/AdminBlogs.vue') },
+      { path: 'blogs/new', name: 'AdminBlogNew', component: () => import('./views/admin/AdminBlogEditor.vue') },
+      { path: 'blogs/:id/edit', name: 'AdminBlogEdit', component: () => import('./views/admin/AdminBlogEditor.vue') },
       { path: 'dashboard', name: 'AdminDashboard', component: AdminDashboard },
       { path: 'orders', name: 'AdminOrders', component: AdminOrders },
       { path: 'users', name: 'AdminUsers', component: AdminUsers },

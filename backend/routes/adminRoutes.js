@@ -146,10 +146,23 @@ router.delete('/collections/:id', hasPermission(PERMISSIONS.COLLECTIONS), delete
 /* ----------------------------- اخبار و مقالات ------------------------------- */
 router.get('/blogs', hasPermission(PERMISSIONS.BLOGS), blogController.getBlogs);
 router.post('/blogs/upload-image', hasPermission(PERMISSIONS.BLOGS), blogUpload.single('image'), handleUploadError, blogController.uploadBlogImage);
+router.post('/blogs/bulk', hasPermission(PERMISSIONS.BLOGS), blogController.bulkAction);
 router.post('/blogs', hasPermission(PERMISSIONS.BLOGS), blogController.createBlog);
 router.get('/blogs/:id', hasPermission(PERMISSIONS.BLOGS), blogController.getBlogById);
 router.put('/blogs/:id', hasPermission(PERMISSIONS.BLOGS), blogController.updateBlog);
 router.delete('/blogs/:id', hasPermission(PERMISSIONS.BLOGS), blogController.deleteBlog);
+
+/* --------------------- دسته‌بندی و نظرات اخبار و مقالات --------------------- */
+router.get('/blogs-stats', hasPermission(PERMISSIONS.BLOGS), blogController.getStats);
+router.get('/blog-categories', hasPermission(PERMISSIONS.BLOGS), blogController.getCategories);
+router.post('/blog-categories', hasPermission(PERMISSIONS.BLOGS), blogController.createCategory);
+router.put('/blog-categories/:id', hasPermission(PERMISSIONS.BLOGS), blogController.updateCategory);
+router.delete('/blog-categories/:id', hasPermission(PERMISSIONS.BLOGS), blogController.deleteCategory);
+
+router.get('/blogs-comments', hasPermission(PERMISSIONS.BLOGS), blogController.getComments);
+router.put('/blogs-comments/:id/approve', hasPermission(PERMISSIONS.BLOGS), blogController.approveComment);
+router.put('/blogs-comments/:id/unapprove', hasPermission(PERMISSIONS.BLOGS), blogController.unapproveComment);
+router.delete('/blogs-comments/:id', hasPermission(PERMISSIONS.BLOGS), blogController.deleteComment);
 
 /* --------------------------------- نظرات ----------------------------------- */
 router.get('/reviews', hasPermission(PERMISSIONS.REVIEWS), reviewController.getReviews);

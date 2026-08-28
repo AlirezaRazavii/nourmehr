@@ -1,255 +1,176 @@
-<script setup>
-import { ref, onMounted } from 'vue'
-import api from '../../services/api'
-import { getImageUrl } from '../../utils/imageUrl'
-
-const blogs = ref([])
-const loading = ref(true)
-const showModal = ref(false)
-const editingBlog = ref(null)
-const uploading = ref(false)
-
-const blankForm = () => ({
-  _id: null,
-  title: { fa: '', en: '' },
-  slug: '',
-  excerpt: { fa: '', en: '' },
-  content: { fa: '', en: '' },
-  image: '',
-  type: 'news',
-  status: 'active'
-})
-
-const form = ref(blankForm())
-
-const fetchBlogs = async () => {
-  loading.value = true
-  try {
-    const res = await api.get('/admin/blogs')
-    if (res.data?.success) blogs.value = res.data.data
-  } catch (err) {
-    console.error('Error fetching blogs:', err)
-  } finally {
-    loading.value = false
-  }
-}
-
-const openCreate = () => {
-  editingBlog.value = null
-  form.value = blankForm()
-  showModal.value = true
-}
-
-const openEdit = (blog) => {
-  editingBlog.value = blog
-  form.value = { ...blankForm(), ...blog }
-  showModal.value = true
-}
-
-const closeModal = () => {
-  showModal.value = false
-}
-
-const handleUploadImage = async (e) => {
-  const file = e.target.files[0]
-  if (!file) return
-  uploading.value = true
-  try {
-    const formData = new FormData()
-    formData.append('image', file)
-    const res = await api.post('/admin/blogs/upload-image', formData)
-    if (res.data?.success && res.data.filePath) {
-      form.value.image = res.data.filePath
-    } else {
-      throw new Error('آپلود ناموفق بود')
-    }
-  } catch (err) {
-    alert('خطا در آپلود تصویر: ' + (err.response?.data?.message || err.message))
-  } finally {
-    uploading.value = false
-  }
-}
-
-const saveBlog = async () => {
-  try {
-    if (!form.value.title.fa) {
-      return alert('عنوان فارسی الزامی است')
-    }
-    
-    const payload = { ...form.value }
-    if (!payload.slug) {
-      payload.slug = `${payload.title.fa.replace(/\s+/g, '-').replace(/[^\u0600-\u06FFa-z0-9-]/g, '')}-${Date.now()}`
-    }
-
-    if (editingBlog.value) {
-      const res = await api.put(`/admin/blogs/${editingBlog.value._id}`, payload)
-      if (!res.data?.success) throw new Error(res.data?.message || 'خطا در ویرایش')
-    } else {
-      const res = await api.post('/admin/blogs', payload)
-      if (!res.data?.success) throw new Error(res.data?.message || 'خطا در ایجاد مقاله')
-    }
-    
-    showModal.value = false
-    await fetchBlogs()
-  } catch (err) {
-    alert('خطا: ' + (err.response?.data?.message || err.message))
-  }
-}
-
-const deleteBlog = async (id) => {
-  if (!confirm('آیا از حذف این مقاله اطمینان دارید؟')) return
-  try {
-    const res = await api.delete(`/admin/blogs/${id}`)
-    if (!res.data?.success) throw new Error('خطا در حذف')
-    blogs.value = blogs.value.filter(b => b._id !== id)
-  } catch (err) {
-    alert('خطا در حذف: ' + (err.response?.data?.message || err.message))
-  }
-}
-
-onMounted(fetchBlogs)
-</script>
-
 <template>
   <div class="admin-blogs">
     <div class="page-header">
       <div>
         <h1 class="page-title">مدیریت اخبار و مقالات</h1>
-        <p class="page-subtitle">ایجاد، ویرایش و حذف مقالات و اطلاعیه‌ها</p>
+        <p class="page-subtitle">ایجاد، ویرایش، زمان‌بندی و سئوی مقالات</p>
       </div>
-      <button class="create-btn" @click="openCreate">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-        مقاله جدید
+      <div class="header-actions">
+        <button class="secondary-btn" @click="showCategoriesModal = true">دسته‌بندی‌ها</button>
+        <button class="create-btn" @click="goNew">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          مقاله جدید
+        </button>
+      </div>
+    </div>
+
+    <!-- آمار -->
+    <div class="stats-row" v-if="stats">
+      <div class="stat-card glass"><span class="stat-num">{{ stats.published }}</span><span class="stat-label">منتشرشده</span></div>
+      <div class="stat-card glass"><span class="stat-num">{{ stats.drafts }}</span><span class="stat-label">پیش‌نویس</span></div>
+      <div class="stat-card glass"><span class="stat-num">{{ stats.scheduled }}</span><span class="stat-label">زمان‌بندی‌شده</span></div>
+      <div class="stat-card glass"><span class="stat-num" :class="{ alert: stats.pendingComments > 0 }">{{ stats.pendingComments }}</span><span class="stat-label">نظر در انتظار</span></div>
+      <div class="stat-card glass"><span class="stat-num">{{ formatCount(stats.totalViews) }}</span><span class="stat-label">کل بازدید</span></div>
+    </div>
+
+    <!-- تب‌ها -->
+    <div class="tabs">
+      <button class="tab" :class="{ active: tab === 'posts' }" @click="tab = 'posts'">مقالات</button>
+      <button class="tab" :class="{ active: tab === 'comments' }" @click="tab = 'comments'">
+        نظرات <span v-if="stats?.pendingComments" class="tab-badge">{{ stats.pendingComments }}</span>
       </button>
     </div>
 
-    <div v-if="loading" class="loading-state">
-      <div class="spinner"></div>
-      <span>در حال بارگذاری...</span>
-    </div>
-
-    <div v-else class="blogs-list">
-      <table class="blogs-table glass">
-        <thead>
-          <tr>
-            <th>تصویر</th>
-            <th>عنوان</th>
-            <th>نوع</th>
-            <th>وضعیت</th>
-            <th>تاریخ</th>
-            <th>عملیات</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="blog in blogs" :key="blog._id">
-            <td>
-              <img v-if="blog.image" :src="getImageUrl(blog.image)" :alt="blog.title?.fa" class="blog-thumb" />
-              <div v-else class="blog-thumb-placeholder">📰</div>
-            </td>
-            <td>
-              <strong>{{ blog.title?.fa }}</strong>
-              <span v-if="blog.title?.en" class="en-title">{{ blog.title.en }}</span>
-            </td>
-            <td>
-              <span class="type-badge" :class="blog.type">{{ blog.type }}</span>
-            </td>
-            <td>
-              <span class="status-badge" :class="blog.status">
-                {{ blog.status === 'active' ? 'فعال' : 'غیرفعال' }}
-              </span>
-            </td>
-            <td>{{ new Date(blog.createdAt).toLocaleDateString('fa-IR') }}</td>
-            <td>
-              <div class="actions">
-                <button class="action-btn edit" @click="openEdit(blog)">ویرایش</button>
-                <button class="action-btn delete" @click="deleteBlog(blog._id)">حذف</button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <div v-if="blogs.length === 0" class="empty-state">
-        <span>هنوز مقاله‌ای ایجاد نشده است.</span>
+    <!-- ============================ تب مقالات ============================ -->
+    <template v-if="tab === 'posts'">
+      <div class="toolbar-row">
+        <div class="search-box">
+          <input v-model.trim="search" type="text" placeholder="جستجوی عنوان..." @input="debouncedFetch" />
+        </div>
+        <select v-model="statusFilter" class="filter-select" @change="fetchBlogs">
+          <option value="">همه وضعیت‌ها</option>
+          <option value="published">منتشرشده</option>
+          <option value="draft">پیش‌نویس</option>
+          <option value="scheduled">زمان‌بندی‌شده</option>
+          <option value="archived">آرشیو</option>
+        </select>
+        <div v-if="selectedIds.length" class="bulk-row">
+          <span class="bulk-label">{{ selectedIds.length }} انتخاب‌شده:</span>
+          <button class="bulk-btn publish" @click="bulk('publish')">انتشار</button>
+          <button class="bulk-btn" @click="bulk('unpublish')">پیش‌نویس</button>
+          <button class="bulk-btn" @click="bulk('feature')">ویژه</button>
+          <button class="bulk-btn danger" @click="bulk('delete')">حذف</button>
+        </div>
       </div>
-    </div>
 
-    <!-- Create/Edit Modal -->
+      <div v-if="loading" class="loading-state">
+        <div class="spinner"></div>
+        <span>در حال بارگذاری...</span>
+      </div>
+
+      <div v-else class="blogs-list">
+        <table class="blogs-table glass">
+          <thead>
+            <tr>
+              <th><input type="checkbox" :checked="allSelected" @change="toggleAll" /></th>
+              <th>تصویر</th>
+              <th>عنوان</th>
+              <th>دسته</th>
+              <th>وضعیت</th>
+              <th>تاریخ</th>
+              <th>بازدید</th>
+              <th>عملیات</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="blog in blogs" :key="blog._id" :class="{ scheduled: blog.status === 'scheduled' }">
+              <td><input type="checkbox" :value="blog._id" v-model="selectedIds" /></td>
+              <td>
+                <img v-if="blog.image" :src="getImageUrl(blog.image)" :alt="blog.title?.fa" class="blog-thumb" />
+                <div v-else class="blog-thumb-placeholder">📰</div>
+              </td>
+              <td>
+                <strong>{{ blog.title?.fa }}</strong>
+                <span v-if="blog.title?.en" class="en-title">{{ blog.title.en }}</span>
+                <div class="post-flags">
+                  <span v-if="blog.featured" class="flag">⭐ ویژه</span>
+                  <span v-if="blog.seo?.noIndex" class="flag warn">noindex</span>
+                </div>
+              </td>
+              <td>{{ blog.category?.name?.fa || '—' }}</td>
+              <td><span class="status-badge" :class="blog.status">{{ statusLabel(blog.status) }}</span></td>
+              <td class="date-cell">{{ formatDate(blog.publishedAt || blog.createdAt) }}</td>
+              <td>{{ formatCount(blog.viewsCount) }}</td>
+              <td>
+                <div class="actions">
+                  <button class="action-btn edit" @click="goEdit(blog._id)">ویرایش</button>
+                  <a v-if="blog.status === 'published'" class="action-btn view" :href="`/fa/news/${blog.slug}`" target="_blank">مشاهده</a>
+                  <button class="action-btn delete" @click="deleteBlog(blog._id)">حذف</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div v-if="blogs.length === 0" class="empty-state">هنوز مقاله‌ای ایجاد نشده است.</div>
+
+        <nav v-if="meta.pages > 1" class="pagination">
+          <button class="page-btn" :disabled="meta.page <= 1" @click="goPage(meta.page - 1)">‹</button>
+          <span class="page-info">صفحه {{ meta.page }} از {{ meta.pages }}</span>
+          <button class="page-btn" :disabled="meta.page >= meta.pages" @click="goPage(meta.page + 1)">›</button>
+        </nav>
+      </div>
+    </template>
+
+    <!-- ============================ تب نظرات ============================ -->
+    <template v-else>
+      <div class="toolbar-row">
+        <select v-model="commentFilter" class="filter-select" @change="fetchComments">
+          <option value="pending">در انتظار تایید</option>
+          <option value="approved">تاییدشده</option>
+          <option value="all">همه</option>
+        </select>
+      </div>
+
+      <div v-if="commentsLoading" class="loading-state"><div class="spinner"></div></div>
+
+      <div v-else class="comments-list">
+        <div v-for="c in comments" :key="c._id" class="comment-row glass">
+          <div class="comment-main">
+            <div class="comment-head">
+              <strong>{{ c.name }}</strong>
+              <span class="comment-blog">روی «{{ c.blog?.title?.fa || '—' }}»</span>
+              <time>{{ formatDate(c.createdAt) }}</time>
+            </div>
+            <p>{{ c.comment }}</p>
+          </div>
+          <div class="comment-actions">
+            <button v-if="!c.isApproved" class="action-btn edit" @click="approve(c._id)">تایید</button>
+            <button v-else class="action-btn" @click="unapprove(c._id)">لغو تایید</button>
+            <button class="action-btn delete" @click="removeComment(c._id)">حذف</button>
+          </div>
+        </div>
+        <div v-if="comments.length === 0" class="empty-state">نظری در این وضعیت وجود ندارد.</div>
+      </div>
+    </template>
+
+    <!-- ========================= مودال دسته‌بندی‌ها ========================= -->
     <Transition name="modal">
-      <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
+      <div v-if="showCategoriesModal" class="modal-overlay" @click.self="showCategoriesModal = false">
         <div class="modal-content glass">
           <div class="modal-header">
-            <h2>{{ editingBlog ? 'ویرایش مقاله' : 'مقاله جدید' }}</h2>
-            <button class="modal-close" @click="closeModal">✕</button>
+            <h2>مدیریت دسته‌بندی‌ها</h2>
+            <button class="modal-close" @click="showCategoriesModal = false">✕</button>
           </div>
-
           <div class="modal-body">
-            <div class="form-grid">
-              <!-- عنوان -->
-              <div class="form-group full">
-                <label class="form-label">عنوان مقاله <span style="color:#ef4444">*</span></label>
-                <div class="lang-inputs">
-                  <input v-model="form.title.fa" type="text" class="form-input" placeholder="عنوان فارسی" />
-                  <input v-model="form.title.en" type="text" class="form-input" placeholder="English Title" dir="ltr" />
-                </div>
-              </div>
-
-              <!-- Slug -->
-              <div class="form-group">
-                <label class="form-label">آدرس URL (slug)</label>
-                <input v-model="form.slug" type="text" class="form-input" placeholder="اختیاری - خودکار ساخته می‌شود" dir="ltr" />
-              </div>
-
-              <!-- نوع و وضعیت -->
-              <div class="form-group">
-                <label class="form-label">نوع مقاله</label>
-                <select v-model="form.type" class="form-select">
-                  <option value="news">خبر</option>
-                  <option value="event">رویداد</option>
-                  <option value="article">مقاله</option>
-                </select>
-              </div>
-
-              <div class="form-group">
-                <label class="form-label">وضعیت</label>
-                <select v-model="form.status" class="form-select">
-                  <option value="active">فعال (منتشر شود)</option>
-                  <option value="inactive">غیرفعال (پیش‌نویس)</option>
-                </select>
-              </div>
-
-              <!-- تصویر شاخص -->
-              <div class="form-group full">
-                <label class="form-label">تصویر شاخص</label>
-                <div class="upload-area" @click="$refs.fileInput.click()">
-                  <input type="file" ref="fileInput" accept="image/*" style="display:none" @change="handleUploadImage" />
-                  <span v-if="!form.image && !uploading">کلیک برای انتخاب تصویر</span>
-                  <span v-else-if="uploading">در حال آپلود...</span>
-                  <img v-else :src="getImageUrl(form.image)" alt="Preview" class="preview-img" />
-                </div>
-              </div>
-
-              <!-- خلاصه -->
-              <div class="form-group full">
-                <label class="form-label">خلاصه مقاله</label>
-                <div class="lang-inputs">
-                  <input v-model="form.excerpt.fa" type="text" class="form-input" placeholder="خلاصه فارسی" />
-                  <input v-model="form.excerpt.en" type="text" class="form-input" placeholder="Short English excerpt" dir="ltr" />
-                </div>
-              </div>
-
-              <!-- محتوا -->
-              <div class="form-group full">
-                <label class="form-label">محتوای کامل</label>
-                <div class="lang-inputs" style="flex-direction: column;">
-                  <textarea v-model="form.content.fa" class="form-input form-textarea" rows="6" placeholder="محتوای کامل فارسی..."></textarea>
-                  <textarea v-model="form.content.en" class="form-input form-textarea" rows="6" placeholder="Full English content..." dir="ltr"></textarea>
-                </div>
-              </div>
+            <div class="cat-form">
+              <input v-model="catForm.fa" type="text" class="form-input" dir="rtl" placeholder="نام فارسی" />
+              <input v-model="catForm.en" type="text" class="form-input" dir="ltr" placeholder="English name" />
+              <button class="create-btn" @click="saveCategory">{{ catEditingId ? 'ذخیره' : 'افزودن' }}</button>
+              <button v-if="catEditingId" class="cancel-btn" @click="resetCatForm">انصراف</button>
             </div>
-
-            <div class="modal-actions">
-              <button class="cancel-btn" @click="closeModal">انصراف</button>
-              <button class="submit-btn" @click="saveBlog">ذخیره</button>
+            <div class="cats-list">
+              <div v-for="cat in categories" :key="cat._id" class="cat-row">
+                <div>
+                  <strong>{{ cat.name?.fa }}</strong>
+                  <span v-if="cat.name?.en" class="en-title">{{ cat.name.en }}</span>
+                  <span class="cat-slug">/{{ cat.slug }}</span>
+                </div>
+                <div class="actions">
+                  <button class="action-btn edit" @click="startEditCat(cat)">ویرایش</button>
+                  <button class="action-btn delete" @click="deleteCat(cat._id)">حذف</button>
+                </div>
+              </div>
+              <div v-if="categories.length === 0" class="empty-state">دسته‌بندی‌ای وجود ندارد.</div>
             </div>
           </div>
         </div>
@@ -258,91 +179,299 @@ onMounted(fetchBlogs)
   </div>
 </template>
 
+<script setup>
+import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import {
+  adminGetBlogs, adminDeleteBlog, adminBulkBlogs, adminBlogStats,
+  adminGetCategories, adminCreateCategory, adminUpdateCategory, adminDeleteCategory,
+  adminGetComments, adminApproveComment, adminUnapproveComment, adminDeleteComment
+} from '../../services/blogApi'
+import { getImageUrl } from '../../utils/imageUrl'
+
+const router = useRouter()
+
+const tab = ref('posts')
+const blogs = ref([])
+const loading = ref(true)
+const commentsLoading = ref(false)
+const stats = ref(null)
+const search = ref('')
+const statusFilter = ref('')
+const selectedIds = ref([])
+const meta = reactive({ page: 1, limit: 50, total: 0, pages: 1 })
+
+const comments = ref([])
+const commentFilter = ref('pending')
+
+const categories = ref([])
+const showCategoriesModal = ref(false)
+const catEditingId = ref(null)
+const catForm = reactive({ fa: '', en: '' })
+
+const allSelected = computed(() => blogs.value.length > 0 && selectedIds.value.length === blogs.value.length)
+const toggleAll = () => {
+  selectedIds.value = allSelected.value ? [] : blogs.value.map(b => b._id)
+}
+
+const statusLabel = (s) => ({
+  published: 'منتشرشده', draft: 'پیش‌نویس', scheduled: 'زمان‌بندی', archived: 'آرشیو'
+}[s] || s)
+
+const formatDate = (d) => {
+  try { return new Date(d).toLocaleDateString('fa-IR') } catch { return '' }
+}
+const formatCount = (n) => {
+  const num = Number(n) || 0
+  return num >= 1000 ? `${(num / 1000).toFixed(1)}k` : String(num)
+}
+
+let searchTimer = null
+const debouncedFetch = () => {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => { meta.page = 1; fetchBlogs() }, 350)
+}
+
+const fetchBlogs = async () => {
+  loading.value = true
+  try {
+    const params = { page: meta.page, limit: meta.limit }
+    if (statusFilter.value) params.status = statusFilter.value
+    if (search.value) params.search = search.value
+    const res = await adminGetBlogs(params)
+    if (res?.success) {
+      blogs.value = res.data
+      Object.assign(meta, res.meta || {})
+    }
+    selectedIds.value = []
+  } catch (err) {
+    console.error('Error fetching blogs:', err)
+  } finally {
+    loading.value = false
+  }
+}
+
+const fetchStats = async () => {
+  try {
+    const res = await adminBlogStats()
+    if (res?.success) stats.value = res.data
+  } catch (e) { console.error(e) }
+}
+
+const fetchComments = async () => {
+  commentsLoading.value = true
+  try {
+    const res = await adminGetComments({ status: commentFilter.value, limit: 100 })
+    if (res?.success) comments.value = res.data
+  } catch (e) { console.error(e) } finally {
+    commentsLoading.value = false
+  }
+}
+
+const fetchCategories = async () => {
+  try {
+    const res = await adminGetCategories()
+    if (res?.success) categories.value = res.data
+  } catch (e) { console.error(e) }
+}
+
+const goPage = (p) => { meta.page = p; fetchBlogs() }
+const goNew = () => router.push('/admin/blogs/new')
+const goEdit = (id) => router.push(`/admin/blogs/${id}/edit`)
+
+const deleteBlog = async (id) => {
+  if (!confirm('آیا از حذف این مقاله اطمینان دارید؟')) return
+  try {
+    const res = await adminDeleteBlog(id)
+    if (!res?.success) throw new Error(res?.message || 'خطا در حذف')
+    await fetchBlogs()
+    await fetchStats()
+  } catch (err) {
+    alert(err.message)
+  }
+}
+
+const bulk = async (action) => {
+  const label = { publish: 'انتشار', unpublish: 'پیش‌نویس', feature: 'ویژه', delete: 'حذف' }[action]
+  if (!confirm(`${label} ${selectedIds.value.length} مقاله انتخاب‌شده؟`)) return
+  try {
+    const res = await adminBulkBlogs(action, selectedIds.value)
+    if (!res?.success) throw new Error(res?.message || 'خطا')
+    await Promise.all([fetchBlogs(), fetchStats()])
+  } catch (err) {
+    alert(err.message)
+  }
+}
+
+const approve = async (id) => {
+  try { await adminApproveComment(id); await Promise.all([fetchComments(), fetchStats()]) } catch (e) { alert(e.message) }
+}
+const unapprove = async (id) => {
+  try { await adminUnapproveComment(id); await Promise.all([fetchComments(), fetchStats()]) } catch (e) { alert(e.message) }
+}
+const removeComment = async (id) => {
+  if (!confirm('حذف این نظر؟')) return
+  try { await adminDeleteComment(id); await Promise.all([fetchComments(), fetchStats()]) } catch (e) { alert(e.message) }
+}
+
+/* ---------------------------- دسته‌بندی‌ها ---------------------------- */
+const saveCategory = async () => {
+  if (!catForm.fa) return alert('نام فارسی الزامی است')
+  try {
+    const payload = { name: { fa: catForm.fa, en: catForm.en } }
+    if (catEditingId.value) {
+      await adminUpdateCategory(catEditingId.value, payload)
+    } else {
+      await adminCreateCategory(payload)
+    }
+    resetCatForm()
+    await fetchCategories()
+  } catch (err) {
+    alert(err.response?.data?.message || err.message)
+  }
+}
+const startEditCat = (cat) => {
+  catEditingId.value = cat._id
+  catForm.fa = cat.name?.fa || ''
+  catForm.en = cat.name?.en || ''
+}
+const resetCatForm = () => {
+  catEditingId.value = null
+  catForm.fa = ''
+  catForm.en = ''
+}
+const deleteCat = async (id) => {
+  if (!confirm('حذف این دسته‌بندی؟ مقالات آن به «بدون دسته» منتقل می‌شوند.')) return
+  try {
+    await adminDeleteCategory(id)
+    await fetchCategories()
+  } catch (err) {
+    alert(err.response?.data?.message || err.message)
+  }
+}
+
+watch(tab, (t) => {
+  if (t === 'comments') fetchComments()
+})
+watch(showCategoriesModal, (open) => {
+  if (open) fetchCategories()
+})
+
+onMounted(() => {
+  fetchBlogs()
+  fetchStats()
+})
+</script>
+
 <style scoped>
 .admin-blogs { display: flex; flex-direction: column; gap: 20px; }
-.page-header { display: flex; justify-content: space-between; align-items: flex-start; }
+.page-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
 .page-title { font-size: 1.5rem; font-weight: 700; margin: 0; }
 .page-subtitle { font-size: 0.9rem; opacity: 0.5; margin: 4px 0 0; }
+.header-actions { display: flex; gap: 10px; }
 
 .create-btn {
   display: flex; align-items: center; gap: 8px; padding: 10px 20px;
   border-radius: 10px; border: none; background: linear-gradient(135deg, #c5a059, #8f7032);
-  color: #000; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease;
+  color: #000; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; font-family: inherit;
 }
-.create-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(197,160,89,0.5); }
+.secondary-btn { padding: 10px 20px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.12); background: transparent; color: rgba(255,255,255,0.8); cursor: pointer; font-family: inherit; font-size: 0.9rem; }
+.secondary-btn:hover { border-color: rgba(197,160,89,0.5); }
+
+/* آمار */
+.stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.stat-card { border-radius: 16px; padding: 16px 20px; display: flex; flex-direction: column; gap: 4px; background: rgba(5,8,20,0.9); border: 1px solid rgba(255,255,255,0.06); }
+.stat-num { font-size: 1.5rem; font-weight: 800; color: #facc6b; }
+.stat-num.alert { color: #ef4444; }
+.stat-label { font-size: 0.8rem; opacity: 0.55; }
+
+/* تب‌ها */
+.tabs { display: flex; gap: 4px; background: rgba(255,255,255,0.04); border-radius: 12px; padding: 4px; width: fit-content; }
+.tab { padding: 9px 24px; border-radius: 9px; border: none; background: transparent; color: rgba(255,255,255,0.6); cursor: pointer; font-family: inherit; font-size: 0.9rem; }
+.tab.active { background: rgba(197,160,89,0.2); color: #facc6b; font-weight: 600; }
+.tab-badge { display: inline-block; min-width: 20px; padding: 1px 6px; border-radius: 999px; background: #ef4444; color: #fff; font-size: 0.72rem; margin-inline-start: 6px; }
+
+/* تولبار */
+.toolbar-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.search-box input { padding: 10px 16px; border-radius: 10px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); color: #fff; font-family: inherit; outline: none; width: 240px; }
+.filter-select { padding: 10px 14px; border-radius: 10px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); color: #fff; font-family: inherit; outline: none; }
+.filter-select option { background: #0a0d14; }
+.bulk-row { display: flex; align-items: center; gap: 8px; margin-inline-start: auto; }
+.bulk-label { font-size: 0.82rem; opacity: 0.6; }
+.bulk-btn { padding: 8px 16px; border-radius: 8px; border: 1px solid rgba(197,160,89,0.4); background: transparent; color: #facc6b; cursor: pointer; font-family: inherit; font-size: 0.82rem; }
+.bulk-btn.danger { border-color: rgba(239,68,68,0.4); color: #ef4444; }
 
 .loading-state { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 60px 0; color: rgba(255,255,255,0.5); }
 .spinner { width: 36px; height: 36px; border: 3px solid rgba(197,160,89,0.2); border-top-color: #c5a059; border-radius: 50%; animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .blogs-table { width: 100%; border-collapse: collapse; border-radius: 20px; overflow: hidden; background: rgba(5,8,20,0.9); border: 1px solid rgba(255,255,255,0.06); }
-.blogs-table th, .blogs-table td { padding: 16px 20px; text-align: right; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.blogs-table th, .blogs-table td { padding: 14px 18px; text-align: right; border-bottom: 1px solid rgba(255,255,255,0.04); }
 .blogs-table th { font-size: 0.85rem; color: rgba(255,255,255,0.6); font-weight: 600; }
 .blogs-table tr:last-child td { border-bottom: none; }
+.blogs-table input[type="checkbox"] { accent-color: #c5a059; width: 16px; height: 16px; cursor: pointer; }
+tr.scheduled td { background: rgba(245,158,11,0.04); }
 
 .blog-thumb { width: 50px; height: 50px; border-radius: 10px; object-fit: cover; }
 .blog-thumb-placeholder { width: 50px; height: 50px; border-radius: 10px; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
 .en-title { display: block; font-size: 0.8rem; color: rgba(255,255,255,0.4); }
+.post-flags { display: flex; gap: 6px; margin-top: 4px; }
+.flag { font-size: 0.7rem; color: #facc6b; }
+.flag.warn { color: #ef4444; }
 
-.type-badge { padding: 4px 10px; border-radius: 999px; font-size: 0.75rem; text-transform: capitalize; }
-.type-badge.news { background: rgba(59,130,246,0.15); color: #60a5fa; }
-.type-badge.event { background: rgba(245,158,11,0.15); color: #fbbf24; }
-.type-badge.article { background: rgba(16,185,129,0.15); color: #34d399; }
+.status-badge { padding: 4px 12px; border-radius: 999px; font-size: 0.75rem; white-space: nowrap; }
+.status-badge.published { background: rgba(34,197,94,0.15); color: #4ade80; }
+.status-badge.draft { background: rgba(156,163,175,0.15); color: #9ca3af; }
+.status-badge.scheduled { background: rgba(245,158,11,0.15); color: #fbbf24; }
+.status-badge.archived { background: rgba(127,29,29,0.25); color: #f87171; }
 
-.status-badge { padding: 4px 10px; border-radius: 999px; font-size: 0.75rem; }
-.status-badge.active { background: rgba(34,197,94,0.15); color: #4ade80; }
-.status-badge.inactive { background: rgba(156,163,175,0.15); color: #9ca3af; }
+.date-cell { white-space: nowrap; font-size: 0.82rem; }
 
-.actions { display: flex; gap: 8px; }
-.action-btn { padding: 6px 12px; border-radius: 8px; border: none; font-size: 0.8rem; cursor: pointer; transition: all 0.2s; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.action-btn { padding: 6px 12px; border-radius: 8px; border: none; font-size: 0.8rem; cursor: pointer; transition: all 0.2s; font-family: inherit; text-decoration: none; }
 .action-btn.edit { background: rgba(197,160,89,0.15); color: #facc6b; }
 .action-btn.edit:hover { background: rgba(197,160,89,0.25); }
+.action-btn.view { background: rgba(59,130,246,0.15); color: #60a5fa; }
 .action-btn.delete { background: rgba(239,68,68,0.15); color: #ef4444; }
 .action-btn.delete:hover { background: rgba(239,68,68,0.25); }
 
 .empty-state { text-align: center; padding: 60px; color: rgba(255,255,255,0.4); }
 
-/* Modal */
+.pagination { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 20px 0; }
+.page-btn { width: 38px; height: 38px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.12); background: transparent; color: #fff; cursor: pointer; }
+.page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.page-info { font-size: 0.85rem; opacity: 0.6; }
+
+/* نظرات */
+.comments-list { display: flex; flex-direction: column; gap: 12px; }
+.comment-row { border-radius: 16px; padding: 18px 22px; background: rgba(5,8,20,0.9); border: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between; gap: 16px; align-items: center; }
+.comment-main { flex: 1; min-width: 0; }
+.comment-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+.comment-blog { font-size: 0.8rem; color: #facc6b; opacity: 0.8; }
+.comment-head time { font-size: 0.78rem; opacity: 0.45; }
+.comment-main p { margin: 0; font-size: 0.92rem; line-height: 1.8; opacity: 0.85; }
+.comment-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+/* مودال دسته‌بندی */
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 2000; padding: 20px; }
-.modal-content { width: 100%; max-width: 700px; max-height: 85vh; overflow-y: auto; border-radius: 20px; padding: 0; background: rgba(8, 10, 18, 0.95); border: 1px solid rgba(255,255,255,0.08); }
-.modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid rgba(255,255,255,0.06); position: sticky; top: 0; background: rgba(8, 10, 18, 0.98); backdrop-filter: blur(10px); z-index: 10; }
-.modal-header h2 { font-size: 1.2rem; margin: 0; }
-.modal-close { width: 36px; height: 36px; border-radius: 50%; border: none; background: transparent; color: #fff; cursor: pointer; transition: all 0.2s; }
-.modal-close:hover { background: rgba(255,255,255,0.1); }
-.modal-body { padding: 24px; display: flex; flex-direction: column; gap: 20px; }
-
-.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.form-group { display: flex; flex-direction: column; gap: 6px; }
-.form-group.full { grid-column: 1 / -1; }
-.form-label { font-size: 0.85rem; opacity: 0.7; }
-.form-input, .form-select {
-  padding: 10px 14px; border-radius: 10px; background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.08); color: #fff; font-size: 0.9rem;
-  font-family: inherit; outline: none; transition: border-color 0.2s; width: 100%; box-sizing: border-box;
-}
-.form-input:focus, .form-select:focus { border-color: rgba(197,160,89,0.5); }
-.form-select option { background: #0a0d14; color: #fff; }
-.form-textarea { resize: vertical; min-height: 120px; margin-bottom: 8px; }
-
-.lang-inputs { display: flex; gap: 10px; }
-
-.upload-area { border: 2px dashed rgba(255,255,255,0.2); border-radius: 12px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.2s; background: rgba(255,255,255,0.02); }
-.upload-area:hover { border-color: rgba(197,160,89,0.6); }
-.preview-img { max-width: 100%; max-height: 150px; object-fit: contain; border-radius: 8px; }
-
-.modal-actions { display: flex; justify-content: flex-end; gap: 12px; position: sticky; bottom: 0; background: linear-gradient(to top, rgba(8,10,18,1), transparent); padding-top: 10px; }
-.cancel-btn { padding: 10px 24px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: rgba(255,255,255,0.7); font-size: 0.9rem; cursor: pointer; transition: all 0.2s; }
-.cancel-btn:hover { background: rgba(255,255,255,0.06); }
-.submit-btn { padding: 10px 24px; border-radius: 10px; border: none; background: linear-gradient(135deg, #c5a059, #8f7032); color: #000; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.3s; }
-.submit-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(197,160,89,0.5); }
+.modal-content { width: 100%; max-width: 560px; max-height: 80vh; overflow-y: auto; border-radius: 20px; background: rgba(8,10,18,0.95); border: 1px solid rgba(255,255,255,0.08); }
+.modal-header { display: flex; justify-content: space-between; align-items: center; padding: 18px 22px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.modal-header h2 { font-size: 1.1rem; margin: 0; }
+.modal-close { width: 34px; height: 34px; border-radius: 50%; border: none; background: transparent; color: #fff; cursor: pointer; }
+.modal-body { padding: 22px; }
+.cat-form { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+.cat-form .form-input { flex: 1; min-width: 140px; }
+.cancel-btn { padding: 8px 16px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: rgba(255,255,255,0.7); cursor: pointer; font-family: inherit; }
+.cats-list { display: flex; flex-direction: column; gap: 8px; }
+.cat-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-radius: 12px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); }
+.cat-slug { font-size: 0.75rem; opacity: 0.4; margin-inline-start: 8px; direction: ltr; display: inline-block; }
 
 .modal-enter-active, .modal-leave-active { transition: all 0.3s ease; }
 .modal-enter-from, .modal-leave-to { opacity: 0; transform: scale(0.95); }
 
 @media (max-width: 768px) {
-  .form-grid { grid-template-columns: 1fr; }
-  .lang-inputs { flex-direction: column; }
   .blogs-table { font-size: 0.8rem; }
-  .blogs-table th, .blogs-table td { padding: 10px; }
+  .blogs-table th, .blogs-table td { padding: 10px 8px; }
+  .comment-row { flex-direction: column; align-items: stretch; }
 }
 </style>
