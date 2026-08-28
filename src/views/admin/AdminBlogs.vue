@@ -57,8 +57,7 @@ const handleUploadImage = async (e) => {
   try {
     const formData = new FormData()
     formData.append('image', file)
-    // استفاده از مسیر آپلود عمومی (اگر دارید) یا مسیر آپلود محصولات
-    const res = await api.post('/images/upload', formData) 
+    const res = await api.post('/admin/blogs/upload-image', formData)
     if (res.data?.success && res.data.filePath) {
       form.value.image = res.data.filePath
     } else {

@@ -28,6 +28,12 @@
         </article>
       </div>
 
+      <div v-else-if="error" class="error-state">
+        <div class="empty-icon">⚠️</div>
+        <p>{{ $t('news_error') }}</p>
+        <button class="retry-btn" @click="loadBlogs">{{ $t('news_retry') }}</button>
+      </div>
+
       <div v-else class="empty-state">
         <div class="empty-icon">📰</div>
         <p>{{ $t('news_empty') }}</p>
@@ -47,6 +53,25 @@ const { t, te, locale } = useI18n()
 const router = useRouter()
 const blogs = ref([])
 const loading = ref(true)
+const error = ref(false)
+
+const loadBlogs = async () => {
+  loading.value = true
+  error.value = false
+  try {
+    const res = await getBlogs()
+    if (res.success) {
+      blogs.value = res.data
+    } else {
+      error.value = true
+    }
+  } catch (e) {
+    console.error('Error fetching blogs:', e)
+    error.value = true
+  } finally {
+    loading.value = false
+  }
+}
 
 const getLocalizedText = (value) => {
   if (!value) return ''
@@ -70,16 +95,7 @@ const goToBlog = (slug) => {
   router.push({ name: 'NewsDetails', params: { lang: locale.value, slug } })
 }
 
-onMounted(async () => {
-  try {
-    const res = await getBlogs()
-    if (res.success) blogs.value = res.data
-  } catch (e) {
-    console.error('Error fetching blogs:', e)
-  } finally {
-    loading.value = false
-  }
-})
+onMounted(loadBlogs)
 </script>
 
 <style scoped>
@@ -109,6 +125,10 @@ onMounted(async () => {
 
 .empty-state { text-align: center; padding: 80px; }
 .empty-icon { font-size: 4rem; margin-bottom: 16px; }
+
+.error-state { text-align: center; padding: 80px; }
+.retry-btn { margin-top: 8px; padding: 10px 24px; border-radius: 10px; border: 1px solid rgba(197, 160, 89, 0.5); background: transparent; color: #facc6b; font-size: 0.9rem; cursor: pointer; transition: all 0.2s; }
+.retry-btn:hover { background: rgba(197, 160, 89, 0.15); }
 
 @media (max-width: 768px) {
   .news-page { padding: 100px 20px 60px; }

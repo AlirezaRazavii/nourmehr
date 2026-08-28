@@ -26,7 +26,8 @@
       </div>
 
       <div v-else class="empty-state">
-        <p>{{ $t('news_not_found') }}</p>
+        <p>{{ loadFailed ? $t('news_error') : $t('news_not_found') }}</p>
+        <button class="back-btn retry" @click="goBack">{{ $t('news_back') }}</button>
       </div>
     </div>
   </section>
@@ -53,6 +54,7 @@ const route = useRoute()
 const router = useRouter()
 const blog = ref(null)
 const loading = ref(true)
+const loadFailed = ref(false)
 
 const getLocalizedText = (value) => {
   if (!value) return ''
@@ -95,11 +97,17 @@ const goBack = () => router.push({ name: 'News', params: { lang: locale.value } 
 
 const loadBlog = async () => {
   loading.value = true
+  loadFailed.value = false
   try {
     const res = await getBlogBySlug(route.params.slug)
-    if (res.success) blog.value = res.data
+    if (res.success) {
+      blog.value = res.data
+    } else {
+      loadFailed.value = true
+    }
   } catch (e) {
     console.error('Error fetching blog:', e)
+    loadFailed.value = true
   } finally {
     loading.value = false
   }
@@ -133,6 +141,7 @@ h1 { font-size: 2.5rem; margin: 0 0 16px; line-height: 1.3; }
 .blog-text :deep(h2) { font-size: 1.5rem; margin: 1.5em 0 0.8em; color: #facc6b; }
 
 .empty-state { text-align: center; padding: 80px; }
+.empty-state .back-btn { margin-top: 16px; margin-bottom: 0; }
 
 @media (max-width: 768px) {
   .blog-detail-page { padding: 100px 20px 60px; }

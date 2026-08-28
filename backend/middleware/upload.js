@@ -10,9 +10,11 @@ const crypto = require('crypto');
  */
 const PRODUCTS_UPLOAD_DIR = path.resolve(__dirname, '../../uploads/products');
 const HERO_UPLOAD_DIR = path.resolve(__dirname, '../../uploads/hero');
+const BLOG_UPLOAD_DIR = path.resolve(__dirname, '../../uploads/blogs');
 
 // یک بار در زمان بوت ساخته می‌شود، نه در هر درخواست
 fs.mkdirSync(PRODUCTS_UPLOAD_DIR, { recursive: true });
+fs.mkdirSync(BLOG_UPLOAD_DIR, { recursive: true });
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const MAX_FILES = 12;
@@ -75,6 +77,23 @@ const upload = multer({
   },
 });
 
+const blogStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, BLOG_UPLOAD_DIR),
+  filename: storage.filename,
+});
+
+const blogUpload = multer({
+  storage: blogStorage,
+  fileFilter,
+  limits: {
+    fileSize: MAX_FILE_SIZE,
+    files: 1,
+    fields: 10,
+    parts: 10,
+    headerPairs: 100,
+  },
+});
+
 /**
  * میان‌افزار خطای اختصاصی آپلود.
  * باید بلافاصله بعد از upload.single/array در روت قرار بگیرد
@@ -105,8 +124,10 @@ const handleUploadError = (err, req, res, next) => {
 
 module.exports = {
   upload,
+  blogUpload,
   handleUploadError,
   PRODUCTS_UPLOAD_DIR,
   HERO_UPLOAD_DIR,
+  BLOG_UPLOAD_DIR,
   MAX_FILE_SIZE,
 };

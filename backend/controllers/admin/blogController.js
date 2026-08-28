@@ -46,6 +46,9 @@ exports.createBlog = async (req, res) => {
     await blog.save();
     res.status(201).json({ success: true, data: blog });
   } catch (err) {
+    if (err.code === 11000 && err.keyPattern?.slug) {
+      return res.status(400).json({ success: false, message: 'این slug قبلاً استفاده شده است' });
+    }
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -56,6 +59,26 @@ exports.updateBlog = async (req, res) => {
     const blog = await Blog.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
     if (!blog) return res.status(404).json({ success: false, message: 'Blog not found' });
     res.json({ success: true, data: blog });
+  } catch (err) {
+    if (err.code === 11000 && err.keyPattern?.slug) {
+      return res.status(400).json({ success: false, message: 'این slug قبلاً استفاده شده است' });
+    }
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// POST /api/admin/blogs/upload-image
+exports.uploadBlogImage = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, message: 'فایلی ارسال نشده است' });
+    const filePath = `/uploads/blogs/${req.file.filename}`;
+    res.status(201).json({
+      success: true,
+      filePath,
+      url: filePath,
+      size: req.file.size,
+      mimetype: req.file.mimetype,
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

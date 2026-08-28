@@ -3,7 +3,7 @@ const express = require('express');
 const { protect, admin } = require('../middleware/authMiddleware');
 const { hasPermission, superAdminOnly } = require('../middleware/permissionMiddleware');
 const { PERMISSIONS, PERMISSION_LIST } = require('../config/permissions');
-const { upload, handleUploadError } = require('../middleware/upload');
+const { upload, blogUpload, handleUploadError } = require('../middleware/upload');
 const uploadHero = require('../middleware/uploadHero');
 
 const { getDashboardStats } = require('../controllers/admin/dashboardController');
@@ -145,6 +145,7 @@ router.delete('/collections/:id', hasPermission(PERMISSIONS.COLLECTIONS), delete
 
 /* ----------------------------- اخبار و مقالات ------------------------------- */
 router.get('/blogs', hasPermission(PERMISSIONS.BLOGS), blogController.getBlogs);
+router.post('/blogs/upload-image', hasPermission(PERMISSIONS.BLOGS), blogUpload.single('image'), handleUploadError, blogController.uploadBlogImage);
 router.post('/blogs', hasPermission(PERMISSIONS.BLOGS), blogController.createBlog);
 router.get('/blogs/:id', hasPermission(PERMISSIONS.BLOGS), blogController.getBlogById);
 router.put('/blogs/:id', hasPermission(PERMISSIONS.BLOGS), blogController.updateBlog);
