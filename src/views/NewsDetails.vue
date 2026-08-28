@@ -430,14 +430,13 @@ h1 { font-size: 2.3rem; margin: 0 0 16px; line-height: 1.35; }
 
 .share-row { display: flex; align-items: center; gap: 10px; margin: 24px 0; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.08); }
 .share-label { font-size: 0.88rem; opacity: 0.65; margin-inline-end: 4px; }
-.share-btn { width: 38px; height: 38px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid rgba(255,255,255,0.12); color: #fff; text-decoration: none; cursor: pointer; background: transparent; transition: all 0.2s; }
+.share-btn { width: 38px; height: 38px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid rgba(255,255,255,0.12); color: #fff; font-size: 0.85rem; text-decoration: none; cursor: pointer; background: transparent; transition: all 0.2s; }
 .share-btn svg { display: block; }
 .share-btn:hover { transform: translateY(-2px); }
 .share-btn.tg:hover { background: #229ed9; border-color: #229ed9; }
 .share-btn.wa:hover { background: #25d366; border-color: #25d366; }
 .share-btn.tw:hover { background: #000; border-color: #fff; }
-.share-btn.copy:hover { background: #c5a059; border-color: #c5a059; color: #000; }
-.share-btn.copy.ok { background: #22c55e; border-color: #22c55e; color: #fff; }
+.share-btn.copy:hover { background: #c5a059; color: #000; }
 
 .adjacent-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 36px 0; }
 .adjacent-card { padding: 18px 22px; border-radius: 16px; text-decoration: none; color: #fff; display: flex; flex-direction: column; gap: 8px; transition: all 0.2s; }
