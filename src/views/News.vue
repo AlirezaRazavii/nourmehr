@@ -21,7 +21,7 @@
         </div>
         <div class="sort-row">
           <div class="type-chips">
-            <button class="chip small" :class="{ active: !filters.type }" @click="setType('')">{{ $t('news_type_general') }}</button>
+            <button class="chip small" :class="{ active: !filters.type }" @click="setType('')">{{ $t('news_filter_all') }}</button>
             <button class="chip small" :class="{ active: filters.type === 'news' }" @click="setType('news')">{{ $t('news_type_news') }}</button>
             <button class="chip small" :class="{ active: filters.type === 'event' }" @click="setType('event')">{{ $t('news_type_event') }}</button>
             <button class="chip small" :class="{ active: filters.type === 'article' }" @click="setType('article')">{{ $t('news_type_article') }}</button>
