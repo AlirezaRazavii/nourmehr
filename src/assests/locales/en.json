@@ -156,6 +156,8 @@
   "news_title": "News & Articles",
   "news_subtitle": "Latest events, news and articles from Nourmehr",
   "news_empty": "No articles published yet",
+  "news_empty_events": "No events registered yet",
+  "news_empty_news": "No news published yet",
   "news_read_more": "Read more",
   "news_back": "Back to News",
   "news_not_found": "Article not found",

@@ -97,7 +97,7 @@
         <!-- حالت خالی -->
         <div v-else class="empty-state">
           <div class="empty-icon">📰</div>
-          <p>{{ $t('news_empty') }}</p>
+          <p>{{ emptyMessage }}</p>
         </div>
 
         <!-- صفحه‌بندی -->
@@ -141,6 +141,13 @@ const page = ref(1)
 const sort = ref('newest')
 const meta = reactive({ page: 1, limit: 9, total: 0, pages: 1 })
 const filters = reactive({ search: '', category: '', type: '' })
+
+// پیام حالت خالی بر اساس تب فعال (خبر/رویداد/مقاله)
+const emptyMessage = computed(() => {
+  if (filters.type === 'event' && te('news_empty_events')) return t('news_empty_events')
+  if (filters.type === 'news' && te('news_empty_news')) return t('news_empty_news')
+  return t('news_empty')
+})
 
 const SITE_URL = import.meta.env.VITE_SITE_URL || window.location.origin
 
