@@ -90,6 +90,8 @@
         </div>
       </div>
 
+<a referrerpolicy='origin' target='_blank' href='https://trustseal.enamad.ir/?id=7485999&Code=AoI9u5kE7oLv6qYOB7osnWnNBoNmDzth'><img referrerpolicy='origin' src='https://trustseal.enamad.ir/logo.aspx?id=7485999&Code=AoI9u5kE7oLv6qYOB7osnWnNBoNmDzth' alt='' style='cursor:pointer' code='AoI9u5kE7oLv6qYOB7osnWnNBoNmDzth'></a>
+
       <!-- پاورد بای -->
       <div class="powered-by">
         Powered by <strong><a href="https://ifconnection.ir/" target="_blank">IFCONNECTION</a></strong>
