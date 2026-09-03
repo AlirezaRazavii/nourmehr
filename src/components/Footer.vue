@@ -17,6 +17,38 @@
             <span>{{ $t('footer_badge_limited') }}</span>
             <span>{{ $t('footer_badge_luxury') }}</span>
           </div>
+
+          <!-- نماد اعتماد الکترونیکی (ای‌نماد) -->
+          <div class="trust-badge-wrapper">
+            <span class="trust-badge-title">نماد اعتماد الکترونیکی</span>
+            <div class="trust-badge-card">
+              <a
+                href="https://trustseal.enamad.ir/?id=7485999&Code=AoI9u5kE7oLv6qYOB7osnWnNBoNmDzth"
+                target="_blank"
+                rel="noopener noreferrer"
+                referrerpolicy="origin"
+                title="نماد اعتماد الکترونیکی نورمهر"
+                class="enamad-link"
+                @click="openEnamad"
+              >
+                <img
+                  src="https://trustseal.enamad.ir/logo.aspx?id=7485999&Code=AoI9u5kE7oLv6qYOB7osnWnNBoNmDzth"
+                  alt="نماد اعتماد الکترونیکی نورمهر"
+                  code="AoI9u5kE7oLv6qYOB7osnWnNBoNmDzth"
+                  class="enamad-img"
+                  @error="onEnamadError"
+                  v-if="!enamadFailed"
+                />
+                <div v-else class="enamad-fallback">
+                  <svg class="enamad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="m9 12 2 2 4-4" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                  <span>ای‌نماد</span>
+                </div>
+              </a>
+            </div>
+          </div>
         </div>
 
         <!-- ستون‌های لینک‌ها -->
@@ -87,11 +119,6 @@
           <router-link :to="localePath('/terms')">{{ $t('footer_terms') }}</router-link>
           <span class="dot" aria-hidden="true">•</span>
           <router-link :to="localePath('/privacy')">{{ $t('footer_privacy') }}</router-link>
-        </div>
-      </div>
-
-<a referrerpolicy='origin' target='_blank' href='https://trustseal.enamad.ir/?id=7485999&Code=AoI9u5kE7oLv6qYOB7osnWnNBoNmDzth'><img referrerpolicy='origin' src='https://trustseal.enamad.ir/logo.aspx?id=7485999&Code=AoI9u5kE7oLv6qYOB7osnWnNBoNmDzth' alt='' style='cursor:pointer' code='AoI9u5kE7oLv6qYOB7osnWnNBoNmDzth'></a>
-
       <!-- پاورد بای -->
       <div class="powered-by">
         Powered by <strong><a href="https://ifconnection.ir/" target="_blank">IFCONNECTION</a></strong>
@@ -101,7 +128,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const { locale } = useI18n()
@@ -124,6 +151,19 @@ const socials = {
 const localePath = (path) => {
   const clean = path.startsWith('/') ? path : `/${path}`
   return `/${locale.value}${clean === '/' ? '' : clean}`
+}
+
+// مدیریت عدم لود لوگوی اینماد در محیط توسعه (Localhost)
+const enamadFailed = ref(false)
+const onEnamadError = () => {
+  enamadFailed.value = true
+}
+
+// باز کردن پنجره پاپ‌آپ رسمی اینماد
+const openEnamad = (e) => {
+  e.preventDefault()
+  const url = 'https://trustseal.enamad.ir/?id=7485999&Code=AoI9u5kE7oLv6qYOB7osnWnNBoNmDzth'
+  window.open(url, 'EnamadPopup', 'toolbar=no, location=no, status=no, menubar=no, scrollbars=yes, resizable=0, width=500, height=600, top=50, left=50')
 }
 </script>
 
@@ -338,6 +378,85 @@ const localePath = (path) => {
 .powered-by strong {
   color: #facc6b;
   font-weight: 600;
+}
+
+/* بخش نماد اعتماد الکترونیکی (ای‌نماد) */
+.trust-badge-wrapper {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.trust-badge-title {
+  font-size: 0.82rem;
+  color: #facc6b;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.trust-badge-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.enamad-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 96px;
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 8px;
+  border: 1px solid rgba(197, 160, 89, 0.4);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 15px rgba(197, 160, 89, 0.15);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease, border-color 0.3s ease;
+  cursor: pointer;
+  overflow: hidden;
+  text-decoration: none;
+}
+
+.enamad-link:hover {
+  transform: translateY(-4px) scale(1.03);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.5), 0 0 22px rgba(197, 160, 89, 0.4);
+  border-color: #c5a059;
+}
+
+.enamad-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.enamad-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #050814;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+  padding: 4px;
+}
+
+.enamad-icon {
+  width: 32px;
+  height: 32px;
+  color: #c5a059;
+}
+
+.enamad-fallback span {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #1a1a1a;
+  line-height: 1.2;
 }
 
 /* ریسپانسیو */
