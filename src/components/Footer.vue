@@ -32,20 +32,11 @@
                 @click="openEnamad"
               >
                 <img
-                  src="https://trustseal.enamad.ir/logo.aspx?id=7485999&Code=AoI9u5kE7oLv6qYOB7osnWnNBoNmDzth"
+                  src="/enamad.png"
                   alt="نماد اعتماد الکترونیکی نورمهر"
                   code="AoI9u5kE7oLv6qYOB7osnWnNBoNmDzth"
                   class="enamad-img"
-                  @error="onEnamadError"
-                  v-if="!enamadFailed"
                 />
-                <div v-else class="enamad-fallback">
-                  <svg class="enamad-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                    <path d="m9 12 2 2 4-4" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
-                  <span>ای‌نماد</span>
-                </div>
               </a>
             </div>
           </div>
@@ -410,11 +401,11 @@ const openEnamad = (e) => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 96px;
-  height: 96px;
+  width: 105px;
+  height: 115px;
   background: #ffffff;
   border-radius: 14px;
-  padding: 8px;
+  padding: 10px;
   border: 1px solid rgba(197, 160, 89, 0.4);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 15px rgba(197, 160, 89, 0.15);
   transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease, border-color 0.3s ease;
@@ -434,32 +425,6 @@ const openEnamad = (e) => {
   height: 100%;
   object-fit: contain;
   display: block;
-}
-
-.enamad-fallback {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  color: #050814;
-  gap: 4px;
-  width: 100%;
-  height: 100%;
-  padding: 4px;
-}
-
-.enamad-icon {
-  width: 32px;
-  height: 32px;
-  color: #c5a059;
-}
-
-.enamad-fallback span {
-  font-size: 0.7rem;
-  font-weight: 700;
-  color: #1a1a1a;
-  line-height: 1.2;
 }
 
 /* ریسپانسیو */
