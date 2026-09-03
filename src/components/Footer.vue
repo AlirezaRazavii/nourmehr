@@ -119,6 +119,9 @@
           <router-link :to="localePath('/terms')">{{ $t('footer_terms') }}</router-link>
           <span class="dot" aria-hidden="true">•</span>
           <router-link :to="localePath('/privacy')">{{ $t('footer_privacy') }}</router-link>
+        </div>
+      </div>
+
       <!-- پاورد بای -->
       <div class="powered-by">
         Powered by <strong><a href="https://ifconnection.ir/" target="_blank">IFCONNECTION</a></strong>
