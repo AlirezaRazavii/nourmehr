@@ -13,7 +13,7 @@ const settings = ref({
   enableGoogleLogin: false,
   enableSmsLogin: false,
   paymentMethods: [],
-  shippingMethods: [],
+  shippingOptions: [],
   contactPhone: '',
   contactEmail: '',
   address: '',
@@ -38,7 +38,8 @@ const ensureNested = (data) => ({
     ...(data?.seo || {})
   },
   paymentMethods: data?.paymentMethods || [],
-  shippingMethods: data?.shippingMethods || []
+  shippingMethods: data?.shippingMethods || [],
+  shippingOptions: data?.shippingOptions || []
 })
 
 const fetchSettings = async () => {
@@ -46,7 +47,6 @@ const fetchSettings = async () => {
   try {
     const res = await adminApi.getSettings()
     if (res.success && res.data) {
-      // merge با مقادیر پیش‌فرض تا فیلدهای nested هرگز undefined نشن
       settings.value = {
         ...settings.value,
         ...res.data,
@@ -62,7 +62,11 @@ const fetchSettings = async () => {
           ...(res.data.seo || {})
         },
         paymentMethods: res.data.paymentMethods || [],
-        shippingMethods: res.data.shippingMethods || []
+        shippingMethods: res.data.shippingMethods || [],
+        shippingOptions: res.data.shippingOptions || [
+          { id: 'express', title: 'ارسال پیشتاز', description: '۲ تا ۴ روز کاری', cost: 150000, icon: '🚀', isActive: true, minOrder: 0 },
+          { id: 'normal', title: 'ارسال سفارشی', description: '۴ تا ۷ روز کاری', cost: 80000, icon: '📦', isActive: true, minOrder: 0 }
+        ]
       }
     }
   } catch (err) {
@@ -100,6 +104,23 @@ const addTag = (field) => {
 
 const removeTag = (field, idx) => {
   settings.value[field].splice(idx, 1)
+}
+
+const addShippingOption = () => {
+  if (!settings.value.shippingOptions) settings.value.shippingOptions = []
+  settings.value.shippingOptions.push({
+    id: 'shipping_' + Date.now(),
+    title: '',
+    description: '',
+    cost: 0,
+    icon: '📦',
+    isActive: true,
+    minOrder: 0
+  })
+}
+
+const removeShippingOption = (idx) => {
+  settings.value.shippingOptions.splice(idx, 1)
 }
 </script>
 
@@ -188,11 +209,49 @@ const removeTag = (field, idx) => {
         </div>
       </div>
 
+      <!-- مدیریت روش‌های ارسال پویا -->
       <div class="settings-section glass-card">
-        <h3 class="section-title">روش‌های ارسال</h3>
-        <div class="tags-group">
-          <span v-for="(method, idx) in settings.shippingMethods" :key="idx" class="tag" @click="removeTag('shippingMethods', idx)" title="برای حذف کلیک کنید">{{ method }} ×</span>
-          <button class="add-tag-btn" @click="addTag('shippingMethods')">+ افزودن</button>
+        <div class="section-header-flex">
+          <div>
+            <h3 class="section-title" style="margin-bottom: 4px;">روش‌ها و هزینه‌های ارسال</h3>
+            <p class="section-desc">مدیریت پویای عناوین، هزینه‌ها، آیکون و وضعیت فعال بودن روش‌های ارسال</p>
+          </div>
+          <button class="add-shipping-btn" @click="addShippingOption">+ افزودن روش ارسال جدید</button>
+        </div>
+
+        <div v-if="!settings.shippingOptions || settings.shippingOptions.length === 0" class="empty-shipping">
+          <span>هیچ روش ارسالی تعریف نشده است. جهت ایجاد اولین روش روی دکمه افزودن کلیک کنید.</span>
+        </div>
+
+        <div class="shipping-list">
+          <div v-for="(option, idx) in settings.shippingOptions" :key="option.id || idx" class="shipping-card-item">
+            <div class="shipping-card-header">
+              <div class="shipping-icon-picker">
+                <input v-model="option.icon" type="text" class="icon-input" title="آیکون یا ایموجی روش ارسال" placeholder="🚀" />
+              </div>
+              <div class="shipping-title-group">
+                <input v-model="option.title" type="text" class="form-input title-input" placeholder="عنوان روش ارسال (مثلاً ارسال پیشتاز)" />
+              </div>
+              <div class="shipping-actions">
+                <label class="toggle-switch" title="فعال / غیرفعال">
+                  <input v-model="option.isActive" type="checkbox" />
+                  <span class="toggle-slider"></span>
+                </label>
+                <button class="delete-shipping-btn" @click="removeShippingOption(idx)" title="حذف این روش ارسال">✕</button>
+              </div>
+            </div>
+
+            <div class="shipping-card-body">
+              <div class="form-group">
+                <label class="form-label">توضیحات زمان تحویل</label>
+                <input v-model="option.description" type="text" class="form-input" placeholder="مثلاً ۲ تا ۴ روز کاری" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">هزینه ارسال (تومان)</label>
+                <input v-model.number="option.cost" type="number" min="0" step="1000" class="form-input" placeholder="مثلاً 150000" />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -525,5 +584,144 @@ const removeTag = (field, idx) => {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* استایل‌های مدیریت روش‌های ارسال پویا */
+.section-header-flex {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.section-desc {
+  font-size: 0.82rem;
+  opacity: 0.5;
+  margin: 0;
+}
+
+.add-shipping-btn {
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1px dashed rgba(197,160,89,0.5);
+  background: rgba(197,160,89,0.08);
+  color: #facc6b;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.add-shipping-btn:hover {
+  background: rgba(197,160,89,0.2);
+  border-color: #c5a059;
+}
+
+.empty-shipping {
+  padding: 24px;
+  text-align: center;
+  border: 1px dashed rgba(255,255,255,0.1);
+  border-radius: 12px;
+  color: rgba(255,255,255,0.4);
+  font-size: 0.88rem;
+}
+
+.shipping-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.shipping-card-item {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  transition: border-color 0.2s ease;
+}
+
+.shipping-card-item:hover {
+  border-color: rgba(197,160,89,0.3);
+}
+
+.shipping-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.shipping-icon-picker {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+}
+
+.icon-input {
+  width: 42px;
+  height: 42px;
+  text-align: center;
+  font-size: 1.2rem;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 10px;
+  color: #fff;
+  outline: none;
+}
+
+.icon-input:focus {
+  border-color: #c5a059;
+}
+
+.shipping-title-group {
+  flex: 1;
+}
+
+.title-input {
+  width: 100%;
+  font-weight: 600;
+}
+
+.shipping-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.delete-shipping-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(239,68,68,0.3);
+  background: rgba(239,68,68,0.1);
+  color: #f87171;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.delete-shipping-btn:hover {
+  background: rgba(239,68,68,0.25);
+  color: #fff;
+}
+
+.shipping-card-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+@media (max-width: 640px) {
+  .shipping-card-body {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

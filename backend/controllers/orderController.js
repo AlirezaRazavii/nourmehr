@@ -12,10 +12,7 @@ const {
 const generateOrderRef = () => 'NM-' + Date.now();
 
 
-// نرخ ارسال فقط سمت سرور تعیین می‌شود — کلاینت هیچ نقشی در قیمت ندارد
-const SHIPPING_RATES = Object.freeze({ express: 150000, normal: 80000 });
-const ALLOWED_SHIPPING_METHODS = Object.keys(SHIPPING_RATES);
-
+const Setting = require('../models/Setting');
 
 // روش‌های پرداخت مجاز
 const ALLOWED_PAYMENT_METHODS = ['cod', 'online'];
@@ -45,8 +42,22 @@ const getUnitPrice = (product, sizeName) => {
   return base;
 };
 
-// محاسبه هزینه ارسال بر اساس روش انتخابی
-const calculateShippingCost = (method) => SHIPPING_RATES[method] ?? SHIPPING_RATES.normal;
+// محاسبه پویا و پایداری هزینه ارسال بر اساس تنظیمات دیتابیس
+const calculateShippingCost = async (methodId) => {
+  try {
+    const settings = await Setting.findOne();
+    if (settings && Array.isArray(settings.shippingOptions) && settings.shippingOptions.length > 0) {
+      const match = settings.shippingOptions.find(s => s.id === methodId && s.isActive !== false);
+      if (match) return match.cost;
+      const firstActive = settings.shippingOptions.find(s => s.isActive !== false);
+      if (firstActive) return firstActive.cost;
+    }
+  } catch (err) {
+    console.error('[calculateShippingCost] Error fetching settings:', err);
+  }
+  if (methodId === 'express') return 150000;
+  return 80000;
+};
 
 // اعتبارسنجی کد تخفیف (بدون مصرف) — برای فرم Checkout
 const validateDiscount = async (req, res) => {
@@ -90,9 +101,7 @@ const createOrder = async (req, res) => {
     if (!shippingInfo || typeof shippingInfo !== 'object') {
       return res.status(400).json({ success: false, message: 'اطلاعات ارسال ناقص است' });
     }
-        const shippingMethod = ALLOWED_SHIPPING_METHODS.includes(shippingInfo.shippingMethod)
-      ? shippingInfo.shippingMethod
-      : 'normal';
+    const shippingMethod = shippingInfo.shippingMethod || 'normal';
     shippingInfo.shippingMethod = shippingMethod;
 
     const cart = await Cart.findOne({ user: userId }).populate('items.product');
@@ -138,7 +147,7 @@ const createOrder = async (req, res) => {
       }
     }
 
-    const shippingCost = calculateShippingCost(shippingMethod);
+    const shippingCost = await calculateShippingCost(shippingMethod);
 
     const total = Math.max(0, subtotal - discountAmount) + shippingCost;
 

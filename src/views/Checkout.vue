@@ -143,14 +143,14 @@
                         :disabled="method.minOrder && totalPrice < method.minOrder" />
                       <span class="method-icon">{{ method.icon }}</span>
                       <div class="method-info">
-                        <span class="method-name">{{ $t(method.nameKey) }}</span>
-                        <span class="method-desc">{{ $t(method.descKey) }}</span>
+                        <span class="method-name">{{ method.title || (method.nameKey ? $t(method.nameKey) : '') }}</span>
+                        <span class="method-desc">{{ method.description || (method.descKey ? $t(method.descKey) : '') }}</span>
                         <span v-if="method.minOrder && totalPrice < method.minOrder" class="method-hint">
                           {{ $t('checkout_min_order') }}: {{ formatPrice(method.minOrder) }} {{ $t('products_currency') }}
                         </span>
                       </div>
-                      <span v-if="method.price !== undefined" class="method-price">
-                        {{ method.price === 0 ? $t('checkout_free') : formatPrice(method.price) + ' ' + $t('products_currency') }}
+                      <span v-if="method.cost !== undefined || method.price !== undefined" class="method-price">
+                        {{ (method.cost ?? method.price) === 0 ? $t('checkout_free') : formatPrice(method.cost ?? method.price) + ' ' + $t('products_currency') }}
                       </span>
                       <span class="check-mark">✓</span>
                     </label>
@@ -376,10 +376,10 @@ const shippingForm = ref({
   fullName: '', phone: '', email: '', province: '', city: '', address: '', postalCode: '', note: ''
 })
 
-const shippingMethods = [
-  { id: 'express', nameKey: 'checkout_shipping_express_name', descKey: 'checkout_shipping_express_desc', icon: '🚀', price: 150000 },
-  { id: 'normal', nameKey: 'checkout_shipping_normal_name', descKey: 'checkout_shipping_normal_desc', icon: '📦', price: 80000 }
-]
+const shippingMethods = ref([
+  { id: 'express', title: 'ارسال پیشتاز', description: '۲ تا ۴ روز کاری', icon: '🚀', cost: 150000, price: 150000 },
+  { id: 'normal', title: 'ارسال سفارشی', description: '۴ تا ۷ روز کاری', icon: '📦', cost: 80000, price: 80000 }
+])
 const selectedShipping = ref('normal')
 const createdOrder = ref(null)
 
@@ -407,8 +407,9 @@ const errorMessage = ref('')
 const orderData = ref(null)
 
 const shippingCost = computed(() => {
-  const method = shippingMethods.find(m => m.id === selectedShipping.value)
-  return method ? (method.price || 0) : 0
+  const method = shippingMethods.value.find(m => m.id === selectedShipping.value)
+  if (!method) return 0
+  return method.cost !== undefined ? method.cost : (method.price || 0)
 })
 
 const shippingCostFormatted = computed(() =>
@@ -607,6 +608,31 @@ const goToHome = () => router.push('/')
 const goToProducts = () => router.push('/products')
 
 onMounted(async () => {
+  // دریافت تنظیمات پویای روش‌های ارسال از بک‌اند
+  try {
+    const { default: api } = await import('../services/api')
+    const settingsRes = await api.get('/settings')
+    if (settingsRes.data?.success && settingsRes.data?.data?.shippingOptions?.length > 0) {
+      const activeOptions = settingsRes.data.data.shippingOptions.filter(o => o.isActive !== false)
+      if (activeOptions.length > 0) {
+        shippingMethods.value = activeOptions.map(opt => ({
+          id: opt.id,
+          title: opt.title,
+          description: opt.description,
+          icon: opt.icon || '📦',
+          cost: opt.cost,
+          price: opt.cost,
+          minOrder: opt.minOrder || 0
+        }))
+        if (!shippingMethods.value.some(m => m.id === selectedShipping.value)) {
+          selectedShipping.value = shippingMethods.value[0].id
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load dynamic shipping options:', e)
+  }
+
   // ابتدا سبد را از سرور تازه‌سازی کن و منتظر بمان تا items همگام شود
   // این کار از نمایش اشتباهِ «سبد خرید خالی است» هنگام رفرش یا ورود مستقیم جلوگیری می‌کند
   try {
