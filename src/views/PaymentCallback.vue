@@ -87,8 +87,13 @@ const resolveErrorMessage = (code) => {
 const goToHome = () =>
   router.push({ name: 'Home', params: { lang: locale.value } })
 
-const goToOrders = () =>
-  router.push({ name: 'UserOrders', params: { lang: locale.value } })
+const goToOrders = () => {
+  if (orderRef.value) {
+    router.push({ name: 'UserOrders', params: { lang: locale.value }, query: { orderRef: orderRef.value } })
+  } else {
+    router.push({ name: 'UserOrders', params: { lang: locale.value } })
+  }
+}
 
 onMounted(() => {
   // بک‌اند پس از تأیید با زرین‌پال به این صفحه ریدایرکت می‌کند:

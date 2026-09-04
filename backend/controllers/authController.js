@@ -2,6 +2,7 @@ const User = require('../models/User');
 const generateToken = require('../utils/generateToken');
 const { sendVerificationCode } = require('../services/smsService');
 const { saveCode, verifyCode, getRemainingTime } = require('../utils/smsStore');
+const { getClientUrl } = require('../utils/urlHelper');
 const crypto = require('crypto');
 const IS_PROD = process.env.NODE_ENV === 'production';
 
@@ -201,15 +202,16 @@ const googleCallback = (req, res, next) => {
   if (!process.env.GOOGLE_CLIENT_ID) {
     return res.status(400).json({ success: false, message: 'Google OAuth not configured' });
   }
+  const baseUrl = getClientUrl(req);
   const passport = require('passport');
   passport.authenticate('google', { session: false }, async (err, user) => {
     if (err || !user) {
-      return res.redirect(`${process.env.CLIENT_URL}/login?error=google_auth_failed`);
+      return res.redirect(`${baseUrl}/login?error=google_auth_failed`);
     }
     const token = generateToken(user._id, user.tokenVersion ?? 0);
     user.lastLogin = Date.now();
     await user.save();
-    res.redirect(`${process.env.CLIENT_URL}/login?token=${token}`);
+    res.redirect(`${baseUrl}/login?token=${token}`);
   })(req, res, next);
 };
 

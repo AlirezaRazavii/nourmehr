@@ -3,8 +3,7 @@ const Payment = require('../models/Payment');
 const Cart = require('../models/Cart');
 const { initiatePayment, verifyPayment, isZarinpalConfigured } = require('../services/zarinpalService');
 const { consumeDiscount } = require('../utils/discountEngine');
-
-const CLIENT_URL = process.env.CLIENT_URL || '';
+const { getClientUrl } = require('../utils/urlHelper');
 
 const NON_PAYABLE_STATUSES = ['cancelled', 'refunded'];
 
@@ -69,10 +68,11 @@ const initiateOnlinePayment = async (req, res) => {
 
 // تأیید پرداخت (callback از زرین‌پال)
 const verifyOnlinePayment = async (req, res) => {
+  const baseUrl = getClientUrl(req);
   const fail = (code) =>
-    res.redirect(`${CLIENT_URL}/payment/callback?status=failed&message=${encodeURIComponent(code)}`);
+    res.redirect(`${baseUrl}/payment/callback?status=failed&message=${encodeURIComponent(code)}`);
   const ok = (refId, orderRef) =>
-    res.redirect(`${CLIENT_URL}/payment/callback?status=success&refId=${encodeURIComponent(refId)}&orderRef=${encodeURIComponent(orderRef)}`);
+    res.redirect(`${baseUrl}/payment/callback?status=success&refId=${encodeURIComponent(refId)}&orderRef=${encodeURIComponent(orderRef)}`);
 
   try {
     const { Authority, Status } = req.query;

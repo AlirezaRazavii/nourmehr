@@ -165,6 +165,7 @@ const routePathMap = {
   Contact: 'contact',
   Cart: 'cart',
   Checkout: 'checkout',
+  PaymentCallback: 'payment/callback',
   Login: 'login',
   CompleteProfile: 'complete-profile',
   Search: 'search',
@@ -205,11 +206,11 @@ router.beforeEach(async (to, from, next) => {
           finalPath = finalPath.replace(`:${param}`, to.params[param])
         }
       })
-      return next(`/${defaultLang}/${finalPath}`)
+      return next({ path: `/${defaultLang}/${finalPath}`, query: to.query })
     }
 
     const cleanPath = path === '/' ? '' : path
-    return next(`/${defaultLang}${cleanPath}`)
+    return next({ path: `/${defaultLang}${cleanPath}`, query: to.query })
   }
 
   // 3. همگام‌سازی زبان i18n (فایل ترجمه فقط در صورت نیاز دانلود می‌شود)

@@ -1,10 +1,12 @@
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import { useOrders } from '../../stores/orders'
 import { getImageUrl } from '../../utils/imageUrl'
 
+const route = useRoute()
 const { t, locale } = useI18n()
 const ordersStore = useOrders()
 const { orders, isLoading } = storeToRefs(ordersStore)
@@ -39,8 +41,14 @@ const handleCancelOrder = async (orderId) => {
   }
 }
 
-onMounted(() => {
-  fetchOrders()
+onMounted(async () => {
+  await fetchOrders()
+  if (route.query.orderRef) {
+    const target = (orders.value || []).find(o => o.orderRef === route.query.orderRef || o._id === route.query.orderRef)
+    if (target) {
+      selectedOrder.value = target
+    }
+  }
 })
 </script>
 
