@@ -4,8 +4,11 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { getCollection } from '../services/collectionApi'
 import { getImageUrl } from '../utils/imageUrl'
+import { getProductPriceInfo } from '../utils/productPrice'
 
 const { t, locale } = useI18n()
+
+const getPriceInfo = (p) => getProductPriceInfo(p)
 
 const getLocalizedText = (value) => {
   if (!value) return ''
@@ -168,6 +171,19 @@ onMounted(load)
               </div>
 
               <div class="card-footer">
+                <div class="card-price-box">
+                  <span v-if="getPriceInfo(product).oldPrice" class="price-old">
+                    {{ formatNumber(getPriceInfo(product).oldPrice) }}
+                  </span>
+                  <div class="price-current-wrap">
+                    <span v-if="getPriceInfo(product).hasMultipleSizes" class="price-prefix">
+                      {{ locale === 'fa' ? 'از' : 'From' }}
+                    </span>
+                    <span class="price-amount">{{ formatNumber(getPriceInfo(product).minPrice) }}</span>
+                    <span class="price-currency">{{ $t('products_currency') }}</span>
+                  </div>
+                </div>
+
                 <router-link
                   :to="{ name: 'ProductDetails', params: { lang: locale, id: productId(product) } }"
                   class="view-btn"

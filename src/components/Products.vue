@@ -147,6 +147,19 @@
                 </div>
 
                 <div class="card-footer">
+                  <div class="card-price-box">
+                    <span v-if="getPriceInfo(product).oldPrice" class="price-old">
+                      {{ formatNumber(getPriceInfo(product).oldPrice) }}
+                    </span>
+                    <div class="price-current-wrap">
+                      <span v-if="getPriceInfo(product).hasMultipleSizes" class="price-prefix">
+                        {{ locale === 'fa' ? 'از' : 'From' }}
+                      </span>
+                      <span class="price-amount">{{ formatNumber(getPriceInfo(product).minPrice) }}</span>
+                      <span class="price-currency">{{ $t('products_currency') }}</span>
+                    </div>
+                  </div>
+
                   <router-link :to="{ name: 'ProductDetails', params: { lang: locale, id: product._id || product.id || product.slug } }" class="view-btn" @click.stop>
                     <span class="view-text">{{ $t('products_view') }}</span>
                     <span class="view-arrow">
@@ -191,6 +204,7 @@ import { useProductStore } from '../stores/products'
 import { useWishlist } from '../stores/wishlist'
 import { useAuth } from '../stores/auth'
 import { getImageUrl } from '../utils/imageUrl'
+import { getProductPriceInfo } from '../utils/productPrice'
 
 const { t, locale } = useI18n()
 const productStore = useProductStore()
@@ -198,6 +212,8 @@ const wishlist = useWishlist()
 const auth = useAuth()
 const router = useRouter()
 const route = useRoute()
+
+const getPriceInfo = (p) => getProductPriceInfo(p)
 
 /* ───────── i18n helpers ───────── */
 const getLocalizedText = (value) => {
@@ -557,7 +573,14 @@ onUnmounted(() => {
 .desc-label { display: inline-block; font-size: 0.6rem; color: #c5a059; letter-spacing: 1px; margin-bottom: 4px; }
 .short-desc { font-size: clamp(0.7rem,0.85vw,0.78rem); color: rgba(255,255,255,0.5); line-height: 1.6; margin: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
-.card-footer { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: auto; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.04); }
+.card-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.04); }
+
+.card-price-box { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.price-old { font-size: 0.72rem; color: rgba(255, 255, 255, 0.4); text-decoration: line-through; line-height: 1; }
+.price-current-wrap { display: flex; align-items: center; gap: 4px; line-height: 1.2; }
+.price-prefix { font-size: 0.75rem; color: #c5a059; font-weight: 600; }
+.price-amount { font-size: 0.95rem; font-weight: 700; color: #facc6b; }
+.price-currency { font-size: 0.7rem; color: rgba(255, 255, 255, 0.6); font-weight: 400; }
 
 .view-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 11px; background: linear-gradient(135deg, #2bbf9e, #1a8f78); border: none; color: #fff; text-decoration: none; font-size: 0.72rem; font-weight: 600; cursor: pointer; transition: all 0.35s cubic-bezier(0.16,1,0.3,1); flex-shrink: 0; }
 .view-btn:hover { filter: brightness(1.1); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(43,191,158,0.3); }

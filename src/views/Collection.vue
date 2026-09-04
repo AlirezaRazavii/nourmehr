@@ -5,11 +5,14 @@ import api from '../services/api'
 import { getImageUrl } from '../utils/imageUrl'
 import { useCart } from '../stores/cart'
 import { useProductStore } from '../stores/products'
+import { getProductPriceInfo } from '../utils/productPrice'
 
 const route = useRoute()
 const router = useRouter()
 const cartStore = useCart()
 const productStore = useProductStore()
+
+const getPriceInfo = (p) => getProductPriceInfo(p)
 
 const handleAddToCart = async (product) => {
   if (!product?._id) return
@@ -410,8 +413,11 @@ const renderStars = (rating) => {
 
               <div class="card-bottom">
                 <div class="price-group">
-                  <span v-if="product.oldPrice" class="price-old">{{ formatPrice(product.oldPrice) }}</span>
-                  <span class="price-current">{{ formatPrice(product.finalPrice ?? product.price) }}<small> تومان</small></span>
+                  <span v-if="getPriceInfo(product).oldPrice" class="price-old">{{ formatPrice(getPriceInfo(product).oldPrice) }}</span>
+                  <span class="price-current">
+                    <span v-if="getPriceInfo(product).hasMultipleSizes" style="font-size:0.8rem; color:#c5a059; margin-left:3px">از </span>
+                    {{ formatPrice(getPriceInfo(product).minPrice) }}<small> تومان</small>
+                  </span>
                 </div>
                 <button
                   class="add-cart-btn"
