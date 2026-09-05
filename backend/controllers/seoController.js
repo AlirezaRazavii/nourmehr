@@ -5,6 +5,9 @@
  *  - ریدایرکت ۳۰۱ برای slugهای قدیمی
  */
 const Blog = require('../models/Blog');
+const Product = require('../models/Product');
+const Collection = require('../models/Collection');
+const Category = require('../models/Category');
 const BlogCategory = require('../models/BlogCategory');
 const { getOrSet } = require('../utils/cache');
 
@@ -223,11 +226,19 @@ const renderNewsNotFound = (req) => {
 
 /* -------------------------------- sitemap -------------------------------- */
 const buildSitemap = async () => {
-  const [blogs, categories] = await Promise.all([
+  const [blogs, categories, products, collections, blogCategories] = await Promise.all([
     Blog.find(publishedFilter())
-      .select('slug image updatedAt publishedAt createdAt')
+      .select('slug updatedAt publishedAt createdAt')
       .sort({ publishedAt: -1 })
       .limit(5000)
+      .lean(),
+    Category.find({ isActive: true }).select('slug updatedAt').lean(),
+    Product.find({ isActive: true })
+      .select('slug updatedAt createdAt')
+      .limit(5000)
+      .lean(),
+    Collection.find({ isActive: true })
+      .select('slug updatedAt')
       .lean(),
     BlogCategory.find({ isActive: true }).select('slug').lean()
   ]);
@@ -241,16 +252,43 @@ const buildSitemap = async () => {
   </url>`;
 
   const entries = [];
+
+  // صفحات استاتیک
   for (const p of staticPaths) {
     for (const lang of ['fa', 'en']) {
       entries.push(url(`/${lang}${p ? '/' + p : ''}`, p === 'news' ? 'daily' : 'weekly', p === '' ? '1.0' : '0.7'));
     }
   }
+
+  // دسته‌بندی‌های محصولات
   for (const c of categories) {
+    for (const lang of ['fa', 'en']) {
+      entries.push(url(`/${lang}/products?category=${c.slug}`, 'weekly', '0.7', c.updatedAt));
+    }
+  }
+
+  // کالکشن‌ها
+  for (const col of collections) {
+    for (const lang of ['fa', 'en']) {
+      entries.push(url(`/${lang}/collection/${col.slug}`, 'weekly', '0.8', col.updatedAt));
+    }
+  }
+
+  // محصولات
+  for (const p of products) {
+    for (const lang of ['fa', 'en']) {
+      entries.push(url(`/${lang}/product/${p.slug || p._id}`, 'weekly', '0.9', p.updatedAt || p.createdAt));
+    }
+  }
+
+  // دسته‌بندی‌های اخبار
+  for (const c of blogCategories) {
     for (const lang of ['fa', 'en']) {
       entries.push(url(`/${lang}/news?category=${c.slug}`, 'weekly', '0.6'));
     }
   }
+
+  // مقالات
   for (const b of blogs) {
     for (const lang of ['fa', 'en']) {
       entries.push(url(`/${lang}/news/${b.slug}`, 'weekly', '0.8', b.updatedAt || b.publishedAt || b.createdAt));
