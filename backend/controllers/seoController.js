@@ -232,12 +232,12 @@ const buildSitemap = async () => {
       .sort({ publishedAt: -1 })
       .limit(5000)
       .lean(),
-    Category.find({ isActive: true }).select('slug updatedAt').lean(),
+    Category.find({ status: 'active' }).select('slug updatedAt').lean(),
     Product.find({ status: 'active' })
       .select('slug updatedAt createdAt')
       .limit(5000)
       .lean(),
-    Collection.find({ isActive: true })
+    Collection.find({ status: 'active' })
       .select('slug updatedAt')
       .lean(),
     BlogCategory.find({ isActive: true }).select('slug').lean()
