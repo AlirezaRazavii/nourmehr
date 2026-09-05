@@ -233,7 +233,7 @@ const buildSitemap = async () => {
       .limit(5000)
       .lean(),
     Category.find({ isActive: true }).select('slug updatedAt').lean(),
-    Product.find({ isActive: true })
+    Product.find({ status: 'active' })
       .select('slug updatedAt createdAt')
       .limit(5000)
       .lean(),
