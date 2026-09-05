@@ -179,7 +179,7 @@ const routePathMap = {
 }
 
 router.beforeEach(async (to, from, next) => {
-  if (to.path.endsWith('.txt')) return next()
+  if (/\.(txt|xml|json|ico|png|jpe?g|webp|svg|woff2?|pdf)$/i.test(to.path)) return next()
 
   const defaultLang = getSavedLocale()
 
