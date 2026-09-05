@@ -115,7 +115,7 @@
 
       <!-- پاورد بای -->
       <div class="powered-by">
-        Powered by <strong><a href="https://ifconnection.ir/" target="_blank">IFCONNECTION</a></strong>
+        Powered by <strong><a href="https://ifconnection.ir/" target="_blank" rel="noopener noreferrer">IFCONNECTION</a></strong>
       </div>  
     </div>
   </footer>
@@ -359,21 +359,34 @@ const openEnamad = (e) => {
 
 /* پاورد بای */
 .powered-by {
-  margin-top: 16px;
+  margin-top: 18px;
   padding-top: 14px;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
   text-align: center;
   font-size: 0.78rem;
   letter-spacing: 0.5px;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.45);
   direction: ltr;
 }
 
 .powered-by strong {
-  color: #facc6b;
   font-weight: 600;
 }
 
+.powered-by a {
+  color: #facc6b; /* طلایی برند */
+  text-decoration: none;
+  letter-spacing: 1px;
+  display: inline-block;
+  transition: color 0.3s ease, text-shadow 0.3s ease, transform 0.2s ease;
+}
+
+/* افکت ملایم و لوکس هنگام قرار گرفتن ماوس روی لینک */
+.powered-by a:hover {
+  color: #ffe08a; /* کمی روشن‌تر شدن طلایی */
+  text-shadow: 0 0 8px rgba(250, 204, 107, 0.45); /* هاله محو طلایی */
+  transform: translateY(-1px);
+}
 /* بخش نماد اعتماد الکترونیکی (ای‌نماد) */
 .trust-badge-wrapper {
   margin-top: 20px;
