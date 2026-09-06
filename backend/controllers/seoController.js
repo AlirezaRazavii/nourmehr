@@ -45,6 +45,22 @@ const isEnIndexable = (doc) => {
   return Boolean(en && (en.title || en.description) && en.noIndex !== true);
 };
 
+const seoGet = (seo, lang, field) => {
+  if (!seo) return '';
+
+  const vNew = seo[lang]?.[field];
+  if (vNew !== undefined && vNew !== '') return vNew;
+
+  const vOld = seo[field];
+  if (vOld && typeof vOld === 'object') return vOld[lang] || vOld.fa || vOld.en || '';
+  return '';
+};
+const seoNoIndex = (seo, lang) => {
+  if (!seo) return false;
+  if (seo[lang]?.noIndex !== undefined) return seo[lang].noIndex === true;
+  return seo.noIndex === true;
+};
+
 const pick = (value, lang) => {
   if (value == null) return '';
   if (typeof value === 'string') return value;
@@ -165,11 +181,13 @@ const renderNewsList = (req, { blogs, categories, description }) => {
 /* -------------------------- صفحه جزئیات مقاله -------------------------- */
 const renderNewsDetail = (req, blog) => {
   const lang = req.lang || 'fa';
-  const title = pick(blog.seo?.title, lang) || pick(blog.title, lang);
-  const description = truncate(pick(blog.seo?.description, lang) || pick(blog.excerpt, lang) || stripHtml(pick(blog.content, lang)), 160);
-  const canonical = blog.seo?.canonicalUrl || absoluteUrl(req.originalUrl.split('?')[0]);
-  const image = blog.seo?.ogImage || blog.image || '';
-  const noIndex = !!blog.seo?.noIndex;
+  const title = seoGet(blog.seo, lang, 'title') || pick(blog.title, lang);
+  const description = truncate(seoGet(blog.seo, lang, 'description') || pick(blog.excerpt, lang) || stripHtml(pick(blog.content, lang)), 160);
+  const canonical = seoGet(blog.seo, lang, 'canonicalUrl') || absoluteUrl(req.originalUrl.split('?')[0]);
+  const image = seoGet(blog.seo, lang, 'ogImage') || blog.image || '';
+  const noIndex = seoNoIndex(blog.seo, lang);
+  const ogTitle = seoGet(blog.seo, lang, 'ogTitle') || '';
+  const ogDescription = seoGet(blog.seo, lang, 'ogDescription') || '';
   const date = blog.publishedAt || blog.createdAt;
 
   const head = metaTags({
@@ -253,7 +271,12 @@ const renderNewsNotFound = (req) => {
 /* -------------------------------- sitemap -------------------------------- */
 const buildSitemap = async () => {
   const [blogs, categories, products, collections, blogCategories] = await Promise.all([
-    Blog.find({ ...publishedFilter(), 'seo.noIndex': { $ne: true } })
+    Blog.find({
+      ...publishedFilter(),
+      'seo.fa.noIndex': { $ne: true },
+      'seo.noIndex': { $ne: true },
+      'seo.sitemap.include': { $ne: false }
+    })
       .select('slug updatedAt publishedAt createdAt')
       .sort({ publishedAt: -1 })
       .limit(5000)
@@ -441,7 +464,7 @@ exports.newsBotRenderer = async (req, res, next) => {
         res.setHeader('X-Robots-Tag', 'noindex');
         return res.status(404).send(renderNewsNotFound(req));
       }
-      if (blog.seo?.noIndex) res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+      if (seoNoIndex(blog.seo, lang)) res.setHeader('X-Robots-Tag', 'noindex, nofollow');
       res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self' data: https:; style-src 'unsafe-inline'; font-src 'self'");
       return res.send(renderNewsDetail(req, blog));
     }

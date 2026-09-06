@@ -1,27 +1,5 @@
 const mongoose = require('mongoose');
-
-const seoSchema = new mongoose.Schema({
-  title: {
-    fa: { type: String, default: '', trim: true, maxlength: 200 },
-    en: { type: String, default: '', trim: true, maxlength: 200 }
-  },
-  description: {
-    fa: { type: String, default: '', trim: true, maxlength: 400 },
-    en: { type: String, default: '', trim: true, maxlength: 400 }
-  },
-  keywords: {
-    fa: { type: String, default: '', trim: true },
-    en: { type: String, default: '', trim: true }
-  },
-  // اگر پر شود، canonical به جای آدرس پیش‌فرض مقاله با این مقدار ساخته می‌شود
-  canonicalUrl: { type: String, default: '', trim: true },
-  // تصویر مخصوص اشتراک‌گذاری؛ خالی بود از تصویر شاخص استفاده می‌شود
-  ogImage: { type: String, default: '' },
-  // خروج از ایندکس موتورهای جستجو (در robots متا و X-Robots-Tag اعمال می‌شود)
-  noIndex: { type: Boolean, default: false },
-  // کلمه کلیدی کانونی — فقط برای گزارش داخلی/تمرکز نویسنده
-  focusKeyword: { type: String, default: '', trim: true }
-}, { _id: false });
+const { seoSchema } = require('./shared/seoSchema');
 
 const tagSchema = new mongoose.Schema({
   slug: { type: String, required: true },
@@ -65,7 +43,7 @@ const blogSchema = new mongoose.Schema({
   featured: { type: Boolean, default: false },
   readingTime: { type: Number, default: 0 }, // دقیقه — به صورت خودکار محاسبه می‌شود
   viewsCount: { type: Number, default: 0 },
-  seo: { type: seoSchema, default: () => ({}) }
+  seo: seoSchema({ priority: 0.8, changefreq: 'weekly' })
 }, { timestamps: true });
 
 // متن محتوا را از تگ‌های HTML خالی می‌کند و زمان مطالعه (دقیقه) را برمی‌گرداند
@@ -86,11 +64,47 @@ blogSchema.pre('validate', function (next) {
   next();
 });
 
+/* ---- مهاجرت خودکار سئوی قدیمی به ساختار جدید ----
+   ساختار قدیمی: seo.title.fa / seo.keywords ...
+   ساختار جدید:  seo.fa.title / seo.fa.focusKeyword ...
+   یک بار برای هر سند اجرا می‌شود (با فلگ داخلی). */
+blogSchema.pre('save', function (next) {
+  const seo = this.seo;
+  // تشخیص ساختار قدیمی: seo.title آبجکت زبانی است (در ساختار جدید seo.title وجود ندارد)
+  if (seo && typeof seo.title === 'object' && seo.title !== null && !Array.isArray(seo.title)) {
+    const old = seo.toObject ? seo.toObject() : { ...seo };
+    this.seo = {
+      fa: {
+        title: old.title?.fa || '',
+        description: old.description?.fa || '',
+        focusKeyword: old.focusKeyword || (old.keywords?.fa ? String(old.keywords.fa).split(',')[0].trim() : ''),
+        canonicalUrl: old.canonicalUrl || '',
+        ogImage: old.ogImage || '',
+        ogTitle: '',
+        ogDescription: '',
+        noIndex: old.noIndex === true
+      },
+      en: {
+        title: old.title?.en || '',
+        description: old.description?.en || '',
+        focusKeyword: old.keywords?.en ? String(old.keywords.en).split(',')[0].trim() : '',
+        canonicalUrl: '',
+        ogImage: old.ogImage || '',
+        ogTitle: '',
+        ogDescription: '',
+        noIndex: false
+      },
+      sitemap: { include: true, priority: 0.8, changefreq: 'weekly' }
+    };
+  }
+  next();
+});
+
 blogSchema.index({ status: 1, publishedAt: -1 });
 blogSchema.index({ category: 1 });
 blogSchema.index({ featured: -1, publishedAt: -1 });
 blogSchema.index({ 'tags.slug': 1 });
 blogSchema.index({ 'title.fa': 'text', 'title.en': 'text', 'content.fa': 'text', 'content.en': 'text' });
 
-module.exports = mongoose.model('Blog', blogSchema);
+module.exports = mongoose.model('Blog', mongoose.models.Blog || blogSchema);
 module.exports.computeReadingTime = computeReadingTime;
