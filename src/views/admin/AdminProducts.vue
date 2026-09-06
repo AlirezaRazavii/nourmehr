@@ -448,6 +448,34 @@ const buildPayload = () => {
   return payload
 }
 
+const saveProduct = async () => {
+  if (saving.value) return
+  if (!validateForm()) {
+    notify('لطفاً خطاهای فرم را برطرف کنید', 'error')
+    await nextTick()
+    document.querySelector('.form-input.has-error, .form-select.has-error')?.focus()
+    return
+  }
+
+  saving.value = true
+  try {
+    const payload = buildPayload()
+    const id = editingProduct.value?._id || editingProduct.value?.id
+    const res = id ? await adminApi.updateProduct(id, payload) : await adminApi.createProduct(payload)
+    if (!res?.success) throw new Error(res?.message || 'عملیات ناموفق بود')
+
+    sessionUploads.value = new Set() // ذخیره شد، دیگر یتیم نیست
+    notify(id ? 'محصول با موفقیت ویرایش شد' : 'محصول با موفقیت ایجاد شد', 'success')
+    await closeModal({ discardUploads: false })
+    await fetchProducts()
+    lookupLoaded.value = false
+  } catch (err) {
+    notify(err.response?.data?.message || err.message || 'ذخیره‌سازی ناموفق بود', 'error')
+  } finally {
+    saving.value = false
+  }
+}
+
 /* -------------------------------- Delete -------------------------------- */
 const deletingId = ref(null)
 const removeProduct = async (product) => {
