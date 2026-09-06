@@ -214,11 +214,11 @@ const submitReview = async () => {
 
 const loadProduct = async (idOrSlug) => {
   isLoading.value = true
-  setProductSeo(product.value, locale.value)
   activeImage.value = 0
   await productStore.fetchProduct(idOrSlug)
   if (productStore.products.length === 0) productStore.fetchProducts()
   isLoading.value = false
+  setProductSeo(product.value, locale.value)
 
   if (product.value?.colors?.length > 0) selectedColor.value = product.value.colors[0]
   if (product.value?.sizes?.length > 0) {
