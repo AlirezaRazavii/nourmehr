@@ -38,6 +38,13 @@ const truncate = (s = '', n = 160) => {
   return t.length <= n ? t : t.slice(0, n - 1).trimEnd() + '…';
 };
 
+const PUBLIC_PRODUCT_STATUSES = ['active', 'out_of_stock'];
+
+const isEnIndexable = (doc) => {
+  const en = doc.seo?.en;
+  return Boolean(en && (en.title || en.description) && en.noIndex !== true);
+};
+
 const pick = (value, lang) => {
   if (value == null) return '';
   if (typeof value === 'string') return value;
@@ -52,20 +59,39 @@ const faDate = (d) => {
 };
 
 /* ------------------------------ متا مشترک ------------------------------ */
-const metaTags = ({ title, description, canonical, lang, image, noIndex, type = 'website', publishedTime = null }) => {
+/**
+ * alternates:
+ *   undefined → رفتار پیش‌فرض قبلی (جفت fa/en)
+ *   null      → بدون hreflang (وقتی نسخه‌ی زبان دیگر noindex است)
+ *   [{lang, url}] → hreflang دقیق و کنترل‌شده
+ */
+const metaTags = ({ title, description, canonical, lang, image, noIndex, type = 'website', publishedTime = null, alternates }) => {
   const fullTitle = title.includes('نورمهر') || /Nourmehr/i.test(title) ? title : `${title} | نورمهر`;
   const img = image ? absoluteUrl(image) : `${SITE_URL}/og-cover.jpg`;
-  const altLang = lang === 'fa' ? 'en' : 'fa';
-  const altCanonical = canonical.replace(`/${lang}/`, `/${altLang}/`);
+
+  let hreflangLinks = '';
+  if (alternates === null) {
+    hreflangLinks = '';
+  } else if (Array.isArray(alternates) && alternates.length > 0) {
+    const xDefault = alternates.find((a) => a.lang === 'fa') || alternates[0];
+    hreflangLinks = alternates
+      .map((a) => `  <link rel="alternate" hreflang="${a.lang}" href="${escapeHtml(a.url)}" />`)
+      .join('\n');
+    hreflangLinks += `\n  <link rel="alternate" hreflang="x-default" href="${escapeHtml(xDefault.url)}" />`;
+  } else {
+    const altLang = lang === 'fa' ? 'en' : 'fa';
+    const altCanonical = canonical.replace(`/${lang}/`, `/${altLang}/`);
+    hreflangLinks = `  <link rel="alternate" hreflang="${lang}" href="${escapeHtml(canonical)}" />
+  <link rel="alternate" hreflang="${altLang}" href="${escapeHtml(altCanonical)}" />
+  <link rel="alternate" hreflang="x-default" href="${escapeHtml(canonical.replace(`/${lang}/`, '/fa/'))}" />`;
+  }
 
   return `
   <title>${escapeHtml(fullTitle)}</title>
   <meta name="description" content="${escapeHtml(description)}" />
   <meta name="robots" content="${noIndex ? 'noindex, nofollow' : 'index, follow, max-image-preview:large'}" />
   <link rel="canonical" href="${escapeHtml(canonical)}" />
-  <link rel="alternate" hreflang="${lang}" href="${escapeHtml(canonical)}" />
-  <link rel="alternate" hreflang="${altLang}" href="${escapeHtml(altCanonical)}" />
-  <link rel="alternate" hreflang="x-default" href="${escapeHtml(canonical.replace(`/${lang}/`, '/fa/'))}" />
+ ${hreflangLinks}
   <meta property="og:site_name" content="نورمهر" />
   <meta property="og:locale" content="${lang === 'fa' ? 'fa_IR' : 'en_US'}" />
   <meta property="og:type" content="${type}" />
@@ -227,80 +253,103 @@ const renderNewsNotFound = (req) => {
 /* -------------------------------- sitemap -------------------------------- */
 const buildSitemap = async () => {
   const [blogs, categories, products, collections, blogCategories] = await Promise.all([
-    Blog.find(publishedFilter())
+    Blog.find({ ...publishedFilter(), 'seo.noIndex': { $ne: true } })
       .select('slug updatedAt publishedAt createdAt')
       .sort({ publishedAt: -1 })
       .limit(5000)
       .lean(),
     Category.find({ status: 'active' }).select('slug updatedAt').lean(),
-    Product.find({ status: 'active' })
-      .select('slug updatedAt createdAt')
+    Product.find({
+      status: { $in: PUBLIC_PRODUCT_STATUSES },
+      'seo.fa.noIndex': { $ne: true },
+      'seo.sitemap.include': { $ne: false },
+    })
+      .select('slug updatedAt createdAt seo')
       .limit(5000)
       .lean(),
-    Collection.find({ status: 'active' })
-      .select('slug updatedAt')
-      .lean(),
-    BlogCategory.find({ isActive: true }).select('slug').lean()
+    Collection.find({ status: 'active' }).select('slug updatedAt').lean(),
+    BlogCategory.find({ isActive: true }).select('slug').lean(),
   ]);
-
-  const staticPaths = ['', 'products', 'about', 'contact', 'news', 'discounts'];
-  const url = (path, changefreq, priority, lastmod) => `  <url>
-    <loc>${escapeXml(absoluteUrl(path))}</loc>
-    ${lastmod ? `<lastmod>${new Date(lastmod).toISOString().slice(0, 10)}</lastmod>` : ''}
-    <changefreq>${changefreq}</changefreq>
-    <priority>${priority}</priority>
-  </url>`;
 
   const entries = [];
 
+  const urlEntry = (path, { changefreq = 'weekly', priority = 0.7, lastmod = null, alternates = [] } = {}) => {
+    const lines = [`    <loc>${escapeXml(absoluteUrl(path))}</loc>`];
+    alternates.forEach((a) => {
+      lines.push(`    <xhtml:link rel="alternate" hreflang="${a.lang}" href="${escapeXml(absoluteUrl(a.path))}" />`);
+    });
+    if (lastmod) lines.push(`    <lastmod>${new Date(lastmod).toISOString().slice(0, 10)}</lastmod>`);
+    lines.push(`    <changefreq>${changefreq}</changefreq>`);
+    lines.push(`    <priority>${priority}</priority>`);
+    return `  <url>\n${lines.join('\n')}\n  </url>`;
+  };
+
+  // یک جفت fa/en با hreflang متقابل
+  const pushBothLangs = (buildPath, opts = {}) => {
+    const alternates = [
+      { lang: 'fa', path: buildPath('fa') },
+      { lang: 'en', path: buildPath('en') },
+    ];
+    entries.push(urlEntry(alternates[0].path, { ...opts, alternates }));
+    entries.push(urlEntry(alternates[1].path, { ...opts, alternates }));
+  };
+
   // صفحات استاتیک
+  const staticPaths = ['', 'products', 'about', 'contact', 'news', 'discounts'];
   for (const p of staticPaths) {
-    for (const lang of ['fa', 'en']) {
-      entries.push(url(`/${lang}${p ? '/' + p : ''}`, p === 'news' ? 'daily' : 'weekly', p === '' ? '1.0' : '0.7'));
-    }
+    pushBothLangs((l) => `/${l}${p ? '/' + p : ''}`, {
+      changefreq: p === 'news' ? 'daily' : 'weekly',
+      priority: p === '' ? '1.0' : '0.7',
+    });
   }
 
   // دسته‌بندی‌های محصولات
   for (const c of categories) {
-    for (const lang of ['fa', 'en']) {
-      entries.push(url(`/${lang}/products?category=${c.slug}`, 'weekly', '0.7', c.updatedAt));
-    }
+    pushBothLangs((l) => `/${l}/products?category=${c.slug}`, { priority: '0.7', lastmod: c.updatedAt });
   }
 
   // کالکشن‌ها
   for (const col of collections) {
-    for (const lang of ['fa', 'en']) {
-      entries.push(url(`/${lang}/collection/${col.slug}`, 'weekly', '0.8', col.updatedAt));
-    }
+    pushBothLangs((l) => `/${l}/collection/${col.slug}`, { priority: '0.8', lastmod: col.updatedAt });
   }
 
-  // محصولات
+  // محصولات — اولویت/تناوب از seo.sitemap + آدرس en فقط وقتی ایندکس‌پذیر باشد
   for (const p of products) {
-    for (const lang of ['fa', 'en']) {
-      entries.push(url(`/${lang}/product/${p.slug || p._id}`, 'weekly', '0.9', p.updatedAt || p.createdAt));
+    const sm = p.seo?.sitemap || {};
+    const opts = {
+      changefreq: sm.changefreq || 'weekly',
+      priority: sm.priority ?? 0.9,
+      lastmod: p.updatedAt || p.createdAt,
+    };
+    const faPath = `/fa/product/${p.slug || p._id}`;
+    const enOk = isEnIndexable(p);
+    const alternates = enOk
+      ? [{ lang: 'fa', path: faPath }, { lang: 'en', path: `/en/product/${p.slug}` }]
+      : [];
+    entries.push(urlEntry(faPath, { ...opts, alternates }));
+    if (enOk) {
+      entries.push(urlEntry(`/en/product/${p.slug}`, { ...opts, alternates }));
     }
   }
 
   // دسته‌بندی‌های اخبار
   for (const c of blogCategories) {
-    for (const lang of ['fa', 'en']) {
-      entries.push(url(`/${lang}/news?category=${c.slug}`, 'weekly', '0.6'));
-    }
+    pushBothLangs((l) => `/${l}/news?category=${c.slug}`, { priority: '0.6' });
   }
 
   // مقالات
   for (const b of blogs) {
-    for (const lang of ['fa', 'en']) {
-      entries.push(url(`/${lang}/news/${b.slug}`, 'weekly', '0.8', b.updatedAt || b.publishedAt || b.createdAt));
-    }
+    pushBothLangs((l) => `/${l}/news/${b.slug}`, {
+      priority: '0.8',
+      lastmod: b.updatedAt || b.publishedAt || b.createdAt,
+    });
   }
 
   return `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${entries.join('\n')}
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+ ${entries.join('\n')}
 </urlset>`;
 };
-
 /* ---------------------------------- RSS ---------------------------------- */
 const buildRss = async () => {
   const blogs = await Blog.find(publishedFilter())
@@ -443,69 +492,191 @@ exports.newsSlugRedirect = async (req, res, next) => {
 };
 
 /* ----------------------- رندر داینامیک صفحات محصول ----------------------- */
+
+const renderProductNotFound = (lang) => {
+  const head = metaTags({
+    title: lang === 'fa' ? 'محصول یافت نشد' : 'Product not found',
+    description: lang === 'fa' ? 'این محصول یافت نشد.' : 'This product could not be found.',
+    canonical: absoluteUrl(`/${lang}/products`),
+    lang,
+    noIndex: true,
+    alternates: null,
+  });
+  const body = `<h1>${lang === 'fa' ? 'محصول مورد نظر یافت نشد' : 'Product not found'}</h1>
+  <p><a href="/${lang}/products">${lang === 'fa' ? 'بازگشت به محصولات' : 'Back to products'}</a></p>`;
+  return pageShell(lang, head, body);
+};
+
 exports.productBotRenderer = async (req, res, next) => {
   if (!isBot(req.headers['user-agent'])) return next();
   try {
-    const lang = req.params.lang || 'fa';
+    const lang = ['fa', 'en'].includes(req.params.lang) ? req.params.lang : (req.lang || 'fa');
     const slug = String(req.params.slug || '').toLowerCase();
 
-    const product = await Product.findOne({ slug, status: 'active' })
-      .populate('category', 'slug name')
+    const product = await Product.findOne({ slug, status: { $in: PUBLIC_PRODUCT_STATUSES } })
+      .populate('category', 'name slug')
       .lean();
 
-    if (!product) return next();
+    if (!product) {
+      // ریدایرکت ۳۰۱ برای اسلاگ‌های قدیمی
+      const redirected = await Product.findOne({ oldSlugs: slug }).select('slug').lean();
+      if (redirected) return res.redirect(301, `/${lang}/product/${redirected.slug}`);
+      res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+      return res.status(404).send(renderProductNotFound(lang));
+    }
+
+    const seo = product.seo || {};
+    const seoLang = seo[lang] || {};
+    const enIndexable = isEnIndexable(product);
+    const noIndex = lang === 'en' ? !enIndexable : seoLang.noIndex === true;
 
     const name = pick(product.name, lang);
-    const description = truncate(
-      pick(product.description, lang) || pick(product.shortDescription, lang) || name, 160
+    const metaTitle = seoLang.title || name;
+    const metaDescription = truncate(
+      seoLang.description || pick(product.shortDesc, lang) || stripHtml(pick(product.description, lang)) || name,
+      175
     );
-    const canonical = absoluteUrl(`/${lang}/product/${product.slug}`);
-    const image = product.images?.[0] || product.image || '';
 
-    const head = metaTags({ title: name, description, canonical, lang, image, type: 'product', noIndex: lang === 'en' });
+    const canonicalOverride =
+      typeof seoLang.canonicalUrl === 'string' && /^(https?:\/\/|\/)/i.test(seoLang.canonicalUrl)
+        ? seoLang.canonicalUrl
+        : '';
+    const canonical = canonicalOverride || absoluteUrl(`/${lang}/product/${product.slug}`);
 
+    // hreflang فقط وقتی معنا دارد که هر دو زبان ایندکس‌پذیر باشند و canonical دستی/خارجی تعیین نشده باشد
+    const alternates = canonicalOverride || !enIndexable
+      ? null
+      : [
+          { lang: 'fa', url: absoluteUrl(`/fa/product/${product.slug}`) },
+          { lang: 'en', url: absoluteUrl(`/en/product/${product.slug}`) },
+        ];
+
+    const ogImage = seoLang.ogImage || product.mainImage || product.images?.[0] || '';
+
+    // قیمت نهایی با تخفیف + موجودی واقعی
+    const basePrice = Number(product.price) || 0;
+    const discount = Number(product.discountPercent) || 0;
+    const finalPrice = discount > 0 && discount < 100 ? Math.round(basePrice * (1 - discount / 100)) : basePrice;
+    const inStock = product.status === 'active' && Number(product.stock || 0) > 0;
+
+    const head = metaTags({
+      title: metaTitle,
+      description: metaDescription,
+      canonical,
+      lang,
+      image: ogImage,
+      noIndex,
+      type: 'product',
+      alternates,
+    });
+
+    const allImages = [...new Set([product.mainImage, ...(product.images || [])].filter(Boolean))];
+
+    /* ---- JSON-LD: Product ---- */
     const jsonLd = {
       '@context': 'https://schema.org',
       '@type': 'Product',
       name,
-      description,
-      image: image ? [absoluteUrl(image)] : undefined,
+      description: metaDescription || undefined,
+      image: allImages.length ? allImages.slice(0, 6).map(absoluteUrl) : undefined,
       url: canonical,
-      offers: product.price ? {
+      sku: product.sku || undefined,
+      category: product.category ? pick(product.category.name, lang) || undefined : undefined,
+      material: pick(product.material, lang) || undefined,
+      brand: { '@type': 'Brand', name: 'نورمهر' },
+      offers: basePrice > 0 ? {
         '@type': 'Offer',
-        price: product.price,
+        url: canonical,
+        price: finalPrice,
         priceCurrency: 'IRR',
-        availability: 'https://schema.org/InStock',
-        url: canonical
+        itemCondition: 'https://schema.org/NewCondition',
+        availability: inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+        seller: { '@type': 'Organization', name: 'نورمهر' },
       } : undefined,
-      brand: { '@type': 'Brand', name: 'نورمهر' }
+      ...(product.ratingCount > 0 && product.ratingAverage > 0
+        ? {
+            aggregateRating: {
+              '@type': 'AggregateRating',
+              ratingValue: product.ratingAverage,
+              bestRating: 5,
+              worstRating: 1,
+              reviewCount: product.ratingCount,
+            },
+          }
+        : {}),
     };
+
+    /* ---- JSON-LD: BreadcrumbList ---- */
+    const crumbs = [
+      { name: lang === 'fa' ? 'خانه' : 'Home', item: `${SITE_URL}/${lang}` },
+      { name: lang === 'fa' ? 'محصولات' : 'Products', item: `${SITE_URL}/${lang}/products` },
+    ];
+    if (product.category?.slug) {
+      crumbs.push({
+        name: pick(product.category.name, lang) || product.category.slug,
+        item: `${SITE_URL}/${lang}/products?category=${product.category.slug}`,
+      });
+    }
+    crumbs.push({ name, item: canonical });
 
     const breadcrumbLd = {
       '@context': 'https://schema.org',
       '@type': 'BreadcrumbList',
-      itemListElement: [
-        { '@type': 'ListItem', position: 1, name: lang === 'fa' ? 'خانه' : 'Home', item: `${SITE_URL}/${lang}` },
-        { '@type': 'ListItem', position: 2, name: lang === 'fa' ? 'محصولات' : 'Products', item: `${SITE_URL}/${lang}/products` },
-        { '@type': 'ListItem', position: 3, name, item: canonical }
-      ]
+      itemListElement: crumbs.map((c, i) => ({
+        '@type': 'ListItem',
+        position: i + 1,
+        name: c.name,
+        item: c.item,
+      })),
     };
+
+    /* ---- بدنه‌ی غنی برای ربات ---- */
+    const altMap = new Map((product.imageAlts || []).map((a) => [a.image, pick(a.alt, lang)]));
+    const altFor = (img) => altMap.get(img) || name;
+    const num = (n) => Number(n).toLocaleString(lang === 'fa' ? 'fa-IR' : 'en-US');
+
+    const priceBlock = basePrice > 0
+      ? `<p>${lang === 'fa' ? 'قیمت' : 'Price'}: <strong>${num(finalPrice)} ${lang === 'fa' ? 'تومان' : 'IRR'}</strong>${discount > 0 ? ` <s>${num(basePrice)}</s> (-${discount}%)` : ''}</p>`
+      : '';
+
+    const specRow = (label, value) =>
+      value ? `<tr><th scope="row">${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>` : '';
+
+    const specsTable = [
+      specRow(lang === 'fa' ? 'جنس' : 'Material', pick(product.material, lang)),
+      specRow(lang === 'fa' ? 'وزن' : 'Weight', product.weight),
+      specRow(lang === 'fa' ? 'ابعاد' : 'Dimensions', product.dimensions),
+      specRow(lang === 'fa' ? 'استادکار' : 'Craftsman', pick(product.craftsman, lang)),
+      specRow(lang === 'fa' ? 'ضمانت' : 'Warranty', pick(product.warranty, lang)),
+    ].filter(Boolean).join('');
+
+    const features = (product.features || []).map((f) => pick(f, lang)).filter(Boolean);
 
     const body = `
     <article>
-      <nav>
+      <nav aria-label="breadcrumb">
         <a href="/${lang}">${lang === 'fa' ? 'خانه' : 'Home'}</a> ›
-        <a href="/${lang}/products">${lang === 'fa' ? 'محصولات' : 'Products'}</a> ›
-        <span>${escapeHtml(name)}</span>
+        <a href="/${lang}/products">${lang === 'fa' ? 'محصولات' : 'Products'}</a>${
+          product.category?.slug
+            ? ` › <a href="/${lang}/products?category=${escapeHtml(product.category.slug)}">${escapeHtml(pick(product.category.name, lang) || '')}</a>`
+            : ''
+        } › <span>${escapeHtml(name)}</span>
       </nav>
       <h1>${escapeHtml(name)}</h1>
-      ${image ? `<img src="${escapeHtml(absoluteUrl(image))}" alt="${escapeHtml(name)}" width="800" />` : ''}
-      <p>${escapeHtml(description)}</p>
-      ${product.price ? `<p>${lang === 'fa' ? 'قیمت' : 'Price'}: ${Number(product.price).toLocaleString()} ${lang === 'fa' ? 'تومان' : 'IRR'}</p>` : ''}
+      ${allImages.slice(0, 8)
+        .map((img) => `<img src="${escapeHtml(absoluteUrl(img))}" alt="${escapeHtml(altFor(img))}" width="800" />`)
+        .join('\n      ')}
+      ${pick(product.shortDesc, lang) ? `<p><strong>${escapeHtml(pick(product.shortDesc, lang))}</strong></p>` : ''}
+      ${priceBlock}
+      ${features.length ? `<h2>${lang === 'fa' ? 'ویژگی‌ها' : 'Features'}</h2><ul>${features.map((f) => `<li>${escapeHtml(f)}</li>`).join('')}</ul>` : ''}
+      ${specsTable ? `<h2>${lang === 'fa' ? 'مشخصات' : 'Specifications'}</h2><table>${specsTable}</table>` : ''}
+      <h2>${lang === 'fa' ? 'توضیحات' : 'Description'}</h2>
+      <div>${pick(product.description, lang)}</div>
       <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
       <script type="application/ld+json">${JSON.stringify(breadcrumbLd)}</script>
     </article>`;
 
+    if (noIndex) res.setHeader('X-Robots-Tag', 'noindex, nofollow');
     res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self' data: https:; style-src 'unsafe-inline'");
     return res.send(pageShell(lang, head, body));
   } catch (err) {
@@ -514,6 +685,20 @@ exports.productBotRenderer = async (req, res, next) => {
   }
 };
 
+// مسیر محصول برای کاربران عادی هم از این میان‌افزار عبور می‌کند تا ریدایرکت ۳۰۱ اسلاگ قدیمی اعمال شود
+exports.productSlugRedirect = async (req, res, next) => {
+  if (!req.params.slug) return next();
+  try {
+    const slug = String(req.params.slug).toLowerCase();
+    const exists = await Product.exists({ slug });
+    if (exists) return next();
+    const redirected = await Product.findOne({ oldSlugs: slug }).select('slug').lean();
+    if (redirected) return res.redirect(301, `/${req.params.lang || 'fa'}/product/${redirected.slug}`);
+    next();
+  } catch (err) {
+    next();
+  }
+};
 /* ----------------------- رندر داینامیک صفحات کالکشن ----------------------- */
 exports.collectionBotRenderer = async (req, res, next) => {
   if (!isBot(req.headers['user-agent'])) return next();

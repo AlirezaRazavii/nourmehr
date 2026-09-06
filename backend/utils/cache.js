@@ -22,13 +22,14 @@ const KEYS = {
   CATEGORIES: 'public:categories',
   CATEGORY_SLUG: 'public:category:slug:',
   HERO: 'public:hero:',
+  SEO: 'public:seo:',
 };
 
 /**
  * @param {string} key
  * @param {number} ttl
  * @param {Function} fetcher
- * @param {{negativeTtl?: number}} [opts] 
+ * @param {{negativeTtl?: number}} [opts]
  */
 const getOrSet = async (key, ttl, fetcher, opts = {}) => {
   const { negativeTtl = 0 } = opts;
@@ -47,7 +48,7 @@ const getOrSet = async (key, ttl, fetcher, opts = {}) => {
       }
       return fresh ?? null;
     }
-    try { cache.set(key, fresh, ttl); } catch (_) {} 
+    try { cache.set(key, fresh, ttl); } catch (_) {}
     return fresh;
   };
 
@@ -69,22 +70,24 @@ const delByPrefix = (prefix) => {
   return keys.length;
 };
 
-
 const invalidateProductCache = () => {
   delByPrefix(KEYS.PRODUCT_LIST);
   delByPrefix(KEYS.PRODUCT_ONE);
 };
 
-
 const invalidateCategoryCache = () => {
   del(KEYS.CATEGORIES);
   del(KEYS.PRODUCT_CATEGORIES);
   delByPrefix(KEYS.CATEGORY_SLUG);
-  delByPrefix(KEYS.PRODUCT_LIST); 
+  delByPrefix(KEYS.PRODUCT_LIST);
 };
 
 const invalidateHeroCache = () => {
   delByPrefix(KEYS.HERO);
+};
+
+const invalidateSeoCache = () => {
+  delByPrefix(KEYS.SEO);
 };
 
 const flushAll = () => {
@@ -94,5 +97,6 @@ const flushAll = () => {
 
 module.exports = {
   cache, KEYS, getOrSet, del, delByPrefix,
-  invalidateProductCache, invalidateCategoryCache, invalidateHeroCache, flushAll,
+  invalidateProductCache, invalidateCategoryCache,
+  invalidateHeroCache, invalidateSeoCache, flushAll,
 };

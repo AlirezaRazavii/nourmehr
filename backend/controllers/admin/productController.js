@@ -5,7 +5,8 @@ const fsp = require('fs').promises;
 const Product = require('../../models/Product');
 const Category = require('../../models/Category');
 const { PRODUCTS_UPLOAD_DIR } = require('../../middleware/upload');
-const { invalidateProductCache, invalidateCategoryCache } = require('../../utils/cache');
+const { invalidateProductCache, invalidateCategoryCache, invalidateSeoCache } = require('../../utils/cache');
+const { CHANGEFREQS } = require('../../models/shared/seoSchema');
 
 const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -109,6 +110,57 @@ const clampShortDesc = (data) => {
   return data;
 };
 
+/* ---------------------- پاکسازی داده سئوی ارسالی ---------------------- */
+const validUrlOrNull = (x) => {
+  const s = String(x || '').trim();
+  return /^https?:\/\//i.test(s) || s.startsWith('/') ? s : '';
+};
+
+const sanitizeSeo = (seo) => {
+  if (typeof seo !== 'object' || seo === null) return undefined;
+  const lang = (v) => {
+    if (typeof v !== 'object' || v === null) return undefined;
+    return {
+      title: String(v.title || '').trim().slice(0, 75),
+      description: String(v.description || '').trim().slice(0, 175),
+      focusKeyword: String(v.focusKeyword || '').trim().slice(0, 100),
+      canonicalUrl: validUrlOrNull(v.canonicalUrl),
+      ogImage: validUrlOrNull(v.ogImage),
+      ogTitle: String(v.ogTitle || '').trim().slice(0, 95),
+      ogDescription: String(v.ogDescription || '').trim().slice(0, 200),
+      noIndex: v.noIndex === true,
+    };
+  };
+  const sitemap = (v) => {
+    if (typeof v !== 'object' || v === null) return undefined;
+    return {
+      include: v.include !== false,
+      priority: Math.min(1, Math.max(0, Number(v.priority) || 0.9)),
+      changefreq: CHANGEFREQS.includes(v.changefreq) ? v.changefreq : 'weekly',
+    };
+  };
+  const out = {};
+  const fa = lang(seo.fa); if (fa) out.fa = fa;
+  const en = lang(seo.en); if (en) out.en = en;
+  const sm = sitemap(seo.sitemap); if (sm) out.sitemap = sm;
+  return Object.keys(out).length ? out : undefined;
+};
+
+const sanitizeImageAlts = (alts, allowedImages) => {
+  if (!Array.isArray(alts)) return undefined;
+  const allowed = new Set((allowedImages || []).filter(Boolean));
+  return alts
+    .filter((a) => a && typeof a.image === 'string' && a.image.trim() && (!allowed.size || allowed.has(a.image)))
+    .slice(0, 25)
+    .map((a) => ({
+      image: a.image.trim(),
+      alt: {
+        fa: String(a.alt?.fa || '').trim().slice(0, 200),
+        en: String(a.alt?.en || '').trim().slice(0, 200),
+      },
+    }));
+};
+
 /* ---------------------------------- READ ----------------------------------- */
 const getProducts = async (req, res) => {
   try {
@@ -152,7 +204,7 @@ const getProducts = async (req, res) => {
 
     const [products, total] = await Promise.all([
       Product.find(filter)
-        .select('-description -features -relatedProducts')
+        .select('-description -features -relatedProducts -imageAlts -oldSlugs')
         .populate('category', 'name slug')
         .sort(sortOption)
         .skip(skip)
@@ -241,6 +293,15 @@ const createProduct = async (req, res) => {
       productData.images = Array.isArray(gallery) ? gallery.filter(Boolean) : gallery ? [gallery] : [];
     }
     createdImages = [productData.mainImage, ...(productData.images || [])].filter(Boolean);
+        // سئو و alt تصاویر
+    if (productData.seo !== undefined) {
+      const clean = sanitizeSeo(productData.seo);
+      if (clean) productData.seo = clean;
+      else delete productData.seo;
+    }
+    if (productData.imageAlts !== undefined) {
+      productData.imageAlts = sanitizeImageAlts(productData.imageAlts, createdImages) || [];
+    }
 
     if (Array.isArray(relatedProducts)) {
       productData.relatedProducts = [
@@ -254,6 +315,7 @@ const createProduct = async (req, res) => {
 
     invalidateProductCache();
     invalidateCategoryCache();
+    invalidateSeoCache();
 
     res.status(201).json({ success: true, data: product });
   } catch (error) {
@@ -274,7 +336,10 @@ const updateProduct = async (req, res) => {
     const { categoryId, category, image, gallery, relatedProducts, ...rest } = req.body;
     const productData = stripImmutable({ ...rest });
 
-    const existing = await Product.findById(id).select('mainImage images category').lean();
+    const existing = await Product.findById(id)
+      .select('mainImage images category slug oldSlugs imageAlts')
+      .lean();
+
     if (!existing) return res.status(404).json({ success: false, message: 'محصول یافت نشد' });
 
     if (productData.price !== undefined) {
@@ -309,6 +374,13 @@ const updateProduct = async (req, res) => {
       productData.slug = await buildUniqueSlug(productData.slug, id);
     }
 
+        // پاکسازی سئو (اگر seo ارسال نشده باشد، مقدار قبلی دست‌نخورده می‌ماند)
+    if (productData.seo !== undefined) {
+      const clean = sanitizeSeo(productData.seo);
+      if (clean) productData.seo = clean;
+      else delete productData.seo;
+    }
+
     // فایل‌ها فقط جمع می‌شوند؛ حذف واقعی بعد از موفقیت آپدیت انجام می‌شود
     const filesToDelete = [];
 
@@ -326,6 +398,17 @@ const updateProduct = async (req, res) => {
       productData.images = newGallery;
     }
 
+        // altها فقط برای تصاویر نهایی نگه داشته می‌شوند
+    const finalImages = [
+      productData.mainImage ?? existing.mainImage,
+      ...(productData.images ?? existing.images ?? []),
+    ].filter(Boolean);
+    if (productData.imageAlts !== undefined) {
+      productData.imageAlts = sanitizeImageAlts(productData.imageAlts, finalImages) || [];
+    } else {
+      productData.imageAlts = sanitizeImageAlts(existing.imageAlts, finalImages) || [];
+    }
+
     if (Array.isArray(relatedProducts)) {
       productData.relatedProducts = [
         ...new Set(
@@ -338,9 +421,20 @@ const updateProduct = async (req, res) => {
 
     clampShortDesc(productData);
 
+    const updateOps = { $set: productData };
+
+    // اگر اسلاگ تغییر کرده باشد، اسلاگ قبلی برای ریدایرکت ۳۰۱ ثبت می‌شود
+    if (
+      productData.slug &&
+      productData.slug !== existing.slug &&
+      !(existing.oldSlugs || []).includes(existing.slug)
+    ) {
+      updateOps.$push = { oldSlugs: existing.slug };
+    }
+
     const product = await Product.findByIdAndUpdate(
       id,
-      { $set: productData },
+      updateOps,
       { new: true, runValidators: true, context: 'query' }
     ).populate('category', 'name slug');
 
@@ -349,6 +443,7 @@ const updateProduct = async (req, res) => {
     deleteMany(filesToDelete);
     invalidateProductCache();
     if (categoryChanged) invalidateCategoryCache();
+    invalidateSeoCache();
 
     res.json({ success: true, data: product });
   } catch (error) {
@@ -373,6 +468,7 @@ const deleteProduct = async (req, res) => {
     deleteMany([product.mainImage, ...(product.images || [])]);
     invalidateProductCache();
     invalidateCategoryCache();
+    invalidateSeoCache();
 
     res.json({ success: true, message: 'محصول حذف شد' });
   } catch (error) {

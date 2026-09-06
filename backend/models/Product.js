@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
 
+const { seoSchema } = require('./shared/seoSchema');
+
 const localizedShort = (max) => ({
   fa: { type: String, trim: true, maxlength: max, default: '' },
   en: { type: String, trim: true, maxlength: max, default: '' },
@@ -130,6 +132,26 @@ const productSchema = new mongoose.Schema(
         message: 'حداکثر ۱۲ محصول مرتبط مجاز است',
       },
     },
+        // ---------- سئو ----------
+    seo: seoSchema({ priority: 0.9, changefreq: 'weekly' }),
+
+    // alt جدا برای هر تصویر (کلید = مسیر تصویر)
+    imageAlts: {
+      type: [
+        {
+          _id: false,
+          image: { type: String, trim: true, required: true },
+          alt: {
+            fa: { type: String, trim: true, maxlength: 200, default: '' },
+            en: { type: String, trim: true, maxlength: 200, default: '' },
+          },
+        },
+      ],
+      default: [],
+    },
+
+    // اسلاگ‌های قدیمی برای ریدایرکت ۳۰۱ خودکار (مثل Blog)
+    oldSlugs: { type: [String], default: [], index: true },
   },
   {
     timestamps: true,

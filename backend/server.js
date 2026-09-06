@@ -238,7 +238,7 @@ if (fs.existsSync(DIST_DIR)) {
   // رندر داینامیک صفحات اخبار برای ربات‌های موتور جستجو + ریدایرکت ۳۰۱ slugهای قدیمی
   app.get('/:lang/news/:slug', seoController.newsBotRenderer, seoController.newsSlugRedirect);
   app.get('/:lang/news', seoController.newsBotRenderer);
-  app.get('/:lang/product/:slug', seoController.productBotRenderer);
+  app.get('/:lang/product/:slug', seoController.productBotRenderer, seoController.productSlugRedirect);
   app.get('/:lang/collection/:slug', seoController.collectionBotRenderer);
   app.get('/:lang/collections/:slug', seoController.collectionBotRenderer);
 
