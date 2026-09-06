@@ -107,8 +107,6 @@ export default defineConfig(({ command }) => ({
           }
           if (id.includes('/src/assests/locales/fa.json')) return 'locale-fa'
           if (id.includes('/src/assests/locales/en.json')) return 'locale-en'
-          if (id.includes('/src/views/admin/')) return 'panel-admin'
-          if (id.includes('/src/views/user/')) return 'panel-user'
         },
       },
     },
