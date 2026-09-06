@@ -103,7 +103,7 @@
                   </div>
                 </div>
 
-                <router-link :to="{ name: 'ProductDetails', params: { lang: locale, id: product._id || product.id || product.slug } }" class="view-btn" @click.stop>
+                <router-link :to="{ name: 'ProductDetails', params: { lang: locale, id: product.slug || product._id || product.id } }" class="view-btn" @click.stop>
                   <span class="view-text">{{ $t('products_view') }}</span>
                   <span class="view-arrow">
                     <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
@@ -164,7 +164,7 @@ const getCategoryIcon = (category) => {
 
 const goToProduct = (p) => {
   if (p?._id || p?.id) {
-    router.push({ name: 'ProductDetails', params: { lang: locale.value, id: p._id || p.id } })
+    router.push({ name: 'ProductDetails', params: { lang: locale.value, id: p.slug || p._id || p.id } })
   }
 }
 

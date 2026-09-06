@@ -76,7 +76,7 @@
 
               <div class="card-footer">
                 <router-link
-                  :to="{ name: 'ProductDetails', params: { lang: locale, id: product._id } }"
+                  :to="{ name: 'ProductDetails', params: { lang: locale, id: product.slug || product._id } }"
                   class="view-btn"
                 >
                   <span class="view-text">{{ $t('products_view') }}</span>
