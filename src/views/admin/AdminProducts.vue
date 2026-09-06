@@ -3,7 +3,7 @@ import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { adminApi } from '../../services/adminApi'
 import { getImageUrl } from '../../utils/imageUrl'
-import SeoPanel from '../../components/admin/SeoPanel.vue'
+import SeoPanel from './SeoPanel.vue'
 
 
 const route = useRoute()
