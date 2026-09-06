@@ -518,9 +518,18 @@ exports.productBotRenderer = async (req, res, next) => {
       .lean();
 
     if (!product) {
+      // لینک‌های ObjectId سایت → ۳۰۱ به آدرس استاندارد اسلاگ
+      if (/^[0-9a-f]{24}$/.test(slug)) {
+        const byId = await Product.findOne({ _id: slug, status: { $in: PUBLIC_PRODUCT_STATUSES } })
+          .select('slug')
+          .lean();
+        if (byId && byId.slug) {
+          return res.redirect(301, `/${lang}/product/${encodeURIComponent(byId.slug)}`);
+        }
+      }
       // ریدایرکت ۳۰۱ برای اسلاگ‌های قدیمی
       const redirected = await Product.findOne({ oldSlugs: slug }).select('slug').lean();
-      if (redirected) return res.redirect(301, `/${lang}/product/${redirected.slug}`);
+      if (redirected) return res.redirect(301, `/${lang}/product/${encodeURIComponent(redirected.slug)}`);
       res.setHeader('X-Robots-Tag', 'noindex, nofollow');
       return res.status(404).send(renderProductNotFound(lang));
     }
@@ -685,20 +694,30 @@ exports.productBotRenderer = async (req, res, next) => {
   }
 };
 
-// مسیر محصول برای کاربران عادی هم از این میان‌افزار عبور می‌کند تا ریدایرکت ۳۰۱ اسلاگ قدیمی اعمال شود
+// مسیر محصول برای کاربران عادی هم از این میان‌افزار عبور می‌کند تا ریدایرکت ۳۰۱ اعمال شود
 exports.productSlugRedirect = async (req, res, next) => {
   if (!req.params.slug) return next();
   try {
     const slug = String(req.params.slug).toLowerCase();
     const exists = await Product.exists({ slug });
     if (exists) return next();
+
+    // لینک‌های ObjectId → ۳۰۱ به آدرس اسلاگ
+    if (/^[0-9a-f]{24}$/.test(slug)) {
+      const byId = await Product.findOne({ _id: slug }).select('slug').lean();
+      if (byId && byId.slug) {
+        return res.redirect(301, `/${req.params.lang || 'fa'}/product/${encodeURIComponent(byId.slug)}`);
+      }
+    }
+
     const redirected = await Product.findOne({ oldSlugs: slug }).select('slug').lean();
-    if (redirected) return res.redirect(301, `/${req.params.lang || 'fa'}/product/${redirected.slug}`);
+    if (redirected) return res.redirect(301, `/${req.params.lang || 'fa'}/product/${encodeURIComponent(redirected.slug)}`);
     next();
   } catch (err) {
     next();
   }
 };
+
 /* ----------------------- رندر داینامیک صفحات کالکشن ----------------------- */
 exports.collectionBotRenderer = async (req, res, next) => {
   if (!isBot(req.headers['user-agent'])) return next();

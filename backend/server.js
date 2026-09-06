@@ -261,6 +261,9 @@ if (fs.existsSync(DIST_DIR)) {
     if (req.method !== 'GET' || req.path.startsWith('/api') || req.path.startsWith('/uploads')) return next();
     if (req.path.endsWith('.xml') || req.path.endsWith('.txt')) return next();
     res.setHeader('Cache-Control', 'no-cache');
+    // CSP هلمت (default-src 'none') روی HTML اپ همه‌ی فایل‌ها را بلاک می‌کند و صفحه سفید می‌شود؛
+    // CSP درست داخل خود index.html بیلدشده (متا تگ) وجود دارد و کافی است.
+    res.removeHeader('Content-Security-Policy');
     res.sendFile(path.join(DIST_DIR, 'index.html'));
   });
 }
