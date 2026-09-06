@@ -57,7 +57,7 @@ const getCategoryIcon = (category) => {
 }
 
 // شناسه‌ی محصول را از هر ساختاری استخراج می‌کند
-const productId = (p) => p?._id || p?.id || p?.slug || ''
+const productId = (p) => p?.slug || p?._id || p?.id || ''
 
 const goToProduct = (p) => {
   const id = productId(p)

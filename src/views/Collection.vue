@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import api from '../services/api'
 import { getImageUrl } from '../utils/imageUrl'
 import { useCart } from '../stores/cart'
@@ -9,6 +10,7 @@ import { getProductPriceInfo } from '../utils/productPrice'
 
 const route = useRoute()
 const router = useRouter()
+const { locale } = useI18n()
 const cartStore = useCart()
 const productStore = useProductStore()
 
@@ -135,13 +137,17 @@ onUnmounted(() => {
 
 const formatPrice = (n) => Number(n || 0).toLocaleString('fa-IR')
 
-const goToProduct = (id) => {
+const goToProduct = (target) => {
+  const id = typeof target === 'string'
+    ? target
+    : target?.slug || target?._id || target?.id
   if (!id) return
-  router.push(`/product/${id}`)
+  router.push({ name: 'ProductDetails', params: { lang: locale.value, id } })
 }
 
 const goToCategory = (slug) => {
-  router.push(`/collection/${slug}`)
+  if (!slug) return
+  router.push({ name: 'Collection', params: { lang: locale.value, slug } })
 }
 
 const renderStars = (rating) => {

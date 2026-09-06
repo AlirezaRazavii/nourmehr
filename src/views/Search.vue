@@ -1,11 +1,13 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useProductStore } from '../stores/products'
 
 const productStore = useProductStore()
 const route = useRoute()
 const router = useRouter()
+const { locale } = useI18n()
 
 // Products from store
 const products = computed(() => productStore.products)
@@ -59,8 +61,12 @@ const filteredProducts = computed(() => {
   return result
 })
 
-const goToProduct = (id) => {
-  router.push(`/product/${id}`)
+const goToProduct = (target) => {
+  const id = typeof target === 'string'
+    ? target
+    : target?.slug || target?._id || target?.id
+  if (!id) return
+  router.push({ name: 'ProductDetails', params: { lang: locale.value, id } })
 }
 
 watch(() => route.query.search, (newSearch) => {

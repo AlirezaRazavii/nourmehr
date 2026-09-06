@@ -249,7 +249,7 @@ const submitDrawerSearch = () => {
 }
 
 const goProduct = (p) => {
-  const id = p?._id || p?.id || p?.slug
+  const id = p?.slug || p?._id || p?.id
   if (!id) return
   closeSuggest()
   closeDrawer()
