@@ -442,5 +442,123 @@ exports.newsSlugRedirect = async (req, res, next) => {
   }
 };
 
+/* ----------------------- رندر داینامیک صفحات محصول ----------------------- */
+exports.productBotRenderer = async (req, res, next) => {
+  if (!isBot(req.headers['user-agent'])) return next();
+  try {
+    const lang = req.params.lang || 'fa';
+    const slug = String(req.params.slug || '').toLowerCase();
+
+    const product = await Product.findOne({ slug, status: 'active' })
+      .populate('category', 'slug name')
+      .lean();
+
+    if (!product) return next();
+
+    const name = pick(product.name, lang);
+    const description = truncate(
+      pick(product.description, lang) || pick(product.shortDescription, lang) || name, 160
+    );
+    const canonical = absoluteUrl(`/${lang}/product/${product.slug}`);
+    const image = product.images?.[0] || product.image || '';
+
+    const head = metaTags({ title: name, description, canonical, lang, image, type: 'product' });
+
+    const jsonLd = {
+      '@context': 'https://schema.org',
+      '@type': 'Product',
+      name,
+      description,
+      image: image ? [absoluteUrl(image)] : undefined,
+      url: canonical,
+      offers: product.price ? {
+        '@type': 'Offer',
+        price: product.price,
+        priceCurrency: 'IRR',
+        availability: 'https://schema.org/InStock',
+        url: canonical
+      } : undefined,
+      brand: { '@type': 'Brand', name: 'نورمهر' }
+    };
+
+    const breadcrumbLd = {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: lang === 'fa' ? 'خانه' : 'Home', item: `${SITE_URL}/${lang}` },
+        { '@type': 'ListItem', position: 2, name: lang === 'fa' ? 'محصولات' : 'Products', item: `${SITE_URL}/${lang}/products` },
+        { '@type': 'ListItem', position: 3, name, item: canonical }
+      ]
+    };
+
+    const body = `
+    <article>
+      <nav>
+        <a href="/${lang}">${lang === 'fa' ? 'خانه' : 'Home'}</a> ›
+        <a href="/${lang}/products">${lang === 'fa' ? 'محصولات' : 'Products'}</a> ›
+        <span>${escapeHtml(name)}</span>
+      </nav>
+      <h1>${escapeHtml(name)}</h1>
+      ${image ? `<img src="${escapeHtml(absoluteUrl(image))}" alt="${escapeHtml(name)}" width="800" />` : ''}
+      <p>${escapeHtml(description)}</p>
+      ${product.price ? `<p>${lang === 'fa' ? 'قیمت' : 'Price'}: ${Number(product.price).toLocaleString()} ${lang === 'fa' ? 'تومان' : 'IRR'}</p>` : ''}
+      <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
+      <script type="application/ld+json">${JSON.stringify(breadcrumbLd)}</script>
+    </article>`;
+
+    res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self' data: https:; style-src 'unsafe-inline'");
+    return res.send(pageShell(lang, head, body));
+  } catch (err) {
+    console.error('Product bot renderer error:', err);
+    next();
+  }
+};
+
+/* ----------------------- رندر داینامیک صفحات کالکشن ----------------------- */
+exports.collectionBotRenderer = async (req, res, next) => {
+  if (!isBot(req.headers['user-agent'])) return next();
+  try {
+    const lang = req.params.lang || 'fa';
+    const slug = String(req.params.slug || '').toLowerCase();
+
+    const collection = await Collection.findOne({ slug, status: 'active' }).lean();
+    if (!collection) return next();
+
+    const name = pick(collection.name, lang);
+    const description = truncate(pick(collection.description, lang) || name, 160);
+    const canonical = absoluteUrl(`/${lang}/collection/${collection.slug}`);
+    const image = collection.image || '';
+
+    const head = metaTags({ title: name, description, canonical, lang, image });
+
+    const jsonLd = {
+      '@context': 'https://schema.org',
+      '@type': 'CollectionPage',
+      name,
+      description,
+      url: canonical,
+      image: image ? absoluteUrl(image) : undefined
+    };
+
+    const body = `
+    <article>
+      <nav>
+        <a href="/${lang}">${lang === 'fa' ? 'خانه' : 'Home'}</a> ›
+        <span>${escapeHtml(name)}</span>
+      </nav>
+      <h1>${escapeHtml(name)}</h1>
+      ${image ? `<img src="${escapeHtml(absoluteUrl(image))}" alt="${escapeHtml(name)}" width="800" />` : ''}
+      <p>${escapeHtml(description)}</p>
+      <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
+    </article>`;
+
+    res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self' data: https:; style-src 'unsafe-inline'");
+    return res.send(pageShell(lang, head, body));
+  } catch (err) {
+    console.error('Collection bot renderer error:', err);
+    next();
+  }
+};
+
 module.exports.SITE_URL = SITE_URL;
 module.exports.isBot = isBot;
