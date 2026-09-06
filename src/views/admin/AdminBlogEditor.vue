@@ -67,20 +67,20 @@
             <div class="form-group">
               <label class="form-label">عنوان متا (SEO Title)</label>
               <div class="counter-wrap">
-                <input :value="activeLang === 'fa' ? form.seo.title.fa : form.seo.title.en" @input="setSeo('title', $event.target.value)" type="text" class="form-input" :dir="activeLang === 'fa' ? 'rtl' : 'ltr'" :placeholder="activeLang === 'fa' ? 'خالی = عنوان مقاله' : 'Empty = post title'" />
+                <input :value="form.seo[activeLang].title" @input="setSeo('title', $event.target.value)" type="text" class="form-input" :dir="activeLang === 'fa' ? 'rtl' : 'ltr'" :placeholder="activeLang === 'fa' ? 'خالی = عنوان مقاله' : 'Empty = post title'" />
                 <span class="char-counter" :class="{ warn: seoTitleLen > 60 }">{{ seoTitleLen }}/60</span>
               </div>
             </div>
             <div class="form-group">
               <label class="form-label">توضیحات متا (Meta Description)</label>
               <div class="counter-wrap">
-                <textarea :value="activeLang === 'fa' ? form.seo.description.fa : form.seo.description.en" @input="setSeo('description', $event.target.value)" rows="2" class="form-input" :dir="activeLang === 'fa' ? 'rtl' : 'ltr'" :placeholder="activeLang === 'fa' ? 'خالی = خلاصه مقاله' : 'Empty = excerpt'"></textarea>
+                <textarea :value="form.seo[activeLang].description" @input="setSeo('description', $event.target.value)" rows="2" class="form-input" :dir="activeLang === 'fa' ? 'rtl' : 'ltr'" :placeholder="activeLang === 'fa' ? 'خالی = خلاصه مقاله' : 'Empty = excerpt'"></textarea>
                 <span class="char-counter" :class="{ warn: seoDescLen > 160 }">{{ seoDescLen }}/160</span>
               </div>
             </div>
             <div class="form-group">
-              <label class="form-label">کلمات کلیدی (با , جدا کنید)</label>
-              <input :value="activeLang === 'fa' ? form.seo.keywords.fa : form.seo.keywords.en" @input="setSeo('keywords', $event.target.value)" type="text" class="form-input" :dir="activeLang === 'fa' ? 'rtl' : 'ltr'" placeholder="کلمه کلیدی ۱, کلمه کلیدی ۲" />
+              <label class="form-label">کلمه کلیدی کانونی</label>
+              <input :value="form.seo[activeLang].focusKeyword" @input="setSeo('focusKeyword', $event.target.value)" type="text" class="form-input" :dir="activeLang === 'fa' ? 'rtl' : 'ltr'" :placeholder="activeLang === 'fa' ? 'کلمه اصلی هدف این مقاله' : 'Focus keyword'" />
             </div>
             <div class="form-row">
               <div class="form-group">
@@ -89,26 +89,26 @@
               </div>
               <div class="form-group">
                 <label class="form-label">Canonical URL (اختیاری)</label>
-                <input v-model="form.seo.canonicalUrl" type="text" class="form-input" dir="ltr" placeholder="https://nourmehr.ir/..." />
+                <input :value="form.seo[activeLang].canonicalUrl" @input="setSeo('canonicalUrl', $event.target.value)" type="text" class="form-input" dir="ltr" placeholder="https://nourmehr.ir/..." />
               </div>
             </div>
             <div class="form-row">
               <div class="form-group">
-                <label class="form-label">تصویر OG (اشتراک‌گذاری)</label>
+                <label class="form-label">تصویر OG (اشتراک‌گذاری) — {{ activeLang === 'fa' ? 'فارسی' : 'English' }}</label>
                 <div class="og-row">
-                  <img v-if="form.seo.ogImage" :src="getImageUrl(form.seo.ogImage)" class="og-preview" alt="OG" />
-                  <button type="button" class="upload-btn" @click="triggerOgUpload">{{ form.seo.ogImage ? 'تغییر' : 'آپلود' }}</button>
-                  <button v-if="form.seo.ogImage" type="button" class="upload-btn remove" @click="form.seo.ogImage = ''">حذف</button>
+                  <img v-if="form.seo[activeLang].ogImage" :src="getImageUrl(form.seo[activeLang].ogImage)" class="og-preview" alt="OG" />
+                  <button type="button" class="upload-btn" @click="triggerOgUpload">{{ form.seo[activeLang].ogImage ? 'تغییر' : 'آپلود' }}</button>
+                  <button v-if="form.seo[activeLang].ogImage" type="button" class="upload-btn remove" @click="form.seo[activeLang].ogImage = ''">حذف</button>
                   <input type="file" ref="ogInput" accept="image/*" style="display:none" @change="uploadOgImage" />
                 </div>
-                <p v-if="!form.seo.ogImage && form.image" class="hint">خالی = از تصویر شاخص استفاده می‌شود</p>
+                <p v-if="!form.seo[activeLang].ogImage && form.image" class="hint">خالی = از تصویر شاخص استفاده می‌شود</p>
               </div>
               <div class="form-group">
                 <label class="form-label noindex-toggle">
-                  <input type="checkbox" v-model="form.seo.noIndex" />
-                  خروج از ایندکس گوگل (noindex)
+                  <input type="checkbox" v-model="form.seo[activeLang].noIndex" />
+                  خروج از ایندکس گوگل برای {{ activeLang === 'fa' ? 'فارسی' : 'English' }} (noindex)
                 </label>
-                <p class="hint">با فعال‌کردن این گزینه موتورهای جستجو این مقاله را ایندکس نمی‌کنند.</p>
+                <p class="hint">با فعال‌کردن این گزینه موتورهای جستجو این نسخه‌ی زبان را ایندکس نمی‌کنند.</p>
               </div>
             </div>
           </div>
@@ -246,13 +246,9 @@ const blankForm = () => ({
   viewsCount: 0,
   authorName: '',
   seo: {
-    title: { fa: '', en: '' },
-    description: { fa: '', en: '' },
-    keywords: { fa: '', en: '' },
-    canonicalUrl: '',
-    ogImage: '',
-    noIndex: false,
-    focusKeyword: ''
+    fa: { title: '', description: '', focusKeyword: '', canonicalUrl: '', ogImage: '', ogTitle: '', ogDescription: '', noIndex: false },
+    en: { title: '', description: '', focusKeyword: '', canonicalUrl: '', ogImage: '', ogTitle: '', ogDescription: '', noIndex: false },
+    sitemap: { include: true, priority: 0.8, changefreq: 'weekly' }
   }
 })
 
@@ -336,16 +332,16 @@ const uploadEditorImage = async (e) => {
 
 /* -------------------------------- سئو -------------------------------- */
 const setSeo = (field, value) => {
-  form.seo[field][activeLang.value] = value
+  form.seo[activeLang.value][field] = value
 }
 
-const seoTitleLen = computed(() => (activeLang.value === 'fa' ? form.seo.title.fa : form.seo.title.en).length)
-const seoDescLen = computed(() => (activeLang.value === 'fa' ? form.seo.description.fa : form.seo.description.en).length)
+const seoTitleLen = computed(() => form.seo[activeLang.value].title.length)
+const seoDescLen = computed(() => form.seo[activeLang.value].description.length)
 
 const googlePreview = computed(() => {
   const lang = activeLang.value
-  const title = (lang === 'fa' ? form.seo.title.fa : form.seo.title.en) || (lang === 'fa' ? form.title.fa : form.title.en) || 'عنوان مقاله'
-  const desc = (lang === 'fa' ? form.seo.description.fa : form.seo.description.en)
+  const title = form.seo[lang].title || (lang === 'fa' ? form.title.fa : form.title.en) || 'عنوان مقاله'
+  const desc = form.seo[lang].description
     || (lang === 'fa' ? form.excerpt.fa : form.excerpt.en)
     || 'توضیحات متا در این قسمت نمایش داده می‌شود...'
   const slug = form.slug || (lang === 'fa' ? form.title.fa : form.title.en).replace(/\s+/g, '-') || 'post'
@@ -367,7 +363,7 @@ const uploadOgImage = async (e) => {
     const fd = new FormData()
     fd.append('image', file)
     const res = await api.post('/admin/blogs/upload-image', fd)
-    if (res.data?.success && res.data.filePath) form.seo.ogImage = res.data.filePath
+    if (res.data?.success && res.data.filePath) form.seo[activeLang.value].ogImage = res.data.filePath
   } catch (err) {
     alert('خطا در آپلود: ' + (err.response?.data?.message || err.message))
   } finally {
@@ -467,11 +463,14 @@ const load = async () => {
         category: b.category?._id || b.category || null,
         tags: (b.tags || []).map(t => ({ slug: t.slug, fa: t.fa, en: t.en })),
         seo: {
-          ...blankForm().seo,
-          ...(b.seo || {}),
-          title: { fa: b.seo?.title?.fa || '', en: b.seo?.title?.en || '' },
-          description: { fa: b.seo?.description?.fa || '', en: b.seo?.description?.en || '' },
-          keywords: { fa: b.seo?.keywords?.fa || '', en: b.seo?.keywords?.en || '' }
+          fa: {
+            ...blankForm().seo.fa,
+            ...(b.seo?.fa || {}),
+            canonicalUrl: b.seo?.fa?.canonicalUrl || (typeof b.seo?.canonicalUrl === 'string' ? b.seo.canonicalUrl : ''),
+            ogImage: b.seo?.fa?.ogImage || (typeof b.seo?.ogImage === 'string' ? b.seo.ogImage : '')
+          },
+          en: { ...blankForm().seo.en, ...(b.seo?.en || {}) },
+          sitemap: { ...blankForm().sitemap, ...(b.seo?.sitemap || {}) }
         }
       })
       if (form.status === 'scheduled' && form.publishedAt) {
