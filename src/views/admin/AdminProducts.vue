@@ -3,6 +3,8 @@ import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { adminApi } from '../../services/adminApi'
 import { getImageUrl } from '../../utils/imageUrl'
+import SeoPanel from '../../components/admin/SeoPanel.vue'
+
 
 const route = useRoute()
 const router = useRouter()
@@ -63,7 +65,12 @@ const blankForm = () => ({
   image: '', gallery: [], status: 'active',
   weight: '', dimensions: '',
   material: { fa: '', en: '' }, craftsman: { fa: '', en: '' }, warranty: { fa: '', en: '' },
-  sku: '', featuresText: { fa: '', en: '' }, sizes: [], colors: [], relatedProducts: []
+  sku: '', featuresText: { fa: '', en: '' }, sizes: [], colors: [], relatedProducts: [],
+  seo: {
+    fa: { title: '', description: '', focusKeyword: '', canonicalUrl: '', ogImage: '', ogTitle: '', ogDescription: '', noIndex: false },
+    en: { title: '', description: '', focusKeyword: '', canonicalUrl: '', ogImage: '', ogTitle: '', ogDescription: '', noIndex: false },
+    sitemap: { include: true, priority: 0.9, changefreq: 'weekly' }
+  }
 })
 const form = ref(blankForm())
 
@@ -278,7 +285,13 @@ const openEdit = (product) => {
       : [],
     relatedProducts: Array.isArray(product.relatedProducts)
       ? product.relatedProducts.map(rp => (typeof rp === 'object' ? (rp._id || rp.id) : rp)).filter(Boolean)
-      : []
+      : [],
+
+    seo: {
+      fa: { title: '', description: '', focusKeyword: '', canonicalUrl: '', ogImage: '', ogTitle: '', ogDescription: '', noIndex: false, ...(product.seo?.fa || {}) },
+      en: { title: '', description: '', focusKeyword: '', canonicalUrl: '', ogImage: '', ogTitle: '', ogDescription: '', noIndex: false, ...(product.seo?.en || {}) },
+      sitemap: { include: true, priority: 0.9, changefreq: 'weekly', ...(product.seo?.sitemap || {}) }
+    }
   }
 
   // تصاویری که واقعاً در دیتابیس ذخیره شده‌اند
@@ -444,6 +457,9 @@ const buildPayload = () => {
   // (ساخت: بک‌اند خودش از نام می‌سازد / ویرایش: اسلاگ قبلی دست‌نخورده می‌ماند)
   payload.slug = form.value.slug.trim() ? slugify(form.value.slug) : ''
   if (!payload.slug) delete payload.slug
+
+  // سئو — همان آبجکت فرم (بک‌اند خودش پاکسازی می‌کند)
+  payload.seo = form.value.seo
 
   return payload
 }
@@ -635,6 +651,17 @@ onUnmounted(() => {
                   <input v-model="form.name.en" type="text" class="form-input" placeholder="English Name" dir="ltr" />
                 </div>
                 <span v-if="formErrors.name" class="error-text">{{ formErrors.name }}</span>
+              </div>
+              <div class="form-group full seo-block">
+                <label class="form-label">سئو (SEO)</label>
+                <SeoPanel
+                  v-model="form.seo"
+                  :slug="form.slug"
+                  :default-title="form.name.fa"
+                  :default-description="form.shortDesc.fa || form.description.fa"
+                  :default-image="form.image"
+                  :images="[form.image, ...form.gallery].filter(Boolean)"
+                />
               </div>
               <div class="form-group full">
                 <label class="form-label">آدرس محصول (Slug)</label>
@@ -951,6 +978,7 @@ onUnmounted(() => {
 .slug-regen-btn { min-width: 42px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04); color: #facc6b; cursor: pointer; font-size: 1.1rem; flex-shrink: 0; transition: background 0.2s ease; }
 .slug-regen-btn:hover { background: rgba(197,160,89,0.15); }
 .slug-preview { direction: ltr; text-align: left; word-break: break-all; color: rgba(197,160,89,0.75); }
+.seo-block .seo-panel { padding: 14px; border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; background: rgba(255,255,255,0.02); }
 .sizes-container, .colors-container { display: flex; flex-direction: column; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 8px; position: sticky; bottom: 0; background: linear-gradient(to top, rgba(8,10,18,1), transparent); padding-top: 10px; }
 .cancel-btn { padding: 10px 24px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: rgba(255,255,255,0.7); font-size: 0.9rem; cursor: pointer; transition: background 0.2s ease; font-family: inherit; }
