@@ -38,16 +38,24 @@ const localizeBlog = (blog, lang, { full = false } = {}) => {
     imageAlt: pick(b.imageAlt, lang)
   };
 
-  // سئو: اول فیلد اختصاصی، بعد fallback به عنوان/خلاصه
+  // سئو: هر دو ساختار قدیم (seo.title تخت) و جدید (seo.fa.title) را می‌خواند
   const seo = b.seo || {};
+  const seoLang = (field) => {
+    const vNew = seo[lang]?.[field];
+    if (vNew !== undefined && vNew !== '') return vNew;
+    const vOld = seo[field];
+    if (vOld && typeof vOld === 'object') return vOld[lang] || vOld.fa || vOld.en || '';
+    return '';
+  };
   localized.seo = {
-    title: pick(seo.title, lang) || localized.title,
-    description: pick(seo.description, lang) || localized.excerpt,
-    keywords: pick(seo.keywords, lang),
-    canonicalUrl: seo.canonicalUrl || '',
-    ogImage: seo.ogImage || b.image || '',
-    noIndex: !!seo.noIndex,
-    focusKeyword: seo.focusKeyword || ''
+    title: seoLang('title') || localized.title,
+    description: seoLang('description') || localized.excerpt,
+    keywords: '',
+    canonicalUrl: seoLang('canonicalUrl') || (typeof seo.canonicalUrl === 'string' ? seo.canonicalUrl : ''),
+    ogImage: seoLang('ogImage') || (typeof seo.ogImage === 'string' ? seo.ogImage : '') || b.image || '',
+    noIndex: seo[lang]?.noIndex === true || seo.noIndex === true,
+    focusKeyword: seoLang('focusKeyword') || (typeof seo.focusKeyword === 'string' ? seo.focusKeyword : ''),
+    sitemap: seo.sitemap || null
   };
 
   if (full) {
