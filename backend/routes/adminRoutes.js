@@ -36,6 +36,105 @@ const reviewController = require('../controllers/admin/reviewController');
 const notificationController = require('../controllers/admin/notificationController');
 const heroCtrl = require('../controllers/admin/heroController');
 
+const { CHANGEFREQS } = require('../models/shared/seoSchema');
+const Blog = require('../models/Blog');
+
+/* ---- نرمال‌سازی سئوی مقاله: هر دو ساختار قدیم/جدید → ساختار جدید ---- */
+const BLANK_SEO_LANG = () => ({
+  title: '', description: '', focusKeyword: '',
+  canonicalUrl: '', ogImage: '', ogTitle: '', ogDescription: '', noIndex: false
+});
+
+const toNewSeo = (seo) => {
+  const out = {
+    fa: BLANK_SEO_LANG(),
+    en: BLANK_SEO_LANG(),
+    sitemap: { include: true, priority: 0.8, changefreq: 'weekly' }
+  };
+  if (!seo || typeof seo !== 'object') return { seo: out, fromNew: false };
+
+  // ساختار جدید (SeoPanel)
+  let fromNew = false;
+  ['fa', 'en'].forEach((l) => {
+    const v = seo[l];
+    if (v && typeof v === 'object') {
+      fromNew = true;
+      out[l].title = String(v.title || '').trim().slice(0, 75);
+      out[l].description = String(v.description || '').trim().slice(0, 175);
+      out[l].focusKeyword = String(v.focusKeyword || '').trim().slice(0, 100);
+      out[l].canonicalUrl = /^https?:\/\/|^\/.+/i.test(String(v.canonicalUrl || '')) ? String(v.canonicalUrl).trim() : '';
+      out[l].ogImage = /^https?:\/\/|^\/.+/i.test(String(v.ogImage || '')) ? String(v.ogImage).trim() : '';
+      out[l].ogTitle = String(v.ogTitle || '').trim().slice(0, 95);
+      out[l].ogDescription = String(v.ogDescription || '').trim().slice(0, 200);
+      out[l].noIndex = v.noIndex === true;
+    }
+  });
+
+  // ساختار قدیمی (فرم فعلی ویرایشگر اخبار) — فقط فیلدهای پرشده
+  if (seo.title && typeof seo.title === 'object') {
+    out.fa.title = out.fa.title || String(seo.title.fa || '').trim().slice(0, 75);
+    out.en.title = out.en.title || String(seo.title.en || '').trim().slice(0, 75);
+  }
+  if (seo.description && typeof seo.description === 'object') {
+    out.fa.description = out.fa.description || String(seo.description.fa || '').trim().slice(0, 175);
+    out.en.description = out.en.description || String(seo.description.en || '').trim().slice(0, 175);
+  }
+  if (seo.keywords && typeof seo.keywords === 'object') {
+    out.fa.focusKeyword = out.fa.focusKeyword || String(seo.keywords.fa || '').split(',')[0].trim().slice(0, 100);
+    out.en.focusKeyword = out.en.focusKeyword || String(seo.keywords.en || '').split(',')[0].trim().slice(0, 100);
+  }
+  if (typeof seo.focusKeyword === 'string' && seo.focusKeyword.trim()) {
+    out.fa.focusKeyword = out.fa.focusKeyword || seo.focusKeyword.trim().slice(0, 100);
+  }
+  if (typeof seo.canonicalUrl === 'string' && /^https?:\/\/|^\/.+/i.test(seo.canonicalUrl)) {
+    out.fa.canonicalUrl = out.fa.canonicalUrl || seo.canonicalUrl.trim();
+  }
+  if (typeof seo.ogImage === 'string' && /^https?:\/\/|^\/.+/i.test(seo.ogImage)) {
+    out.fa.ogImage = out.fa.ogImage || seo.ogImage.trim();
+    out.en.ogImage = out.en.ogImage || seo.ogImage.trim();
+  }
+  if (seo.noIndex === true) out.fa.noIndex = true;
+
+  if (seo.sitemap && typeof seo.sitemap === 'object') {
+    out.sitemap = {
+      include: seo.sitemap.include !== false,
+      priority: Math.min(1, Math.max(0, Number(seo.sitemap.priority) || 0.8)),
+      changefreq: CHANGEFREQS.includes(seo.sitemap.changefreq) ? seo.sitemap.changefreq : 'weekly'
+    };
+  }
+  return { seo: out, fromNew };
+};
+
+const normalizeBlogSeo = async (req, res, next) => {
+  try {
+    if (!req.body || req.body.seo === undefined) return next();
+
+    const { seo, fromNew } = toNewSeo(req.body.seo);
+
+    // فرم قدیمی، سئوی ذخیره‌شده (ساختار جدید) را «نمی‌بیند» و فیلدهایش خالی است؛
+    // نباید موقع ذخیره، مقادیر موجود را پاک کند:
+    if (!fromNew && req.params.id) {
+      const existing = await Blog.findById(req.params.id).select('seo').lean();
+      if (existing?.seo) {
+        const cur = toNewSeo(existing.seo).seo;
+        ['fa', 'en'].forEach((l) => {
+          Object.keys(seo[l]).forEach((k) => {
+            const v = seo[l][k];
+            const c = cur[l][k];
+            if ((v === '' || v === false) && c !== '' && c !== false) seo[l][k] = c;
+          });
+        });
+        seo.sitemap = cur.sitemap;
+      }
+    }
+
+    req.body.seo = seo;
+    next();
+  } catch (e) {
+    next();
+  }
+};
+
 const router = express.Router();
 
 router.use(protect, admin);
@@ -147,9 +246,9 @@ router.delete('/collections/:id', hasPermission(PERMISSIONS.COLLECTIONS), delete
 router.get('/blogs', hasPermission(PERMISSIONS.BLOGS), blogController.getBlogs);
 router.post('/blogs/upload-image', hasPermission(PERMISSIONS.BLOGS), blogUpload.single('image'), handleUploadError, blogController.uploadBlogImage);
 router.post('/blogs/bulk', hasPermission(PERMISSIONS.BLOGS), blogController.bulkAction);
-router.post('/blogs', hasPermission(PERMISSIONS.BLOGS), blogController.createBlog);
+router.post('/blogs', hasPermission(PERMISSIONS.BLOGS), normalizeBlogSeo, blogController.createBlog);
 router.get('/blogs/:id', hasPermission(PERMISSIONS.BLOGS), blogController.getBlogById);
-router.put('/blogs/:id', hasPermission(PERMISSIONS.BLOGS), blogController.updateBlog);
+router.put('/blogs/:id', hasPermission(PERMISSIONS.BLOGS), normalizeBlogSeo, blogController.updateBlog);
 router.delete('/blogs/:id', hasPermission(PERMISSIONS.BLOGS), blogController.deleteBlog);
 
 /* --------------------- دسته‌بندی و نظرات اخبار و مقالات --------------------- */
