@@ -57,6 +57,7 @@ const originalImages = ref(new Set())
 
 /* --------------------------------- Form --------------------------------- */
 const blankForm = () => ({
+  slug: '',
   name: { fa: '', en: '' }, category: '', price: '', stock: '',
   shortDesc: { fa: '', en: '' }, description: { fa: '', en: '' },
   image: '', gallery: [], status: 'active',
@@ -65,6 +66,36 @@ const blankForm = () => ({
   sku: '', featuresText: { fa: '', en: '' }, sizes: [], colors: [], relatedProducts: []
 })
 const form = ref(blankForm())
+
+
+/* -------------------------------- Slug -------------------------------- */
+// همان slugify بک‌اند — تا پیش‌نمایش با نتیجه نهایی یکی باشد
+const slugify = (text) =>
+  String(text || '')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9\u0600-\u06FF-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+
+const slugTouched = ref(false) // کاربر خودش اسلاگ را ویرایش کرده است
+const slugPreview = computed(() => {
+  const s = slugify(form.value.slug)
+  return s ? `https://nourmehr.ir/fa/product/${s}` : ''
+})
+
+// در حالت ساخت: تا وقتی کاربر اسلاگ را دست نزده، از نام فارسی پر می‌شود
+watch(() => form.value.name.fa, (val) => {
+  if (editingProduct.value || slugTouched.value) return
+  form.value.slug = slugify(val)
+})
+
+const onSlugInput = () => { slugTouched.value = true }
+const regenerateSlug = () => {
+  slugTouched.value = false
+  form.value.slug = slugify(form.value.name.fa)
+}
 
 /* ------------------------------ Data fetch ------------------------------ */
 const buildParams = () => {
@@ -200,6 +231,7 @@ const lockScroll = (lock) => { document.body.style.overflow = lock ? 'hidden' : 
 const openCreate = () => {
   editingProduct.value = null
   form.value = blankForm()
+  slugTouched.value = false
   formErrors.value = {}
   sessionUploads.value = new Set()
   originalImages.value = new Set()
@@ -211,9 +243,11 @@ const openCreate = () => {
 
 const openEdit = (product) => {
   editingProduct.value = product
+  slugTouched.value = true
   const gallery = Array.isArray(product.images) ? [...product.images] : []
 
   form.value = {
+    slug: product.slug || '',
     name: { fa: product.name?.fa || '', en: product.name?.en || '' },
     category: product.category?._id || (typeof product.category === 'string' ? product.category : ''),
     price: product.price ?? '',
@@ -388,7 +422,7 @@ const buildPayload = () => {
   const faFeatures = (featuresText.fa || '').split('\n').map(s => s.trim()).filter(Boolean)
   const enFeatures = (featuresText.en || '').split('\n').map(s => s.trim()).filter(Boolean)
 
-  return {
+  const payload = {
     ...rest,
     price: Number(form.value.price) || 0,
     stock: Number(form.value.stock) || 0,
@@ -405,34 +439,13 @@ const buildPayload = () => {
       .map(c => ({ name: { fa: c.name.fa.trim(), en: String(c.name.en || '').trim() }, value: c.value })),
     relatedProducts: form.value.relatedProducts || []
   }
-}
 
-const saveProduct = async () => {
-  if (saving.value) return
-  if (!validateForm()) {
-    notify('لطفاً خطاهای فرم را برطرف کنید', 'error')
-    await nextTick()
-    document.querySelector('.form-input.has-error, .form-select.has-error')?.focus()
-    return
-  }
+  // اسلاگ: خالی → از payload حذف می‌شود
+  // (ساخت: بک‌اند خودش از نام می‌سازد / ویرایش: اسلاگ قبلی دست‌نخورده می‌ماند)
+  payload.slug = form.value.slug.trim() ? slugify(form.value.slug) : ''
+  if (!payload.slug) delete payload.slug
 
-  saving.value = true
-  try {
-    const payload = buildPayload()
-    const id = editingProduct.value?._id || editingProduct.value?.id
-    const res = id ? await adminApi.updateProduct(id, payload) : await adminApi.createProduct(payload)
-    if (!res?.success) throw new Error(res?.message || 'عملیات ناموفق بود')
-
-    sessionUploads.value = new Set() // ذخیره شد، دیگر یتیم نیست
-    notify(id ? 'محصول با موفقیت ویرایش شد' : 'محصول با موفقیت ایجاد شد', 'success')
-    await closeModal({ discardUploads: false })
-    await fetchProducts()
-    lookupLoaded.value = false
-  } catch (err) {
-    notify(err.response?.data?.message || err.message || 'ذخیره‌سازی ناموفق بود', 'error')
-  } finally {
-    saving.value = false
-  }
+  return payload
 }
 
 /* -------------------------------- Delete -------------------------------- */
@@ -537,6 +550,7 @@ onUnmounted(() => {
           <div class="product-info">
             <h3 class="product-name">{{ product.name?.fa }}</h3>
             <span v-if="product.name?.en" class="product-en-name">{{ product.name.en }}</span>
+            <span class="product-slug" dir="auto">{{ product.slug }}</span>
             <span class="product-category">{{ getCategoryLabel(categories.find(c => (c._id || c.id) === (product.category?._id || product.category)) || product.category || {}) || 'بدون دسته‌بندی' }}</span>
 
             <div class="product-meta">
@@ -594,7 +608,22 @@ onUnmounted(() => {
                 </div>
                 <span v-if="formErrors.name" class="error-text">{{ formErrors.name }}</span>
               </div>
-
+              <div class="form-group full">
+                <label class="form-label">آدرس محصول (Slug)</label>
+                <div class="slug-row">
+                  <input
+                    v-model="form.slug"
+                    type="text"
+                    class="form-input"
+                    dir="auto"
+                    placeholder="خالی بماند تا خودکار از نام محصول ساخته شود"
+                    @input="onSlugInput"
+                  />
+                  <button type="button" class="slug-regen-btn" title="بازتولید از نام محصول" @click="regenerateSlug">↻</button>
+                </div>
+                <span v-if="slugPreview" class="hint-text slug-preview">{{ slugPreview }}</span>
+                <span v-else class="hint-text">آدرس نهایی این محصول در گوگل و مرورگر</span>
+              </div>
               <div class="form-group">
                 <label class="form-label">دسته‌بندی <span class="req">*</span></label>
                 <select v-model="form.category" class="form-select" :class="{ 'has-error': formErrors.category }">
@@ -828,6 +857,7 @@ onUnmounted(() => {
 .product-info { padding: 20px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .product-name { font-size: 1rem; font-weight: 600; margin: 0; }
 .product-en-name { font-size: 0.8rem; color: rgba(255,255,255,0.4); margin-bottom: 4px; }
+.product-slug { font-size: 0.72rem; opacity: 0.35; word-break: break-all; }
 .product-category { font-size: 0.85rem; opacity: 0.5; }
 .product-meta { display: flex; gap: 16px; margin-top: 8px; }
 .meta-item { display: flex; gap: 4px; font-size: 0.85rem; }
@@ -889,6 +919,10 @@ onUnmounted(() => {
 .add-btn { align-self: flex-start; padding: 8px 16px; border-radius: 8px; border: 1px dashed rgba(197,160,89,0.5); background: transparent; color: #facc6b; cursor: pointer; font-family: inherit; }
 .color-picker { width: 46px; height: 40px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: transparent; cursor: pointer; padding: 2px; }
 .hint-text { font-size: 0.78rem; opacity: 0.5; margin-top: 4px; display: block; }
+.slug-row { display: flex; gap: 8px; align-items: stretch; }
+.slug-regen-btn { min-width: 42px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04); color: #facc6b; cursor: pointer; font-size: 1.1rem; flex-shrink: 0; transition: background 0.2s ease; }
+.slug-regen-btn:hover { background: rgba(197,160,89,0.15); }
+.slug-preview { direction: ltr; text-align: left; word-break: break-all; color: rgba(197,160,89,0.75); }
 .sizes-container, .colors-container { display: flex; flex-direction: column; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 8px; position: sticky; bottom: 0; background: linear-gradient(to top, rgba(8,10,18,1), transparent); padding-top: 10px; }
 .cancel-btn { padding: 10px 24px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: rgba(255,255,255,0.7); font-size: 0.9rem; cursor: pointer; transition: background 0.2s ease; font-family: inherit; }
