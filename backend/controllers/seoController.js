@@ -462,7 +462,7 @@ exports.productBotRenderer = async (req, res, next) => {
     const canonical = absoluteUrl(`/${lang}/product/${product.slug}`);
     const image = product.images?.[0] || product.image || '';
 
-    const head = metaTags({ title: name, description, canonical, lang, image, type: 'product' });
+    const head = metaTags({ title: name, description, canonical, lang, image, type: 'product', noIndex: lang === 'en' });
 
     const jsonLd = {
       '@context': 'https://schema.org',
