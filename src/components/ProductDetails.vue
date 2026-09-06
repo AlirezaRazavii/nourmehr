@@ -10,6 +10,7 @@ import { useWishlist } from '../stores/wishlist'
 
 import { getProductImages, getImageUrl } from '../utils/imageUrl'
 import api from '../services/api'
+import { setProductSeo, resetSeoMeta } from '../utils/seoMeta'
 
 const { t, locale } = useI18n()
 const route = useRoute()
@@ -213,6 +214,7 @@ const submitReview = async () => {
 
 const loadProduct = async (idOrSlug) => {
   isLoading.value = true
+  setProductSeo(product.value, locale.value)
   activeImage.value = 0
   await productStore.fetchProduct(idOrSlug)
   if (productStore.products.length === 0) productStore.fetchProducts()
@@ -292,8 +294,12 @@ onMounted(() => {
   loadProduct(route.params.id)
   window.addEventListener('keydown', handleKeydown)
 })
-onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleKeydown)
+  resetSeoMeta()
+})
 watch(() => route.params.id, (id) => { if (id) loadProduct(id) })
+watch(locale, () => setProductSeo(product.value, locale.value))
 </script>
 
 
