@@ -9,7 +9,7 @@ const { invalidateCategoryCache } = require('../../utils/cache');
 
 const EDITABLE = [
   'name', 'slug', 'description', 'icon', 'image',
-  'sortOrder', 'status', 'parents', 'metaTitle', 'metaDescription',
+  'sortOrder', 'status', 'parents', 'metaTitle', 'metaDescription', 'seo',
 ];
 
 const pick = (src = {}) =>

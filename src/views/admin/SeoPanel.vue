@@ -16,6 +16,7 @@ const props = defineProps({
   siteUrl: { type: String, default: 'https://nourmehr.ir' }
 })
 const emit = defineEmits(['update:modelValue'])
+import { uploadFile } from '../../services/uploadApi'
 
 const activeTab = ref('fa')
 
@@ -123,6 +124,28 @@ const pickOg = (img) => {
   emitUp(lang)
 }
 
+/* ---------- آپلودر مستقیم OG ---------- */
+const uploading = ref(false)
+const uploadError = ref('')
+const ogFileInput = ref(null)
+const triggerOgUpload = () => ogFileInput.value?.click()
+const handleOgFile = async (e) => {
+  const file = e.target.files?.[0]
+  e.target.value = ''
+  if (!file) return
+  uploading.value = true
+  uploadError.value = ''
+  try {
+    const filePath = await uploadFile(file)
+    props.modelValue[activeTab.value].ogImage = filePath
+    emitUp(activeTab.value)
+  } catch (err) {
+    uploadError.value = err?.message || 'آپلود ناموفق بود'
+  } finally {
+    uploading.value = false
+  }
+}
+
 /* ---------- alt تصاویر ---------- */
 const pickAltLang = (v) => {
   if (!v || typeof v !== 'object') return ''
@@ -204,20 +227,26 @@ const pickAltLang = (v) => {
       <div class="field">
         <label>تصویر اشتراک‌گذاری (og:image)</label>
         <div class="og-row">
+          <img v-if="modelValue[activeTab].ogImage" :src="modelValue[activeTab].ogImage" class="og-thumb" alt="OG" />
           <input
             :value="modelValue[activeTab].ogImage"
             @input="modelValue[activeTab].ogImage = $event.target.value; emitUp(activeTab)"
             type="text"
             dir="ltr"
-            placeholder="خالی = تصویر اصلی محصول"
+            placeholder="خالی = تصویر پیش‌فرض"
           />
-          <button type="button" class="pick-btn" @click="showOgPicker = !showOgPicker">انتخاب از گالری</button>
+          <button type="button" class="pick-btn" @click="triggerOgUpload">
+            {{ uploading ? 'در حال آپلود...' : 'آپلود' }}
+          </button>
+          <button v-if="modelValue[activeTab].ogImage" type="button" class="pick-btn remove" @click="modelValue[activeTab].ogImage = ''; emitUp(activeTab)">✕</button>
+          <input type="file" ref="ogFileInput" accept="image/*" hidden @change="handleOgFile" />
         </div>
+        <span v-if="uploadError" class="hint" style="color:#ef4444">{{ uploadError }}</span>
         <div v-if="showOgPicker" class="og-picker">
           <div v-for="img in images" :key="img" class="og-option" @click="pickOg(img)">
             <img :src="img" alt="" />
           </div>
-          <span v-if="!images.length" class="hint">اول تصاویر محصول را آپلود کنید</span>
+          <span v-if="!images.length" class="hint">اول تصاویر محصول را آپلود کردن</span>
         </div>
       </div>
 
@@ -317,6 +346,8 @@ const pickAltLang = (v) => {
 .og-option { width: 64px; height: 64px; border-radius: 8px; overflow: hidden; cursor: pointer; border: 2px solid transparent; transition: border-color 0.15s; }
 .og-option:hover { border-color: #c5a059; }
 .og-option img { width: 100%; height: 100%; object-fit: cover; }
+.og-thumb { width: 64px; height: 40px; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
+.pick-btn.remove { border-color: rgba(239,68,68,0.4); color: #ef4444; min-width: 36px; }
 .og-extra { display: flex; flex-direction: column; gap: 8px; }
 .checkbox-field .check-label, .sitemap-row .check-label { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.85rem; color: rgba(255,255,255,0.8); }
 .checkbox-field input, .sitemap-row input[type=checkbox] { accent-color: #c5a059; width: 16px; height: 16px; }
