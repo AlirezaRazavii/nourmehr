@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { seoSchema } = require('./shared/seoSchema');
 
 const collectionSchema = new mongoose.Schema({
   name: {
@@ -23,7 +24,10 @@ const collectionSchema = new mongoose.Schema({
   bgColor: { type: String, default: '#e53935' },
   status: { type: String, enum: ['active', 'inactive'], default: 'active' },
   showOnHome: { type: Boolean, default: true },
-  sortOrder: { type: Number, default: 0 }
+  sortOrder: { type: Number, default: 0 },
+
+  // ---------- سئو ----------
+  seo: seoSchema({ priority: 0.8, changefreq: 'weekly' })
 }, { timestamps: true });
 
 module.exports = mongoose.model('Collection', collectionSchema);

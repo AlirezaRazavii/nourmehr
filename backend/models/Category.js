@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { seoSchema } = require('./shared/seoSchema');
 
 const categorySchema = new mongoose.Schema({
   name: {
@@ -14,7 +15,10 @@ const categorySchema = new mongoose.Schema({
   },
   status: { type: String, enum: ['active', 'inactive'], default: 'active' },
   sortOrder: { type: Number, default: 0 },
-  parents: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Category' }]
+  parents: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Category' }],
+
+  // ---------- سئو ----------
+  seo: seoSchema({ priority: 0.7, changefreq: 'weekly' })
 }, { timestamps: true });
 
 categorySchema.index({ status: 1, sortOrder: 1 });

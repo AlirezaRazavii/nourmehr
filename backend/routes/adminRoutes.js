@@ -38,6 +38,7 @@ const heroCtrl = require('../controllers/admin/heroController');
 
 const { CHANGEFREQS } = require('../models/shared/seoSchema');
 const Blog = require('../models/Blog');
+const { invalidateSeoCache } = require('../utils/cache');
 
 /* ---- نرمال‌سازی سئوی مقاله: هر دو ساختار قدیم/جدید → ساختار جدید ---- */
 const BLANK_SEO_LANG = () => ({
@@ -135,6 +136,54 @@ const normalizeBlogSeo = async (req, res, next) => {
   }
 };
 
+/* ---- نرمال‌سازی سئو برای کالکشن/دسته‌بندی (ساختار جدید) ---- */
+const normalizeSeo = (req, res, next) => {
+  try {
+    if (req.body && req.body.seo !== undefined) {
+      const hasNew =
+        (req.body.seo.fa && typeof req.body.seo.fa === 'object') ||
+        (req.body.seo.en && typeof req.body.seo.en === 'object') ||
+        (req.body.seo.sitemap && typeof req.body.seo.sitemap === 'object');
+      if (hasNew) {
+        req.body.seo = toNewSeo(req.body.seo).seo;
+      } else {
+        delete req.body.seo;
+      }
+    }
+    // تغییر کالکشن/دسته → کش sitemap باطل شود
+    res.on('finish', () => {
+      if (res.statusCode < 400) invalidateSeoCache();
+    });
+    next();
+  } catch {
+    next();
+  }
+};
+
+/* ---- نرمال‌سازی سئو برای کالکشن/دسته‌بندی (ساختار جدید) ---- */
+const normalizeSeo = (req, res, next) => {
+  try {
+    if (req.body && req.body.seo !== undefined) {
+      const hasNew =
+        (req.body.seo.fa && typeof req.body.seo.fa === 'object') ||
+        (req.body.seo.en && typeof req.body.seo.en === 'object') ||
+        (req.body.seo.sitemap && typeof req.body.seo.sitemap === 'object');
+      if (hasNew) {
+        req.body.seo = toNewSeo(req.body.seo).seo;
+      } else {
+        delete req.body.seo;
+      }
+    }
+    // تغییر کالکشن/دسته → کش sitemap باطل شود
+    res.on('finish', () => {
+      if (res.statusCode < 400) invalidateSeoCache();
+    });
+    next();
+  } catch {
+    next();
+  }
+};
+
 const router = express.Router();
 
 router.use(protect, admin);
@@ -212,8 +261,8 @@ router.post(
 router.post('/categories/delete-image', hasPermission(PERMISSIONS.CATEGORIES), deleteCategoryImage);
 
 router.get('/categories', hasPermission(PERMISSIONS.CATEGORIES), getCategories);
-router.post('/categories', hasPermission(PERMISSIONS.CATEGORIES), createCategory);
-router.put('/categories/:id', hasPermission(PERMISSIONS.CATEGORIES), updateCategory);
+router.post('/categories', hasPermission(PERMISSIONS.CATEGORIES), normalizeSeo, createCategory);
+router.put('/categories/:id', hasPermission(PERMISSIONS.CATEGORIES), normalizeSeo, updateCategory);
 router.delete('/categories/:id', hasPermission(PERMISSIONS.CATEGORIES), deleteCategory);
 
 /* --------------------------------- تنظیمات --------------------------------- */
@@ -237,9 +286,9 @@ router.delete('/hero/slides/:slideId', hasPermission(PERMISSIONS.HERO), heroCtrl
 
 /* -------------------------------- کالکشن‌ها -------------------------------- */
 router.get('/collections', hasPermission(PERMISSIONS.COLLECTIONS), getCollections);
-router.post('/collections', hasPermission(PERMISSIONS.COLLECTIONS), createCollection);
+router.post('/collections', hasPermission(PERMISSIONS.COLLECTIONS), normalizeSeo, createCollection);
 router.put('/collections/:id/products', hasPermission(PERMISSIONS.COLLECTIONS), setCollectionProducts);
-router.put('/collections/:id', hasPermission(PERMISSIONS.COLLECTIONS), updateCollection);
+router.put('/collections/:id', hasPermission(PERMISSIONS.COLLECTIONS), normalizeSeo, updateCollection);
 router.delete('/collections/:id', hasPermission(PERMISSIONS.COLLECTIONS), deleteCollection);
 
 /* ----------------------------- اخبار و مقالات ------------------------------- */

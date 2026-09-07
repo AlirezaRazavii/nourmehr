@@ -81,7 +81,7 @@ const faDate = (d) => {
  *   null      → بدون hreflang (وقتی نسخه‌ی زبان دیگر noindex است)
  *   [{lang, url}] → hreflang دقیق و کنترل‌شده
  */
-const metaTags = ({ title, description, canonical, lang, image, noIndex, type = 'website', publishedTime = null, alternates }) => {
+const metaTags = ({ title, description, canonical, lang, image, noIndex, type = 'website', publishedTime = null, alternates, ogTitle = '', ogDescription = '' }) => {
   const fullTitle = title.includes('نورمهر') || /Nourmehr/i.test(title) ? title : `${title} | نورمهر`;
   const img = image ? absoluteUrl(image) : `${SITE_URL}/og-cover.jpg`;
 
@@ -111,8 +111,8 @@ const metaTags = ({ title, description, canonical, lang, image, noIndex, type = 
   <meta property="og:site_name" content="نورمهر" />
   <meta property="og:locale" content="${lang === 'fa' ? 'fa_IR' : 'en_US'}" />
   <meta property="og:type" content="${type}" />
-  <meta property="og:title" content="${escapeHtml(fullTitle)}" />
-  <meta property="og:description" content="${escapeHtml(description)}" />
+  <meta property="og:title" content="${escapeHtml(ogTitle || fullTitle)}" />
+  <meta property="og:description" content="${escapeHtml(ogDescription || description)}" />
   <meta property="og:url" content="${escapeHtml(canonical)}" />
   <meta property="og:image" content="${escapeHtml(img)}" />
   <meta name="twitter:card" content="summary_large_image" />
@@ -277,11 +277,15 @@ const buildSitemap = async () => {
       'seo.noIndex': { $ne: true },
       'seo.sitemap.include': { $ne: false }
     })
-      .select('slug updatedAt publishedAt createdAt')
+      .select('slug updatedAt publishedAt createdAt seo')
       .sort({ publishedAt: -1 })
       .limit(5000)
       .lean(),
-    Category.find({ status: 'active' }).select('slug updatedAt').lean(),
+    Category.find({
+      status: 'active',
+      'seo.fa.noIndex': { $ne: true },
+      'seo.sitemap.include': { $ne: false }
+    }).select('slug updatedAt seo').lean(),
     Product.find({
       status: { $in: PUBLIC_PRODUCT_STATUSES },
       'seo.fa.noIndex': { $ne: true },
@@ -290,7 +294,11 @@ const buildSitemap = async () => {
       .select('slug updatedAt createdAt seo')
       .limit(5000)
       .lean(),
-    Collection.find({ status: 'active' }).select('slug updatedAt').lean(),
+    Collection.find({
+      status: 'active',
+      'seo.fa.noIndex': { $ne: true },
+      'seo.sitemap.include': { $ne: false }
+    }).select('slug updatedAt seo').lean(),
     BlogCategory.find({ isActive: true }).select('slug').lean(),
   ]);
 
@@ -328,12 +336,22 @@ const buildSitemap = async () => {
 
   // دسته‌بندی‌های محصولات
   for (const c of categories) {
-    pushBothLangs((l) => `/${l}/products?category=${c.slug}`, { priority: '0.7', lastmod: c.updatedAt });
+    const sm = c.seo?.sitemap || {};
+    pushBothLangs((l) => `/${l}/products?category=${c.slug}`, {
+      priority: sm.priority ?? 0.7,
+      changefreq: sm.changefreq || 'weekly',
+      lastmod: c.updatedAt,
+    });
   }
 
   // کالکشن‌ها
   for (const col of collections) {
-    pushBothLangs((l) => `/${l}/collection/${col.slug}`, { priority: '0.8', lastmod: col.updatedAt });
+    const sm = col.seo?.sitemap || {};
+    pushBothLangs((l) => `/${l}/collection/${col.slug}`, {
+      priority: sm.priority ?? 0.8,
+      changefreq: sm.changefreq || 'weekly',
+      lastmod: col.updatedAt,
+    });
   }
 
   // محصولات — اولویت/تناوب از seo.sitemap + آدرس en فقط وقتی ایندکس‌پذیر باشد
@@ -362,8 +380,10 @@ const buildSitemap = async () => {
 
   // مقالات
   for (const b of blogs) {
+    const sm = b.seo?.sitemap || {};
     pushBothLangs((l) => `/${l}/news/${b.slug}`, {
-      priority: '0.8',
+      priority: sm.priority ?? 0.8,
+      changefreq: sm.changefreq || 'weekly',
       lastmod: b.updatedAt || b.publishedAt || b.createdAt,
     });
   }
@@ -745,27 +765,62 @@ exports.productSlugRedirect = async (req, res, next) => {
 exports.collectionBotRenderer = async (req, res, next) => {
   if (!isBot(req.headers['user-agent'])) return next();
   try {
-    const lang = req.params.lang || 'fa';
+    const lang = ['fa', 'en'].includes(req.params.lang) ? req.params.lang : 'fa';
     const slug = String(req.params.slug || '').toLowerCase();
 
     const collection = await Collection.findOne({ slug, status: 'active' }).lean();
     if (!collection) return next();
 
+    const seoLang = collection.seo?.[lang] || {};
     const name = pick(collection.name, lang);
-    const description = truncate(pick(collection.description, lang) || name, 160);
-    const canonical = absoluteUrl(`/${lang}/collection/${collection.slug}`);
-    const image = collection.image || '';
+    const metaTitle = seoLang.title || name;
+    const metaDescription = truncate(
+      seoLang.description || pick(collection.description, lang) || name, 175
+    );
 
-    const head = metaTags({ title: name, description, canonical, lang, image });
+    const canonicalOverride =
+      typeof seoLang.canonicalUrl === 'string' && /^(https?:\/\/|\/)/i.test(seoLang.canonicalUrl)
+        ? seoLang.canonicalUrl : '';
+    const canonical = canonicalOverride || absoluteUrl(`/${lang}/collection/${collection.slug}`);
+    const image = seoLang.ogImage || collection.image || '';
+    const noIndex = seoLang.noIndex === true;
+
+    const alternates = canonicalOverride ? null : [
+      { lang: 'fa', url: absoluteUrl(`/fa/collection/${collection.slug}`) },
+      { lang: 'en', url: absoluteUrl(`/en/collection/${collection.slug}`) },
+    ];
+
+    const head = metaTags({
+      title: metaTitle,
+      description: metaDescription,
+      canonical,
+      lang,
+      image,
+      noIndex,
+      alternates,
+      ogTitle: seoLang.ogTitle || '',
+      ogDescription: seoLang.ogDescription || '',
+    });
 
     const jsonLd = {
       '@context': 'https://schema.org',
       '@type': 'CollectionPage',
       name,
-      description,
+      description: metaDescription,
       url: canonical,
       image: image ? absoluteUrl(image) : undefined
     };
+
+    const breadcrumbLd = {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: lang === 'fa' ? 'خانه' : 'Home', item: `${SITE_URL}/${lang}` },
+        { '@type': 'ListItem', position: 2, name, item: canonical }
+      ]
+    };
+
+    const fullDesc = pick(collection.description, lang);
 
     const body = `
     <article>
@@ -775,10 +830,13 @@ exports.collectionBotRenderer = async (req, res, next) => {
       </nav>
       <h1>${escapeHtml(name)}</h1>
       ${image ? `<img src="${escapeHtml(absoluteUrl(image))}" alt="${escapeHtml(name)}" width="800" />` : ''}
-      <p>${escapeHtml(description)}</p>
+      <p>${escapeHtml(metaDescription)}</p>
+      ${fullDesc ? `<h2>${lang === 'fa' ? 'درباره این مجموعه' : 'About this collection'}</h2><div>${escapeHtml(fullDesc)}</div>` : ''}
       <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
+      <script type="application/ld+json">${JSON.stringify(breadcrumbLd)}</script>
     </article>`;
 
+    if (noIndex) res.setHeader('X-Robots-Tag', 'noindex, nofollow');
     res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self' data: https:; style-src 'unsafe-inline'");
     return res.send(pageShell(lang, head, body));
   } catch (err) {
