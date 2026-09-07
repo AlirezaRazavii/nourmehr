@@ -12,6 +12,7 @@ const props = defineProps({
   defaultImage: { type: String, default: '' },
   images: { type: Array, default: () => [] },   // برای انتخاب ogImage از گالری
     slug: { type: String, default: '' },
+      previewPath: { type: String, default: '' },
   siteUrl: { type: String, default: 'https://nourmehr.ir' }
 })
 const emit = defineEmits(['update:modelValue'])
@@ -138,7 +139,7 @@ const pickAltLang = (v) => {
         <span class="score-label">{{ scoreText }}</span>
       </div>
       <div class="serp-preview">
-        <span class="serp-url">{{ siteUrl }}/fa/product/{{ slugOf() }}</span>
+        <span class="serp-url">{{ siteUrl }}/fa/{{ previewPath || ('product/' + slugOf()) }}</span>
         <span class="serp-title">{{ effTitle }}</span>
         <span class="serp-desc">{{ effDesc }}</span>
       </div>

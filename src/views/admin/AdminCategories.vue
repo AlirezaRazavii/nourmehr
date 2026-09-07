@@ -2,6 +2,7 @@
 import { ref, computed, onUnmounted } from 'vue'
 import { adminApi } from '../../services/adminApi'
 import { getImageUrl } from '../../utils/imageUrl'
+import SeoPanel from './SeoPanel.vue'
 
 /* ------------------------------- ثابت‌ها ------------------------------- */
 const MAX_IMAGE_MB = 5
@@ -46,6 +47,11 @@ const blankForm = () => ({
   status: 'active',
   sortOrder: 0,
   parents: [],
+  seo: {
+    fa: { title: '', description: '', focusKeyword: '', canonicalUrl: '', ogImage: '', ogTitle: '', ogDescription: '', noIndex: false },
+    en: { title: '', description: '', focusKeyword: '', canonicalUrl: '', ogImage: '', ogTitle: '', ogDescription: '', noIndex: false },
+    sitemap: { include: true, priority: 0.7, changefreq: 'weekly' }
+  }
 })
 
 const form = ref(blankForm())
@@ -134,6 +140,11 @@ const openEdit = (cat) => {
     status: cat.status || 'active',
     sortOrder: cat.sortOrder ?? 0,
     parents: (cat.parents || []).map(p => (typeof p === 'string' ? p : catId(p))).filter(Boolean),
+    seo: {
+      fa: { ...blankForm().seo.fa, ...(cat.seo?.fa || {}) },
+      en: { ...blankForm().seo.en, ...(cat.seo?.en || {}) },
+      sitemap: { ...blankForm().seo.sitemap, ...(cat.seo?.sitemap || {}) }
+    },
   }
   sessionUploads.value = new Set()
   showModal.value = true
@@ -244,6 +255,7 @@ const saveCategory = async () => {
       status: form.value.status,
       sortOrder: Number(form.value.sortOrder) || 0,
       parents: form.value.parents,
+      seo: form.value.seo,
     }
 
     const id = catId(editingCategory.value)
@@ -496,6 +508,18 @@ const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('fa-IR') : '—')
                   <textarea v-model="form.description.en" class="form-input form-textarea" rows="3" placeholder="English Description..." dir="ltr"></textarea>
                 </div>
               </div>
+
+              <!-- پنل سئو -->
+              <div class="form-group full seo-block">
+                <label class="form-label">سئو (SEO)</label>
+                <SeoPanel
+                  v-model="form.seo"
+                  :slug="form.slug"
+                  :default-title="form.name.fa"
+                  :default-description="form.description.fa"
+                  :preview-path="'products?category=' + (form.slug || '...')"
+                />
+              </div>
             </div>
 
             <div class="modal-actions">
@@ -696,6 +720,7 @@ const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('fa-IR') : '—')
 .form-select option { background: #0a0d14; color: #fff; }
 
 .form-textarea { resize: vertical; min-height: 80px; }
+.seo-block .seo-panel { padding: 14px; border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; background: rgba(255,255,255,0.02); }
 
 .input-hint { font-size: 0.75rem; opacity: 0.45; line-height: 1.7; }
 

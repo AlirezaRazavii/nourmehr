@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { adminApi } from '../../services/adminApi'
 import { getImageUrl } from '../../utils/imageUrl'
+import SeoPanel from './SeoPanel.vue'
 
 const loading = ref(true)
 const collections = ref([])
@@ -37,6 +38,11 @@ const blankForm = () => ({
   icon: '',
   description: { fa: '', en: '' }, 
   bgColor: '#c5a059', status: 'active', showOnHome: true, sortOrder: 0,
+  seo: {
+    fa: { title: '', description: '', focusKeyword: '', canonicalUrl: '', ogImage: '', ogTitle: '', ogDescription: '', noIndex: false },
+    en: { title: '', description: '', focusKeyword: '', canonicalUrl: '', ogImage: '', ogTitle: '', ogDescription: '', noIndex: false },
+    sitemap: { include: true, priority: 0.8, changefreq: 'weekly' }
+  }
 })
 
 const fetchCollections = async () => {
@@ -92,6 +98,11 @@ const openEdit = (col) => {
     description: { fa: col.description?.fa || '', en: col.description?.en || '' },
     bgColor: col.bgColor || '#c5a059', status: col.status || 'active',
     showOnHome: col.showOnHome ?? true, sortOrder: col.sortOrder ?? 0,
+    seo: {
+      fa: { ...blankForm().seo.fa, ...(col.seo?.fa || {}) },
+      en: { ...blankForm().seo.en, ...(col.seo?.en || {}) },
+      sitemap: { ...blankForm().seo.sitemap, ...(col.seo?.sitemap || {}) }
+    },
   }
   showModal.value = true
 }
@@ -313,6 +324,18 @@ const generateSlug = () => {
                   <textarea v-model="form.description.en" class="form-input form-textarea" rows="3" placeholder="English Description..." dir="ltr"></textarea>
                 </div>
               </div>
+
+              <!-- پنل سئو -->
+              <div class="form-group full seo-block">
+                <label class="form-label">سئو (SEO)</label>
+                <SeoPanel
+                  v-model="form.seo"
+                  :slug="form.slug"
+                  :default-title="form.title.fa || form.name.fa"
+                  :default-description="form.description.fa"
+                  :preview-path="'collection/' + (form.slug || '...')"
+                />
+              </div>
             </div>
             <div class="modal-actions">
               <button class="cancel-btn" @click="showModal = false">انصراف</button>
@@ -478,6 +501,7 @@ const generateSlug = () => {
 .form-select { padding: 10px 14px; border-radius: 10px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); color: #fff; font-size: 0.9rem; font-family: inherit; outline: none; cursor: pointer; }
 .form-select option { background: #0a0d14; color: #fff; }
 .form-textarea { resize: vertical; min-height: 80px; margin-bottom: 8px; }
+.seo-block .seo-panel { padding: 14px; border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; background: rgba(255,255,255,0.02); }
 
 .lang-inputs { display: flex; gap: 10px; }
 
