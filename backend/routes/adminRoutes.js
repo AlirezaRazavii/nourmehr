@@ -160,30 +160,6 @@ const normalizeSeo = (req, res, next) => {
   }
 };
 
-/* ---- نرمال‌سازی سئو برای کالکشن/دسته‌بندی (ساختار جدید) ---- */
-const normalizeSeo = (req, res, next) => {
-  try {
-    if (req.body && req.body.seo !== undefined) {
-      const hasNew =
-        (req.body.seo.fa && typeof req.body.seo.fa === 'object') ||
-        (req.body.seo.en && typeof req.body.seo.en === 'object') ||
-        (req.body.seo.sitemap && typeof req.body.seo.sitemap === 'object');
-      if (hasNew) {
-        req.body.seo = toNewSeo(req.body.seo).seo;
-      } else {
-        delete req.body.seo;
-      }
-    }
-    // تغییر کالکشن/دسته → کش sitemap باطل شود
-    res.on('finish', () => {
-      if (res.statusCode < 400) invalidateSeoCache();
-    });
-    next();
-  } catch {
-    next();
-  }
-};
-
 const router = express.Router();
 
 router.use(protect, admin);
