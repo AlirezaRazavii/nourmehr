@@ -374,10 +374,34 @@ onMounted(load)
   .cv-grid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
 }
 
+
 @media (max-width: 768px) {
   .cv-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .card-content { padding: 9px 10px 11px; gap: 6px; }
   .cv-pagination button, .cv-pagination span { min-width: 32px; height: 32px; font-size: 0.8rem; }
+  
+  .card-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  
+  .view-btn {
+    justify-content: center;
+    width: 100%;
+  }
+  
+  .product-title {
+    font-size: 0.82rem;
+  }
+  
+  .short-desc {
+    font-size: 0.7rem;
+  }
+  
+  .price-amount {
+    font-size: 0.85rem;
+  }
 }
 
 @media (max-width: 480px) {

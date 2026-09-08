@@ -650,11 +650,44 @@ onUnmounted(() => {
   }
 }
 
+
 @media (max-width: 768px) {
   .search-bar { flex-direction: column; align-items: stretch; gap: 8px; }
   .sort-select { border-right: none; border-top: 1px solid rgba(255,255,255,0.08); padding: 6px 14px 0; justify-content: space-between; }
   .products-grid-inner { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .products-pagination button, .products-pagination span { min-width: 32px; height: 32px; font-size: 0.8rem; }
+  
+  .card-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  
+  /* ۲: باکس قیمت تمام عرض */
+  .card-price-box {
+    width: 100%;
+  }
+  
+  /* ۳: دکمه مشاهده تمام عرض */
+  .view-btn {
+    justify-content: center;
+    width: 100%;
+  }
+  
+  /* ۴: کاهش فونت عنوان */
+  .product-title {
+    font-size: 0.82rem;
+  }
+  
+  /* ۵: کاهش فونت توضیحات */
+  .short-desc {
+    font-size: 0.7rem;
+  }
+  
+  /* ۶: کاهش فونت قیمت */
+  .price-amount {
+    font-size: 0.85rem;
+  }
 }
 
 @media (max-width: 480px) {
@@ -664,8 +697,6 @@ onUnmounted(() => {
   .view-btn { justify-content: center; width: 100%; }
 }
 
-
-/* ═══════ بهینه‌سازی موبایل: رفع باگ سفید شدن و پرش اسکرول ═══════ */
 @media (max-width: 860px) {
   .bg-orb { display: none !important; }
   .bg-grid { display: none !important; }

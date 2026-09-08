@@ -1839,6 +1839,23 @@ const renderStars = (rating) => {
     text-align: center;
   }
 
+    @media (max-width: 768px) {
+    .products-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .card-bottom { flex-direction: column; align-items: flex-start; gap: 8px; }
+    .price-group { width: 100%; }
+    .add-cart-btn { width: 100%; justify-content: center; }
+    .card-title { font-size: 0.82rem; }
+    .card-desc { font-size: 0.7rem; }
+    .price-current { font-size: 0.85rem; }
+    .card-body { padding: 16px 16px 18px; }
+  }
+  
+  @media (max-width: 480px) {
+    .products-grid { grid-template-columns: 1fr; gap: 10px; }
+    .card-bottom { flex-direction: column; align-items: flex-start; gap: 8px; }
+    .add-cart-btn { width: 100%; justify-content: center; }
+  }
+
   .hero-desc { max-width: 100%; }
   .hero-stats { justify-content: center; }
 
