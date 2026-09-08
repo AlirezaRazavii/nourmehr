@@ -1,7 +1,7 @@
 {
   "name": "nourmehr-backend",
   "version": "1.0.0",
-  "description": "Backend for Noor Mehr e-commerce",
+  "description": "Backend for NourMehr e-commerce",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
