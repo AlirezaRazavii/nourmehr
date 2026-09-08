@@ -12,11 +12,17 @@ export const getProductPriceInfo = (product) => {
 
   const hasMultipleSizes = sizes.length > 1;
 
-  let finalPrices = [];
-  let oldPrices = [];
+  let minPrice = 0;
+  let oldPrice = null;
+  let hasDiscount = false;
 
-  // ═══ ۱: اگر سایزها وجود دارند، فقط از آن‌ها استفاده کن ═══
+  // ═══ حالت ۱: اگر سایزها وجود دارند ═══
   if (sizes.length > 0) {
+    let bestSize = null;
+    let bestFinalPrice = Infinity;
+    let bestOldPrice = null;
+
+    // پیدا کردن سایزی که کمترین قیمت نهایی را دارد
     sizes.forEach((s) => {
       const sizePrice = Number(s.price) || 0;
       if (sizePrice > 0) {
@@ -29,29 +35,35 @@ export const getProductPriceInfo = (product) => {
             ? Math.round(sizePrice * (1 - effectiveDiscount / 100))
             : sizePrice;
 
-        finalPrices.push(finalPrice);
-        if (effectiveDiscount > 0) {
-          oldPrices.push(sizePrice);
+        // ⭐ اگر این سایز قیمت نهایی کمتری دارد
+        if (finalPrice < bestFinalPrice) {
+          bestFinalPrice = finalPrice;
+          // قیمت قدیمی مربوط به همین سایز
+          bestOldPrice = effectiveDiscount > 0 ? sizePrice : null;
+          bestSize = s;
         }
       }
     });
+
+    minPrice = bestFinalPrice;
+    oldPrice = bestOldPrice;
+    hasDiscount = oldPrice !== null && oldPrice > minPrice;
   }
-  // ═══ ۲: فقط اگر سایز وجود ندارد، قیمت پایه را محاسبه کن ═══
+  // ═══ حالت ۲: اگر سایز وجود ندارد، از قیمت پایه استفاده کن ═══
   else {
     const basePrice = Number(product.price) || 0;
-    
+
     if (basePrice > 0) {
       const prodDiscount = Number(product.discountPercent) || 0;
-      
-      // محاسبه قیمت نهایی
+
       let finalBasePrice;
-      
+
       // اگر finalPrice از backend معتبر است
       if (
         product.finalPrice !== undefined &&
         product.finalPrice !== null &&
         Number(product.finalPrice) > 0 &&
-        Number(product.finalPrice) <= basePrice  // ⭐ قیمت نهایی نباید بیشتر از قیمت اصلی باشد
+        Number(product.finalPrice) <= basePrice
       ) {
         finalBasePrice = Number(product.finalPrice);
       } else {
@@ -62,24 +74,22 @@ export const getProductPriceInfo = (product) => {
             : basePrice;
       }
 
-      finalPrices.push(finalBasePrice);
+      minPrice = finalBasePrice;
 
-      // قیمت قدیمی
+      // قیمت قدیمی (هم از همان محصول)
       if (product.oldPrice && Number(product.oldPrice) > finalBasePrice) {
-        oldPrices.push(Number(product.oldPrice));
+        oldPrice = Number(product.oldPrice);
       } else if (prodDiscount > 0 && basePrice > finalBasePrice) {
-        oldPrices.push(basePrice);
+        oldPrice = basePrice;
       }
+
+      hasDiscount = oldPrice !== null && oldPrice > minPrice;
     }
   }
 
-  const minPrice = finalPrices.length > 0 ? Math.min(...finalPrices) : 0;
-  const maxOldPrice = oldPrices.length > 0 ? Math.max(...oldPrices) : null;
-  const hasDiscount = maxOldPrice !== null && maxOldPrice > minPrice;
-
   return {
     minPrice,
-    oldPrice: hasDiscount ? maxOldPrice : null,
+    oldPrice: hasDiscount ? oldPrice : null,
     hasMultipleSizes,
     hasDiscount,
   };
