@@ -227,7 +227,7 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/hero', heroRoutes);
 app.use('/api/hero-images', heroImageRoutes);
-app.use('/torob_api/v3', torobRoutes);
+app.use('/api/torob/v3', torobRoutes);
 
 /* ------------------------- سئو: فیدها و رندر ربات‌ها ------------------------- */
 // فیدهای سئو در سطح روت — خارج از /api

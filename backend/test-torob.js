@@ -3,7 +3,7 @@
  * اجرا (از پوشه backend): node test-torob.js
  * پیش‌نیاز: سرور در حال اجرا + TOROB_DEV_BYPASS=true فعال
  */
-const BASE = 'http://localhost:3001/torob_api/v3/products';
+const BASE = 'http://localhost:3001/api/torob/v3/products';
 
 const test = async (name, body) => {
   try {
