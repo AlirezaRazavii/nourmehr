@@ -6,7 +6,6 @@ import Home from './views/Home.vue'
 // --- لود تدریجی (Lazy Loading) ---
 const About = () => import('./views/About.vue')
 const Contact = () => import('./views/Contact.vue')
-const Collection = () => import('./views/Collection.vue')
 const CollectionView = () => import('./views/CollectionView.vue')
 const Cart = () => import('./views/Cart.vue')
 const Checkout = () => import('./views/Checkout.vue')
