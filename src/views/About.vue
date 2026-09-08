@@ -6,23 +6,18 @@ const uspPoints = [
   { key: 'about_usp_4' }
 ]
 
-const pillars = [
-  { id: 1, icon: '✦', titleKey: 'about_pillar_1_title', descKey: 'about_pillar_1_desc' },
-  { id: 2, icon: '◆', titleKey: 'about_pillar_2_title', descKey: 'about_pillar_2_desc' },
-  { id: 3, icon: '❂', titleKey: 'about_pillar_3_title', descKey: 'about_pillar_3_desc' }
+const crafts = [
+  { id: 1, icon: '◈', titleKey: 'about_craft_1_title', descKey: 'about_craft_1_desc' },
+  { id: 2, icon: '❖', titleKey: 'about_craft_2_title', descKey: 'about_craft_2_desc' },
+  { id: 3, icon: '✦', titleKey: 'about_craft_3_title', descKey: 'about_craft_3_desc' },
+  { id: 4, icon: '❂', titleKey: 'about_craft_4_title', descKey: 'about_craft_4_desc' }
 ]
 
-const timeline = [
-  { id: 1, labelKey: 'about_timeline_1_label', descKey: 'about_timeline_1_desc' },
-  { id: 2, labelKey: 'about_timeline_2_label', descKey: 'about_timeline_2_desc' },
-  { id: 3, labelKey: 'about_timeline_3_label', descKey: 'about_timeline_3_desc' },
-  { id: 4, labelKey: 'about_timeline_4_label', descKey: 'about_timeline_4_desc' }
-]
-
-const team = [
-  { id: 1, nameKey: 'about_team_1_name', roleKey: 'about_team_1_role', expKey: 'about_team_1_exp' },
-  { id: 2, nameKey: 'about_team_2_name', roleKey: 'about_team_2_role', expKey: 'about_team_2_exp' },
-  { id: 3, nameKey: 'about_team_3_name', roleKey: 'about_team_3_role', expKey: 'about_team_3_exp' }
+const partners = [
+  { id: 1, nameKey: 'about_partner_1_name', typeKey: 'about_partner_1_type' },
+  { id: 2, nameKey: 'about_partner_2_name', typeKey: 'about_partner_2_type' },
+  { id: 3, nameKey: 'about_partner_3_name', typeKey: 'about_partner_3_type' },
+  { id: 4, nameKey: 'about_partner_4_name', typeKey: 'about_partner_4_type' }
 ]
 
 const stats = [
@@ -39,7 +34,7 @@ const stats = [
     <div class="hero-section">
       <div class="hero-bg"></div>
       <div class="hero-overlay"></div>
-      
+
       <div class="hero-content">
         <span class="hero-badge glass">{{ $t('about_badge') }}</span>
         <h1 class="hero-title">
@@ -65,7 +60,7 @@ const stats = [
           <div class="story-content">
             <span class="section-badge">{{ $t('about_story_badge') }}</span>
             <h2 class="section-title">{{ $t('about_story_title') }}</h2>
-            
+
             <p class="story-lead">
               {{ $t('about_story_lead') }}
             </p>
@@ -80,19 +75,6 @@ const stats = [
                 <span>{{ $t(item.key) }}</span>
               </li>
             </ul>
-          </div>
-
-          <div class="story-visual">
-            <div class="visual-card glass">
-              <div class="visual-glow"></div>
-              <div class="visual-placeholder">
-                <span class="placeholder-icon">🏛️</span>
-                <span class="placeholder-text">{{ $t('about_placeholder_text') }}</span>
-              </div>
-              <div class="visual-overlay">
-                <span class="visual-badge">{{ $t('about_visual_badge') }}</span>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -110,71 +92,57 @@ const stats = [
       </div>
     </div>
 
-    <!-- ارزش‌های برند -->
+    <!-- هنرهای نورمهر -->
     <div class="values-section">
       <div class="container">
         <div class="section-header">
-          <span class="section-badge">{{ $t('about_values_badge') }}</span>
-          <h2 class="section-title">{{ $t('about_values_title') }}</h2>
-          <p class="section-desc">{{ $t('about_values_desc') }}</p>
+          <span class="section-badge">{{ $t('about_crafts_badge') }}</span>
+          <h2 class="section-title">{{ $t('about_crafts_title') }}</h2>
+          <p class="section-desc">{{ $t('about_crafts_desc') }}</p>
         </div>
 
         <div class="values-grid">
-          <article v-for="pillar in pillars" :key="pillar.id" class="value-card glass">
-            <div class="value-icon">{{ pillar.icon }}</div>
-            <h3 class="value-title">{{ $t(pillar.titleKey) }}</h3>
-            <p class="value-desc">{{ $t(pillar.descKey) }}</p>
+          <article v-for="craft in crafts" :key="craft.id" class="value-card glass">
+            <div class="value-icon">{{ craft.icon }}</div>
+            <h3 class="value-title">{{ $t(craft.titleKey) }}</h3>
+            <p class="value-desc">{{ $t(craft.descKey) }}</p>
             <div class="value-line"></div>
           </article>
         </div>
       </div>
     </div>
 
-    <!-- فرآیند ساخت -->
-    <div class="process-section">
+    <!-- شعبه‌ها -->
+    <div class="branches-section">
       <div class="container">
-        <div class="section-header">
-          <span class="section-badge">{{ $t('about_process_badge') }}</span>
-          <h2 class="section-title">{{ $t('about_process_title') }}</h2>
-          <p class="section-desc">{{ $t('about_process_desc') }}</p>
-        </div>
-
-        <div class="timeline">
-          <div v-for="step in timeline" :key="step.id" class="timeline-item">
-            <div class="timeline-marker">
-              <span class="marker-number">{{ step.id }}</span>
-              <span class="marker-line" v-if="step.id !== timeline.length"></span>
-            </div>
-            <div class="timeline-content glass">
-              <h4 class="step-title">{{ $t(step.labelKey) }}</h4>
-              <p class="step-desc">{{ $t(step.descKey) }}</p>
-            </div>
+        <div class="branches-card glass">
+          <div class="branches-figure">
+            <span class="branches-number">5</span>
+            <span class="branches-ring"></span>
+          </div>
+          <div class="branches-body">
+            <span class="section-badge">{{ $t('about_branches_badge') }}</span>
+            <h2 class="branches-title">{{ $t('about_branches_title') }}</h2>
+            <p class="branches-desc">{{ $t('about_branches_desc') }}</p>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- تیم -->
+    <!-- سازمان‌های همکار -->
     <div class="team-section">
       <div class="container">
         <div class="section-header">
-          <span class="section-badge">{{ $t('about_team_badge') }}</span>
-          <h2 class="section-title">{{ $t('about_team_title') }}</h2>
-          <p class="section-desc">{{ $t('about_team_desc') }}</p>
+          <span class="section-badge">{{ $t('about_partners_badge') }}</span>
+          <h2 class="section-title">{{ $t('about_partners_title') }}</h2>
+          <p class="section-desc">{{ $t('about_partners_desc') }}</p>
         </div>
 
         <div class="team-grid">
-          <article v-for="member in team" :key="member.id" class="team-card glass">
-            <div class="member-image">
-              <div class="image-placeholder">
-                <span>{{ $t(member.nameKey).charAt(0) }}</span>
-              </div>
-            </div>
-            <div class="member-info">
-              <h4 class="member-name">{{ $t(member.nameKey) }}</h4>
-              <span class="member-role">{{ $t(member.roleKey) }}</span>
-              <span class="member-exp">{{ $t(member.expKey) }}</span>
-            </div>
+          <article v-for="p in partners" :key="p.id" class="team-card glass">
+            <h4 class="member-name">{{ $t(p.nameKey) }}</h4>
+            <span class="member-role">{{ $t(p.typeKey) }}</span>
+            <div class="member-line"></div>
           </article>
         </div>
       </div>
@@ -203,7 +171,6 @@ const stats = [
   min-height: 100vh;
   background: #050814;
   color: #fff;
-  /* direction: rtl حذف شد */
 }
 
 .container {
@@ -263,6 +230,8 @@ const stats = [
 .title-line {
   display: block;
   font-weight: 300;
+  font-size: 0.5em;
+  opacity: 0.85;
 }
 
 .title-highlight {
@@ -272,13 +241,14 @@ const stats = [
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  margin: 6px 0;
 }
 
 .hero-desc {
   font-size: 1.15rem;
   line-height: 1.9;
   opacity: 0.9;
-  max-width: 600px;
+  max-width: 640px;
   margin: 0 auto;
 }
 
@@ -313,10 +283,9 @@ const stats = [
 }
 
 .story-layout {
-  display: grid;
-  grid-template-columns: 1.2fr 1fr;
-  gap: 60px;
-  align-items: center;
+  max-width: 860px;
+  margin: 0 auto;
+  text-align: center;
 }
 
 .section-badge {
@@ -347,7 +316,7 @@ const stats = [
   font-size: 0.95rem;
   line-height: 2;
   opacity: 0.85;
-  margin-bottom: 24px;
+  margin-bottom: 34px;
 }
 
 .usp-list {
@@ -356,7 +325,8 @@ const stats = [
   margin: 0;
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
+  gap: 14px 24px;
+  text-align: start;
 }
 
 .usp-list li {
@@ -369,6 +339,7 @@ const stats = [
 .check {
   width: 22px;
   height: 22px;
+  flex: none;
   border-radius: 50%;
   background: rgba(197,160,89,0.2);
   border: 1px solid rgba(197,160,89,0.6);
@@ -377,69 +348,6 @@ const stats = [
   justify-content: center;
   color: #facc6b;
   font-size: 0.75rem;
-}
-
-.story-visual {
-  position: relative;
-}
-
-.visual-card {
-  position: relative;
-  border-radius: 24px;
-  overflow: hidden;
-  background: rgba(5,8,20,0.8);
-  border: 1px solid rgba(255,255,255,0.1);
-  height: 400px;
-}
-
-.visual-glow {
-  position: absolute;
-  inset: -50%;
-  background: radial-gradient(circle at center, rgba(197,160,89,0.3), transparent 50%);
-  animation: glowPulse 4s ease-in-out infinite;
-}
-
-@keyframes glowPulse {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 0.8; }
-}
-
-.visual-placeholder {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-}
-
-.placeholder-icon {
-  font-size: 5rem;
-}
-
-.placeholder-text {
-  font-size: 1.2rem;
-  opacity: 0.7;
-}
-
-.visual-overlay {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 20px;
-  background: linear-gradient(to top, rgba(5,8,20,0.95), transparent);
-}
-
-.visual-badge {
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: rgba(197,160,89,0.2);
-  border: 1px solid rgba(197,160,89,0.5);
-  font-size: 0.8rem;
-  color: #facc6b;
 }
 
 /* آمار */
@@ -485,7 +393,7 @@ const stats = [
   opacity: 0.8;
 }
 
-/* ارزش‌ها */
+/* هنرها */
 .values-section {
   padding: 100px 0;
 }
@@ -503,12 +411,12 @@ const stats = [
 
 .values-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 24px;
 }
 
 .value-card {
-  padding: 30px;
+  padding: 30px 24px;
   border-radius: 20px;
   background: rgba(5,8,20,0.8);
   border: 1px solid rgba(255,255,255,0.08);
@@ -542,7 +450,7 @@ const stats = [
 
 .value-desc {
   font-size: 0.9rem;
-  line-height: 1.8;
+  line-height: 1.9;
   opacity: 0.8;
   margin: 0;
 }
@@ -554,83 +462,88 @@ const stats = [
   margin: 20px auto 0;
 }
 
-/* فرآیند */
-.process-section {
-  padding: 100px 0;
-  background: radial-gradient(circle at center, rgba(197,160,89,0.08), transparent 60%);
+/* شعبه‌ها */
+.branches-section {
+  padding: 40px 0 100px;
 }
 
-.timeline {
-  max-width: 700px;
-  margin: 0 auto;
-}
-
-.timeline-item {
+.branches-card {
   display: flex;
-  gap: 24px;
-  margin-bottom: 24px;
-}
-
-.timeline-marker {
-  display: flex;
-  flex-direction: column;
   align-items: center;
+  gap: 50px;
+  padding: 50px;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 15% 50%, rgba(197,160,89,0.16), transparent 60%),
+    rgba(5,8,20,0.9);
+  border: 1px solid rgba(255,255,255,0.08);
+  transition: all 0.3s ease;
 }
 
-.marker-number {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #c5a059, #8f7032);
+.branches-card:hover {
+  border-color: rgba(197,160,89,0.45);
+  box-shadow: 0 24px 50px rgba(0,0,0,0.5);
+}
+
+.branches-figure {
+  position: relative;
+  flex: none;
+  width: 150px;
+  height: 150px;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.branches-number {
+  font-size: 4.5rem;
   font-weight: 700;
-  color: #000;
-  box-shadow: 0 4px 20px rgba(197,160,89,0.4);
+  line-height: 1;
+  background: linear-gradient(135deg, #c5a059, #facc6b);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
-.marker-line {
-  flex: 1;
-  width: 2px;
-  background: linear-gradient(to bottom, rgba(197,160,89,0.6), transparent);
-  margin-top: 8px;
+.branches-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(197,160,89,0.4);
+  border-top-color: rgba(197,160,89,0.9);
+  animation: ringSpin 12s linear infinite;
 }
 
-.timeline-content {
-  flex: 1;
-  padding: 20px 24px;
-  border-radius: 16px;
-  background: rgba(5,8,20,0.8);
-  border: 1px solid rgba(255,255,255,0.08);
+@keyframes ringSpin {
+  to { transform: rotate(360deg); }
 }
 
-.step-title {
-  font-size: 1.05rem;
-  margin: 0 0 8px;
-  color: #facc6b;
+.branches-title {
+  font-size: 1.8rem;
+  margin: 0 0 12px;
 }
 
-.step-desc {
-  font-size: 0.9rem;
-  line-height: 1.8;
-  opacity: 0.85;
+.branches-desc {
+  font-size: 0.95rem;
+  line-height: 2;
+  opacity: 0.8;
   margin: 0;
+  max-width: 620px;
 }
 
-/* تیم */
+/* سازمان‌های همکار */
 .team-section {
-  padding: 100px 0;
+  padding: 0 0 100px;
 }
 
 .team-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 24px;
 }
 
 .team-card {
-  padding: 30px;
+  padding: 36px 24px;
   border-radius: 20px;
   background: rgba(5,8,20,0.8);
   border: 1px solid rgba(255,255,255,0.08);
@@ -643,45 +556,29 @@ const stats = [
   border-color: rgba(197,160,89,0.5);
 }
 
-.member-image {
-  margin-bottom: 20px;
-}
-
-.image-placeholder {
-  width: 100px;
-  height: 100px;
-  margin: 0 auto;
-  border-radius: 50%;
-  background: linear-gradient(135deg, rgba(197,160,89,0.3), rgba(197,160,89,0.1));
-  border: 2px solid rgba(197,160,89,0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 2rem;
-  font-weight: 700;
-  color: #facc6b;
-}
-
 .member-name {
-  font-size: 1.1rem;
-  margin: 0 0 6px;
+  font-size: 1.05rem;
+  line-height: 1.9;
+  margin: 0 0 8px;
 }
 
 .member-role {
   display: block;
-  font-size: 0.9rem;
+  font-size: 0.82rem;
   color: #facc6b;
-  margin-bottom: 4px;
+  opacity: 0.85;
 }
 
-.member-exp {
-  font-size: 0.8rem;
-  opacity: 0.7;
+.member-line {
+  width: 40px;
+  height: 2px;
+  background: linear-gradient(to right, #c5a059, transparent);
+  margin: 20px auto 0;
 }
 
 /* CTA */
 .cta-section {
-  padding: 80px 0 100px;
+  padding: 0 0 100px;
 }
 
 .cta-card {
@@ -691,7 +588,7 @@ const stats = [
   gap: 40px;
   padding: 50px;
   border-radius: 24px;
-  background: 
+  background:
     linear-gradient(135deg, rgba(197,160,89,0.15), transparent),
     rgba(5,8,20,0.9);
   border: 1px solid rgba(197,160,89,0.3);
@@ -720,6 +617,7 @@ const stats = [
   font-size: 0.95rem;
   font-weight: 600;
   text-decoration: none;
+  white-space: nowrap;
   transition: all 0.3s ease;
 }
 
@@ -757,23 +655,20 @@ const stats = [
   .container {
     padding: 0 30px;
   }
-  
+
   .hero-title {
     font-size: 2.8rem;
   }
-  
-  .story-layout {
-    grid-template-columns: 1fr;
-    gap: 40px;
-  }
-  
-  .stats-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  
+
+  .stats-grid,
   .values-grid,
   .team-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .branches-card {
+    gap: 32px;
+    padding: 40px;
   }
 }
 
@@ -781,58 +676,88 @@ const stats = [
   .container {
     padding: 0 20px;
   }
-  
+
   .hero-section {
     height: auto;
     min-height: 100vh;
     padding: 120px 0 80px;
   }
-  
+
   .hero-title {
     font-size: 2rem;
   }
-  
+
   .hero-desc {
     font-size: 1rem;
   }
-  
+
   .story-section,
-  .values-section,
-  .process-section,
-  .team-section {
+  .values-section {
     padding: 60px 0;
   }
-  
+
+  .branches-section {
+    padding: 20px 0 60px;
+  }
+
+  .team-section,
+  .cta-section {
+    padding: 0 0 60px;
+  }
+
   .section-title {
     font-size: 1.8rem;
   }
-  
+
   .usp-list {
     grid-template-columns: 1fr;
   }
-  
+
   .stats-grid,
   .values-grid,
   .team-grid {
     grid-template-columns: 1fr;
   }
-  
+
+  .branches-card {
+    flex-direction: column;
+    text-align: center;
+    padding: 34px 24px;
+  }
+
+  .branches-desc {
+    margin-inline: auto;
+  }
+
+  .branches-figure {
+    width: 120px;
+    height: 120px;
+  }
+
+  .branches-number {
+    font-size: 3.4rem;
+  }
+
+  .branches-title {
+    font-size: 1.5rem;
+  }
+
   .cta-card {
     flex-direction: column;
     text-align: center;
     padding: 30px;
   }
-  
+
   .cta-actions {
     flex-direction: column;
     width: 100%;
   }
-  
+
   .cta-btn {
     width: 100%;
     text-align: center;
   }
-  
+
   .scroll-indicator {
     display: none;
   }
