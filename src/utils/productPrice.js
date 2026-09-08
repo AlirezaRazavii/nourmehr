@@ -1,8 +1,5 @@
 /**
  * محاسبه اطلاعات قیمت محصول جهت نمایش در کارت محصولات
- * - حداقل قیمت (با احتساب تخفیف محصول یا سایزها)
- * - قیمت قبلی (در صورت وجود تخفیف)
- * - آیا محصول دارای چند سایز/قیمت متفاوت است؟ (برای نمایش عبارت «از X تومان»)
  */
 export const getProductPriceInfo = (product) => {
   if (!product) {
@@ -18,6 +15,7 @@ export const getProductPriceInfo = (product) => {
   let finalPrices = [];
   let oldPrices = [];
 
+  // ═══ ۱: اگر سایزها وجود دارند، فقط از آن‌ها استفاده کن ═══
   if (sizes.length > 0) {
     sizes.forEach((s) => {
       const sizePrice = Number(s.price) || 0;
@@ -38,23 +36,40 @@ export const getProductPriceInfo = (product) => {
       }
     });
   }
+  // ═══ ۲: فقط اگر سایز وجود ندارد، قیمت پایه را محاسبه کن ═══
+  else {
+    const basePrice = Number(product.price) || 0;
+    
+    if (basePrice > 0) {
+      const prodDiscount = Number(product.discountPercent) || 0;
+      
+      // محاسبه قیمت نهایی
+      let finalBasePrice;
+      
+      // اگر finalPrice از backend معتبر است
+      if (
+        product.finalPrice !== undefined &&
+        product.finalPrice !== null &&
+        Number(product.finalPrice) > 0 &&
+        Number(product.finalPrice) <= basePrice  // ⭐ قیمت نهایی نباید بیشتر از قیمت اصلی باشد
+      ) {
+        finalBasePrice = Number(product.finalPrice);
+      } else {
+        // محاسبه با تخفیف
+        finalBasePrice =
+          prodDiscount > 0 && prodDiscount < 100
+            ? Math.round(basePrice * (1 - prodDiscount / 100))
+            : basePrice;
+      }
 
-  const basePrice = Number(product.price) || 0;
-  if (basePrice > 0 || finalPrices.length === 0) {
-    const prodDiscount = Number(product.discountPercent) || 0;
-    const finalBasePrice =
-      product.finalPrice !== undefined && product.finalPrice !== null
-        ? Number(product.finalPrice)
-        : prodDiscount > 0 && prodDiscount < 100
-        ? Math.round(basePrice * (1 - prodDiscount / 100))
-        : basePrice;
+      finalPrices.push(finalBasePrice);
 
-    finalPrices.push(finalBasePrice);
-
-    if (product.oldPrice && Number(product.oldPrice) > finalBasePrice) {
-      oldPrices.push(Number(product.oldPrice));
-    } else if (prodDiscount > 0 && basePrice > finalBasePrice) {
-      oldPrices.push(basePrice);
+      // قیمت قدیمی
+      if (product.oldPrice && Number(product.oldPrice) > finalBasePrice) {
+        oldPrices.push(Number(product.oldPrice));
+      } else if (prodDiscount > 0 && basePrice > finalBasePrice) {
+        oldPrices.push(basePrice);
+      }
     }
   }
 
