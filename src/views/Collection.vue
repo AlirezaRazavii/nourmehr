@@ -409,37 +409,42 @@ const renderStars = (rating) => {
               </div>
             </div>
 
-            <div class="card-body">
-              <div class="card-meta">
-                <span class="meta-cat">{{ product.category?.name || product.category }}</span>
-              </div>
 
-              <h3 class="card-title">{{ product.name }}</h3>
-              <p class="card-desc">{{ product.shortDesc }}</p>
+<div class="card-content">
+  <h2 class="product-title">{{ product.name }}</h2>
+  <div class="title-underline"></div>
 
-              <div class="card-bottom">
-                <div class="price-group">
-                  <span v-if="getPriceInfo(product).oldPrice" class="price-old">{{ formatPrice(getPriceInfo(product).oldPrice) }}</span>
-                  <span class="price-current">
-                    <span v-if="getPriceInfo(product).hasMultipleSizes" style="font-size:0.8rem; color:#c5a059; margin-left:3px">از </span>
-                    {{ formatPrice(getPriceInfo(product).minPrice) }}<small> تومان</small>
-                  </span>
-                </div>
-                <button
-                  class="add-cart-btn"
-                  :disabled="(product.stock ?? 0) <= 0"
-                  :style="(product.stock ?? 0) <= 0 ? { opacity: 0.5, cursor: 'not-allowed' } : {}"
-                  @click.stop="handleAddToCart(product)"
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                    <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                    <line x1="3" y1="6" x2="21" y2="6" stroke="currentColor" stroke-width="1.5"/>
-                    <path d="M16 10a4 4 0 01-8 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
-                  <span>{{ (product.stock ?? 0) > 0 ? 'افزودن' : 'ناموجود' }}</span>
-                </button>
-              </div>
-            </div>
+  <div class="desc-box">
+    <span class="desc-label">توضیحات</span>
+    <p class="short-desc">{{ product.shortDesc || 'بدون توضیحات' }}</p>
+  </div>
+
+  <div class="card-footer">
+    <div class="card-price-box">
+      <span v-if="getPriceInfo(product).oldPrice" class="price-old">
+        {{ formatPrice(getPriceInfo(product).oldPrice) }}
+      </span>
+      <div class="price-current-wrap">
+        <span v-if="getPriceInfo(product).hasMultipleSizes" class="price-prefix">از</span>
+        <span class="price-amount">{{ formatPrice(getPriceInfo(product).minPrice) }}</span>
+        <span class="price-currency">تومان</span>
+      </div>
+    </div>
+
+    <router-link
+      :to="{ name: 'ProductDetails', params: { lang: locale, id: product.slug || product._id || product.id } }"
+      class="view-btn"
+      @click.stop
+    >
+      <span class="view-text">مشاهده</span>
+      <span class="view-arrow">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M5 12h14M12 5l7 7-7 7"/>
+        </svg>
+      </span>
+    </router-link>
+  </div>
+</div>
           </article>
         </div>
 
@@ -1479,124 +1484,147 @@ const renderStars = (rating) => {
   fill: #ef4444;
 }
 
-.card-body {
-  padding: 20px 24px 24px;
-}
+/* ✅ این استایل‌ها را جایگزین کنید (هماهنگ با Products.vue) */
 
-.card-meta {
+.card-content {
+  padding: clamp(10px, 1.2vw, 14px);
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
+  flex-direction: column;
+  gap: 7px;
+  flex: 1;
 }
 
-.meta-cat {
-  font-size: 0.75rem;
-  color: var(--accent);
-  padding: 4px 10px;
-  border-radius: 6px;
-  background: rgba(var(--accent-rgb), 0.08);
-  font-weight: 500;
+.product-title {
+  font-size: clamp(0.82rem, 1vw, 0.95rem);
+  font-weight: 700;
+  color: #f0f0f0;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
-.meta-rating {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.title-underline {
+  width: 28px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #c5a059, transparent);
+  transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.stars {
-  display: flex;
-  gap: 2px;
+.desc-box {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 8px 10px 9px;
+  background: rgba(255, 255, 255, 0.02);
 }
 
-.rating-count {
-  font-size: 0.72rem;
-  color: var(--text-secondary);
+.desc-label {
+  display: inline-block;
+  font-size: 0.6rem;
+  color: #c5a059;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
 }
 
-.card-title {
-  font-size: 1.1rem;
-  font-weight: 650;
-  margin: 0 0 8px;
-  color: var(--text);
-  transition: color 0.2s;
-}
-
-.product-card:hover .card-title {
-  color: var(--accent);
-}
-
-.card-desc {
-  font-size: 0.84rem;
-  line-height: 1.7;
-  color: var(--text-secondary);
-  margin: 0 0 20px;
+.short-desc {
+  font-size: clamp(0.7rem, 0.85vw, 0.78rem);
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.6;
+  margin: 0;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-.card-bottom {
+.card-footer {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border);
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
 }
 
-.price-group {
+.card-price-box {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 2px;
 }
 
 .price-old {
-  font-size: 0.78rem;
-  color: var(--text-secondary);
-  text-decoration: line-through;
-}
-
-.price-current {
-  font-size: 1.15rem;
-  font-weight: 800;
-  color: var(--text);
-}
-
-.price-current small {
   font-size: 0.72rem;
-  font-weight: 400;
-  color: var(--text-secondary);
-  margin-right: 2px;
+  color: rgba(255, 255, 255, 0.4);
+  text-decoration: line-through;
+  line-height: 1;
 }
 
-.add-cart-btn {
+.price-current-wrap {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 18px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--bg-elevated);
-  color: var(--text);
-  font-size: 0.82rem;
-  font-family: inherit;
-  font-weight: 500;
+  gap: 4px;
+  line-height: 1.2;
+}
+
+.price-prefix {
+  font-size: 0.75rem;
+  color: #c5a059;
+  font-weight: 600;
+}
+
+.price-amount {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #facc6b;
+}
+
+.price-currency {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 400;
+}
+
+.view-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #2bbf9e, #1a8f78);
+  border: none;
+  color: #fff;
+  text-decoration: none;
+  font-size: 0.72rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s var(--ease-out);
-  white-space: nowrap;
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  flex-shrink: 0;
 }
 
-.add-cart-btn:hover {
-  background: var(--accent);
-  color: #000;
-  border-color: var(--accent);
-  transform: scale(1.05);
-  box-shadow: 0 6px 24px rgba(var(--accent-rgb), 0.3);
+.view-btn:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(43, 191, 158, 0.3);
 }
 
+.view-arrow {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.18);
+  transition: transform 0.35s;
+}
+
+.view-btn:hover .view-arrow {
+  transform: translateX(-3px);
+}
 /* ═══════════════════════════════════════
    EMPTY STATE
    ═══════════════════════════════════════ */
@@ -2018,4 +2046,48 @@ const renderStars = (rating) => {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* ✅ این را به بخش Responsive اضافه کنید */
+
+@media (max-width: 768px) {
+  .card-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  
+  .card-price-box {
+    width: 100%;
+  }
+  
+  .view-btn {
+    justify-content: center;
+    width: 100%;
+  }
+  
+  .product-title {
+    font-size: 0.82rem;
+  }
+  
+  .short-desc {
+    font-size: 0.7rem;
+  }
+  
+  .price-amount {
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .card-content {
+    padding: 9px 10px 11px;
+    gap: 6px;
+  }
+  
+  .view-btn {
+    justify-content: center;
+    width: 100%;
+  }
+}
+
 </style>
