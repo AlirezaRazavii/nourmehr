@@ -66,14 +66,12 @@ const goToProduct = (p) => {
 
 // نرمال‌سازی پاسخ سرور تا در برابر ساختارهای مختلف مقاوم باشد
 const extractCollectionAndProducts = (data) => {
-  // حالت استاندارد: data = { collection, products, total }
   if (data && typeof data === 'object' && ('collection' in data || 'products' in data)) {
     return {
       collection: data.collection || null,
       products: Array.isArray(data.products) ? data.products : []
     }
   }
-  // حالت جایگزین: data خودش آبجکت کالکشن است و محصولات داخل آن
   if (data && typeof data === 'object') {
     return {
       collection: data,
@@ -93,7 +91,6 @@ const load = async () => {
     collection.value = col
     products.value = prods
 
-    // دیباگ کمکی — در صورت نیاز کنسول را ببینید
     if (!prods.length) {
       console.warn('[CollectionView] هیچ محصولی برای این کالکشن برنگشت. پاسخ سرور:', data)
     }
@@ -137,16 +134,17 @@ onMounted(load)
         <button class="cv-btn" @click="load">{{ $t('retry') }}</button>
       </div>
 
-      <!-- محصولات -->
+      <!-- ═══════ محصولات - کارت محصول دقیقاً مثل Products.vue ═══════ -->
       <div v-else-if="products.length" class="cv-grid">
         <article
           v-for="(product, i) in paginatedProducts"
           :key="productId(product) || i"
           class="product-card"
-          :style="{ '--i': i }"
+          :style="{ '--delay': `${i * 0.05}s` }"
           @click="goToProduct(product)"
         >
           <div class="card-inner">
+            <!-- بخش تصویر: دقیقاً مثل Products.vue -->
             <div class="card-image-wrapper">
               <img
                 class="card-image"
@@ -154,13 +152,23 @@ onMounted(load)
                 :alt="getLocalizedText(product.name)"
                 loading="lazy"
               />
-              <div v-if="product.discountPercent" class="discount-tag">{{ formatNumber(product.discountPercent) }}%</div>
-              <div v-if="product.category" class="card-badge">
+              <button
+                class="wishlist-heart"
+                @click.stop
+                aria-label="افزودن به علاقه‌مندی"
+              >
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                </svg>
+              </button>
+              <div v-if="product.discountPercent" class="discount-tag">{{ formatNumber(product.discountPercent) }}٪</div>
+              <div class="card-badge">
                 <span class="badge-icon">{{ getCategoryIcon(product.category) }}</span>
                 <span>{{ getLocalizedText(product.category?.name || product.category) }}</span>
               </div>
             </div>
 
+            <!-- بخش محتوا: دقیقاً مثل Products.vue -->
             <div class="card-content">
               <h2 class="product-title">{{ getLocalizedText(product.name) }}</h2>
               <div class="title-underline"></div>
@@ -234,6 +242,9 @@ onMounted(load)
   padding: 0 clamp(16px, 4vw, 48px);
 }
 
+/* ═══════════════════════════════════════
+   HEADER
+   ═══════════════════════════════════════ */
 .cv-header {
   text-align: center;
   padding: clamp(80px, 10vw, 130px) 20px 60px;
@@ -274,7 +285,7 @@ onMounted(load)
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  color: #c5a059; /* fallback */
+  color: #c5a059;
 }
 .cv-subtitle { font-size: 1.05rem; color: #c5a059; margin: 0 0 16px; position: relative; }
 .cv-desc {
@@ -288,134 +299,456 @@ onMounted(load)
 
 .cv-loading { text-align: center; padding: 80px; color: rgba(255,255,255,0.5); }
 
+/* ═══════════════════════════════════════
+   GRID (مثل Products.vue)
+   ═══════════════════════════════════════ */
 .cv-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
   gap: clamp(14px, 1.6vw, 22px);
 }
 
-/* ===== کارت محصول استاندارد (همان صفحه‌ی محصولات) ===== */
+/* ═══════════════════════════════════════
+   PRODUCT CARD (دقیقاً مثل Products.vue)
+   ═══════════════════════════════════════ */
 .product-card {
   position: relative;
   border-radius: 16px;
-  cursor: pointer;
   opacity: 0;
   transform: translateY(30px);
-  animation: cvReveal 0.6s cubic-bezier(0.16,1,0.3,1) forwards;
-  animation-delay: calc(var(--i) * 0.05s);
+  animation: cardReveal 0.6s cubic-bezier(0.16,1,0.3,1) forwards;
+  animation-delay: var(--delay);
 }
-@keyframes cvReveal { to { opacity: 1; transform: translateY(0); } }
+
+@keyframes cardReveal {
+  to { opacity: 1; transform: translateY(0); }
+}
 
 .card-inner {
-  position: relative; z-index: 1; border-radius: 16px;
+  position: relative;
+  z-index: 1;
+  border-radius: 16px;
   background: linear-gradient(165deg, rgba(18,22,36,0.95), rgba(8,10,18,0.98));
-  border: 1px solid rgba(255,255,255,0.05); overflow: hidden;
-  display: flex; flex-direction: column; height: 100%;
+  border: 1px solid rgba(255,255,255,0.05);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   transition: transform 0.3s ease, border-color 0.3s, box-shadow 0.3s;
 }
 
-@media (hover: hover) and (pointer: fine) {
-  .product-card:hover .card-inner { transform: translateY(-6px); border-color: rgba(197,160,89,0.15); box-shadow: 0 18px 50px rgba(0,0,0,0.5), 0 0 30px rgba(197,160,89,0.05); }
-  .product-card:hover .card-image { transform: scale(1.08); }
-  .product-card:hover .title-underline { width: 34px; }
+@media (hover: hover) {
+  .product-card:hover .card-inner {
+    transform: translateY(-4px);
+    border-color: rgba(197,160,89,0.15);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  }
+  .product-card:hover .card-image {
+    transform: scale(1.05);
+  }
+  .product-card:hover .title-underline {
+    width: 34px;
+  }
 }
 
+/* ── تصویر: دقیقاً مثل Products.vue ── */
 .card-image-wrapper {
-  position: relative; overflow: hidden; aspect-ratio: 1/1; width: 100%;
-  display: flex; align-items: center; justify-content: center; padding: 14px;
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 1/1;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
   background: radial-gradient(circle at 50% 35%, rgba(197,160,89,0.06), transparent 65%);
 }
+
 .card-image {
-  width: 100%; height: 100%; object-fit: contain;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
   filter: drop-shadow(0 12px 26px rgba(0,0,0,0.4));
   transition: transform 0.5s ease;
 }
 
-.discount-tag { position: absolute; top: 10px; left: 10px; z-index: 3; padding: 4px 9px; border-radius: 9px; background: linear-gradient(135deg, #ef4444, #b91c1c); color: #fff; font-size: 0.7rem; font-weight: 800; box-shadow: 0 4px 14px rgba(239,68,68,0.4); }
-.card-badge { position: absolute; bottom: 10px; right: 10px; z-index: 3; display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 9px; background: rgba(0,0,0,0.5); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.08); font-size: 0.62rem; color: #f5d78e; font-weight: 500; max-width: calc(100% - 20px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.badge-icon { font-size: 0.7rem; flex-shrink: 0; }
-
-.card-content { padding: clamp(10px,1.2vw,14px); display: flex; flex-direction: column; gap: 7px; flex: 1; }
-.product-title { font-size: clamp(0.82rem,1vw,0.95rem); font-weight: 700; color: #f0f0f0; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
-.title-underline { width: 28px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, #c5a059, transparent); transition: width 0.5s cubic-bezier(0.16,1,0.3,1); }
-
-.desc-box { border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 8px 10px 9px; background: rgba(255,255,255,0.02); }
-.desc-label { display: inline-block; font-size: 0.6rem; color: #c5a059; letter-spacing: 1px; margin-bottom: 4px; }
-.short-desc { font-size: clamp(0.7rem,0.85vw,0.78rem); color: rgba(255,255,255,0.5); line-height: 1.6; margin: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-
-.card-footer { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: auto; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.04); }
-
-.view-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 11px; background: linear-gradient(135deg, #2bbf9e, #1a8f78); border: none; color: #fff; text-decoration: none; font-size: 0.72rem; font-weight: 600; cursor: pointer; transition: all 0.35s cubic-bezier(0.16,1,0.3,1); flex-shrink: 0; }
-.view-btn:hover { filter: brightness(1.1); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(43,191,158,0.3); }
-.view-arrow { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.18); transition: transform 0.35s; }
-.view-btn:hover .view-arrow { transform: translateX(-3px); }
-
-/* صفحه‌بندی */
-.cv-pagination { display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 50px; flex-wrap: wrap; }
-.cv-pagination button, .cv-pagination span {
-  min-width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
-  border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: rgba(15,23,42,0.8);
-  color: #fff; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all 0.2s; padding: 0 10px;
+.discount-tag {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 3;
+  padding: 4px 9px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 800;
+  box-shadow: 0 4px 14px rgba(239,68,68,0.4);
 }
-.cv-pagination span.active { background: linear-gradient(135deg, #c5a059, #8f7032); color: #000; border-color: transparent; }
-.cv-pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
 
-.cv-empty { text-align: center; padding: 80px 20px; }
-.cv-empty-icon { font-size: 3rem; color: rgba(197,160,89,0.3); margin-bottom: 16px; }
-.cv-empty h3 { margin: 0 0 20px; }
+.wishlist-heart {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 4;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  padding: 0;
+  background: rgba(0,0,0,0.7);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.wishlist-heart:hover {
+  background: rgba(239,68,68,0.2);
+  color: #ff6b6b;
+  border-color: rgba(239,68,68,0.4);
+  transform: scale(1.1);
+}
+
+.wishlist-heart.active {
+  color: #ef4444;
+  background: rgba(239,68,68,0.15);
+  border-color: rgba(239,68,68,0.5);
+}
+
+.wishlist-heart svg {
+  display: block;
+}
+
+.card-badge {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 9px;
+  background: rgba(0,0,0,0.7);
+  border: 1px solid rgba(255,255,255,0.08);
+  font-size: 0.62rem;
+  color: #f5d78e;
+  font-weight: 500;
+  max-width: calc(100% - 20px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.badge-icon {
+  font-size: 0.7rem;
+  flex-shrink: 0;
+}
+
+/* ── محتوا: دقیقاً مثل Products.vue ── */
+.card-content {
+  padding: clamp(10px, 1.2vw, 14px);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  flex: 1;
+}
+
+.product-title {
+  font-size: clamp(0.82rem, 1vw, 0.95rem);
+  font-weight: 700;
+  color: #f0f0f0;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.title-underline {
+  width: 28px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #c5a059, transparent);
+  transition: width 0.5s cubic-bezier(0.16,1,0.3,1);
+}
+
+.desc-box {
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding: 8px 10px 9px;
+  background: rgba(255,255,255,0.02);
+}
+
+.desc-label {
+  display: inline-block;
+  font-size: 0.6rem;
+  color: #c5a059;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+}
+
+.short-desc {
+  font-size: clamp(0.7rem, 0.85vw, 0.78rem);
+  color: rgba(255,255,255,0.5);
+  line-height: 1.6;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ── Footer: دقیقاً مثل Products.vue ── */
+.card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.04);
+}
+
+.card-price-box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.price-old {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.4);
+  text-decoration: line-through;
+  line-height: 1;
+}
+
+.price-current-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  line-height: 1.2;
+}
+
+.price-prefix {
+  font-size: 0.75rem;
+  color: #c5a059;
+  font-weight: 600;
+}
+
+.price-amount {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #facc6b;
+}
+
+.price-currency {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 400;
+}
+
+.view-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #2bbf9e, #1a8f78);
+  border: none;
+  color: #fff;
+  text-decoration: none;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.35s cubic-bezier(0.16,1,0.3,1);
+  flex-shrink: 0;
+}
+
+.view-btn:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(43,191,158,0.3);
+}
+
+.view-arrow {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.18);
+  transition: transform 0.35s;
+}
+
+.view-btn:hover .view-arrow {
+  transform: translateX(-3px);
+}
+
+/* ═══════════════════════════════════════
+   PAGINATION
+   ═══════════════════════════════════════ */
+.cv-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin-top: 50px;
+  flex-wrap: wrap;
+}
+
+.cv-pagination button, .cv-pagination span {
+  min-width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(15,23,42,0.8);
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: all 0.2s;
+  padding: 0 10px;
+}
+
+.cv-pagination span.active {
+  background: linear-gradient(135deg, #c5a059, #8f7032);
+  color: #000;
+  border-color: transparent;
+}
+
+.cv-pagination button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ═══════════════════════════════════════
+   EMPTY STATE
+   ═══════════════════════════════════════ */
+.cv-empty {
+  text-align: center;
+  padding: 80px 20px;
+}
+
+.cv-empty-icon {
+  font-size: 3rem;
+  color: rgba(197,160,89,0.3);
+  margin-bottom: 16px;
+}
+
+.cv-empty h3 {
+  margin: 0 0 20px;
+}
 
 .cv-btn {
-  display: inline-block; padding: 12px 28px; border-radius: 14px;
-  background: linear-gradient(135deg, #c5a059, #f5d78e); color: #000;
-  text-decoration: none; font-weight: 700; border: none; cursor: pointer; font-family: inherit;
+  display: inline-block;
+  padding: 12px 28px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #c5a059, #f5d78e);
+  color: #000;
+  text-decoration: none;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
 }
 
+/* ═══════════════════════════════════════
+   RESPONSIVE
+   ═══════════════════════════════════════ */
 @media (max-width: 1100px) {
-  .cv-grid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+  .cv-grid {
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  }
 }
-
 
 @media (max-width: 768px) {
-  .cv-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-  .card-content { padding: 9px 10px 11px; gap: 6px; }
-  .cv-pagination button, .cv-pagination span { min-width: 32px; height: 32px; font-size: 0.8rem; }
-  
+  .cv-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .card-content {
+    padding: 9px 10px 11px;
+    gap: 6px;
+  }
+
   .card-footer {
     flex-direction: column;
     align-items: flex-start;
     gap: 6px;
   }
-  
+
+  .card-price-box {
+    width: 100%;
+  }
+
   .view-btn {
     justify-content: center;
     width: 100%;
   }
-  
+
   .product-title {
     font-size: 0.82rem;
   }
-  
+
   .short-desc {
     font-size: 0.7rem;
   }
-  
+
   .price-amount {
     font-size: 0.85rem;
+  }
+
+  .cv-pagination button, .cv-pagination span {
+    min-width: 32px;
+    height: 32px;
+    font-size: 0.8rem;
   }
 }
 
 @media (max-width: 480px) {
-  .cv-grid { gap: 10px; }
-  .view-btn { justify-content: center; width: 100%; }
+  .cv-grid {
+    gap: 10px;
+  }
+
+  .card-content {
+    padding: 9px 10px 11px;
+    gap: 6px;
+  }
+
+  .view-btn {
+    justify-content: center;
+    width: 100%;
+  }
 }
 
 @media (hover: none) {
-  .product-card:hover .card-inner { transform: none; box-shadow: none; }
-  .product-card:hover .card-image { transform: none; }
+  .product-card:hover .card-inner {
+    transform: none;
+    box-shadow: none;
+  }
+  .product-card:hover .card-image {
+    transform: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .product-card { animation: none !important; opacity: 1 !important; transform: none !important; }
-  .product-card .card-inner, .card-image { transition: none !important; }
+  .product-card {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .product-card .card-inner, .card-image {
+    transition: none !important;
+  }
 }
 </style>
