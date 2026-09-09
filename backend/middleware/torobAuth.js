@@ -14,10 +14,13 @@ const crypto = require('crypto');
 
 const IS_PROD = process.env.NODE_ENV === 'production';
 
-/* کلید عمومی ترب — از مستندات رسمی Torob-Sync */
-const TOROB_PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEAt6Mu4T0pBORY11W+QeM35UsmLO3vsf+6yKpFDEImFk0=
------END PUBLIC KEY-----`;
+/* کلید عمومی ترب (base64 از مستندات رسمی Torob-Sync).
+   در dev فقط: با TOROB_TEST_PUBLIC_KEY می‌توان کلید تستی گذاشت تا
+   تست end-to-end بدون کلید واقعی ترب ممکن باشد.
+   در production این متغیر هرگز اعمال نمی‌شود (IS_PROD چک می‌شود). */
+const TOROB_PUBLIC_KEY_B64 = 'MCowBQYDK2VwAyEAt6Mu4T0pBORY11W+QeM35UsmLO3vsf+6yKpFDEImFk0=';
+const activeKeyB64 = (!IS_PROD && process.env.TOROB_TEST_PUBLIC_KEY) || TOROB_PUBLIC_KEY_B64;
+const TOROB_PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----\n${activeKeyB64}\n-----END PUBLIC KEY-----`;
 
 /* جبران اختلاف ساعت کوچک بین سرور ما و ترب (ثانیه) */
 const CLOCK_TOLERANCE_SEC = 30;
