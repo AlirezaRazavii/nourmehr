@@ -3,10 +3,18 @@
  * ---------------------------------------------------------------
  * مستندات رسمی: https://github.com/Torob/Torob-Sync/blob/main/product_api_v3.md
  *
- * ⚠️ نکتهٔ حیاتی: فرمت پاسخ/خطای ترب با بقیهٔ APIهای سایت فرق دارد —
+ * ⚠️ فرمت پاسخ/خطای ترب با بقیهٔ APIهای سایت فرق دارد —
  * نباید در { success, data } یا قالب خطای سایت wrap شود.
  * موفق: { api_version, current_page, total, max_pages, products }
  * خطا:   { error: "..." }
+ *
+ * 📦 مدل قیمت‌گذاری واریانت (سایز):
+ * هر سایز price (قیمت اصلی) + discountPercent (تخفیف مخصوص خودش) + stock دارد.
+ * مثلاً سایز کوچک ۳۰٪ تخفیف، سایز بزرگ ۵۰٪ — کاملاً مستقل، بدون تداخل.
+ * آنچه به ترب فرستاده می‌شود:
+ *   current_price = قیمت نهاییِ ارزان‌ترین سایزِ موجود (همان صفحهٔ محصول)
+ *   old_price     = قیمت اصلیِ همان سایز → بج درصد تخفیف همان سایز در ترب
+ *   availability  = مجموع موجودی سایزها > 0
  */
 const crypto = require('crypto');
 const mongoose = require('mongoose');
@@ -52,7 +60,7 @@ const fail = (res, error, code = 500) => {
   res.status(code).json({ error: IS_PROD ? 'خطای داخلی سرور' : error.message });
 };
 
-/* استخراج slug از URL محصول */
+/* استخراج slug از URL محصول — با دیکد percent-encoding فارسی */
 const extractSlug = (url) => {
   try {
     const u = new URL(String(url));
@@ -69,18 +77,54 @@ const extractSlug = (url) => {
 
 /* ---------------- تبدیل محصول مونگو به فرمت Torob API v3 ---------------- */
 const formatProductForTorob = (product) => {
-  /* قیمت — عیناً همان منطق productBotRenderer در seoController */
-  const basePrice = toNum(product.price);
-  const discount = toNum(product.discountPercent);
+  /* ---------- قیمت و موجودی ----------
+     حالت ۱) محصولِ سایزدار: هر سایز قیمت اصلی + تخفیف مخصوص خودش دارد.
+       قیمت ترب  = قیمت نهاییِ ارزان‌ترین سایزِ موجود
+       old_price = قیمت اصلیِ همان سایز (بج تخفیف همان سایز درست نمایش داده می‌شود)
+       موجودی    = مجموع موجودی همهٔ سایزها
+     حالت ۲) بدون سایز: منطق سطح محصول (price + discountPercent). */
+  const sizes = (Array.isArray(product.sizes) ? product.sizes : []).filter(
+    (s) => s && toNum(s.price) > 0
+  );
+
+  let basePrice = toNum(product.price);
+  let discount = toNum(product.discountPercent);
+  let stockQty = toNum(product.stock);
+  let sizeBased = false;
+
+  if (sizes.length > 0) {
+    sizeBased = true;
+
+    /* قیمت نهایی هر سایز با تخفیف «خودش» — مستقل، بدون تداخل */
+    const sizeFinal = (s) => {
+      const p = toNum(s.price);
+      const d = toNum(s.discountPercent);
+      return d > 0 && d < 100 ? Math.round(p * (1 - d / 100)) : p;
+    };
+
+    /* ارزان‌ترین سایزِ موجود؛ اگر هیچ سایزی موجود نیست: ارزان‌ترین همه */
+    const inStockSizes = sizes.filter((s) => toNum(s.stock) > 0);
+    const pool = inStockSizes.length > 0 ? inStockSizes : sizes;
+    const cheapest = pool.reduce((a, b) => (sizeFinal(a) <= sizeFinal(b) ? a : b));
+
+    basePrice = toNum(cheapest.price);
+    discount = toNum(cheapest.discountPercent);
+    stockQty = sizes.reduce((sum, s) => sum + toNum(s.stock), 0);
+  }
+
   const finalPrice =
     discount > 0 && discount < 100 ? Math.round(basePrice * (1 - discount / 100)) : basePrice;
 
-  /* موجودی — عیناً همان منطق inStock در seoController و virtual مدل */
-  const inStock = product.status === 'active' && toNum(product.stock) > 0;
+  /* old_price:
+     - سایزدار: قیمت اصلی همان سایز
+     - بدون سایز: بزرگ‌ترینِ price / oldPrice / finalPrice */
+  const oldPrice = sizeBased
+    ? basePrice
+    : Math.max(basePrice, toNum(product.oldPrice), finalPrice);
 
-  /* old_price: قیمت قبل از تخفیف */
-  const explicitOld = toNum(product.oldPrice);
-  const oldPrice = Math.max(basePrice, explicitOld, finalPrice);
+  /* موجودی: وضعیت out_ofstock از موجودیِ «سطح محصول» مشتق می‌شود که با
+     موجودی سایزها همگام نیست؛ اگر مجموع موجودی مثبت است، موجود است */
+  const inStock = product.status !== 'inactive' && stockQty > 0;
 
   /* تصاویر: اولی همیشه عکس اصلی؛ نسبی → مطلق؛ حداکثر ۲۰ */
   const imageLinks = [...new Set([product.mainImage, ...(product.images || [])].filter(Boolean))]
