@@ -1,21 +1,3 @@
-/**
- * Torob Product API v3 — کنترلر دریافت محصولات توسط ترب
- * ---------------------------------------------------------------
- * مستندات رسمی: https://github.com/Torob/Torob-Sync/blob/main/product_api_v3.md
- *
- * ⚠️ فرمت پاسخ/خطای ترب با بقیهٔ APIهای سایت فرق دارد —
- * نباید در { success, data } یا قالب خطای سایت wrap شود.
- * موفق: { api_version, current_page, total, max_pages, products }
- * خطا:   { error: "..." }
- *
- * 📦 مدل قیمت‌گذاری واریانت (سایز):
- * هر سایز price (قیمت اصلی) + discountPercent (تخفیف مخصوص خودش) + stock دارد.
- * مثلاً سایز کوچک ۳۰٪ تخفیف، سایز بزرگ ۵۰٪ — کاملاً مستقل، بدون تداخل.
- * آنچه به ترب فرستاده می‌شود:
- *   current_price = قیمت نهاییِ ارزان‌ترین سایزِ موجود (همان صفحهٔ محصول)
- *   old_price     = قیمت اصلیِ همان سایز → بج درصد تخفیف همان سایز در ترب
- *   availability  = مجموع موجودی سایزها > 0
- */
 const crypto = require('crypto');
 const mongoose = require('mongoose');
 const Product = require('../models/Product');
@@ -23,19 +5,12 @@ const { getOrSet } = require('../utils/cache');
 
 const IS_PROD = process.env.NODE_ENV === 'production';
 
-/* همان الگوی seoController برای آدرس سایت و URL مطلق */
 const SITE_URL = (process.env.SITE_URL || 'https://nourmehr.ir').replace(/\/+$/, '');
 const absoluteUrl = (p = '') => (/^https?:\/\//.test(p) ? p : `${SITE_URL}${p}`);
 
-/* فقط محصولات عمومی — دقیقاً همان تعریف seoController */
 const PUBLIC_PRODUCT_STATUSES = ['active', 'out_of_stock'];
-
-/* طبق مستندات ترب: هر صفحه دقیقاً ۱۰۰ محصول (به‌جز صفحهٔ آخر) */
 const PRODUCT_PAGE_SIZE = 100;
-
-/* TTL کوتاه — polling ترب هر ۶–۱۲ ساعت است؛ ۵ دقیقه کهنه‌شدن بی‌ضرر است */
 const CACHE_TTL = 300;
-
 const VALID_SORTS = ['date_added_desc', 'date_updated_desc'];
 
 /* ------------------------------ ابزارهای کمکی ------------------------------ */
@@ -44,7 +19,6 @@ const toNum = (v) => {
   return Number.isFinite(n) ? n : 0;
 };
 
-/* همان pick موجود در seoController — خواندن فیلدهای دوزبانه */
 const pick = (value, lang = 'fa') => {
   if (value == null) return '';
   if (typeof value === 'string') return value;
@@ -52,7 +26,6 @@ const pick = (value, lang = 'fa') => {
   return '';
 };
 
-/* کلید کش کوتاه برای جستجوهای لیستی */
 const hashKey = (s) => crypto.createHash('sha1').update(String(s)).digest('hex').slice(0, 16);
 
 const fail = (res, error, code = 500) => {
@@ -60,7 +33,6 @@ const fail = (res, error, code = 500) => {
   res.status(code).json({ error: IS_PROD ? 'خطای داخلی سرور' : error.message });
 };
 
-/* استخراج slug از URL محصول — با دیکد percent-encoding فارسی */
 const extractSlug = (url) => {
   try {
     const u = new URL(String(url));
@@ -77,19 +49,17 @@ const extractSlug = (url) => {
 
 /* ---------------- تبدیل محصول مونگو به فرمت Torob API v3 ---------------- */
 const formatProductForTorob = (product) => {
-  /* ---------- قیمت و موجودی ----------
-     حالت ۱) محصولِ سایزدار: هر سایز قیمت اصلی + تخفیف مخصوص خودش دارد.
-       قیمت ترب  = قیمت نهاییِ ارزان‌ترین سایزِ موجود
-       old_price = قیمت اصلیِ همان سایز (بج تخفیف همان سایز درست نمایش داده می‌شود)
-       موجودی    = مجموع موجودی همهٔ سایزها
-     حالت ۲) بدون سایز: منطق سطح محصول (price + discountPercent). */
+  /* ---------- قیمت ----------
+     محصولِ سایزدار: هر سایز قیمت اصلی + تخفیف مخصوص خودش.
+     قیمت ترب = قیمت نهاییِ ارزان‌ترین سایزِ موجود؛ old_price = قیمت اصلی همان سایز.
+     بدون سایز: منطق سطح محصول. */
   const sizes = (Array.isArray(product.sizes) ? product.sizes : []).filter(
     (s) => s && toNum(s.price) > 0
   );
 
   let basePrice = toNum(product.price);
   let discount = toNum(product.discountPercent);
-  let stockQty = toNum(product.stock);
+  let sizeStockSum = 0;
   let sizeBased = false;
 
   if (sizes.length > 0) {
@@ -109,7 +79,7 @@ const formatProductForTorob = (product) => {
 
     basePrice = toNum(cheapest.price);
     discount = toNum(cheapest.discountPercent);
-    stockQty = sizes.reduce((sum, s) => sum + toNum(s.stock), 0);
+    sizeStockSum = sizes.reduce((sum, s) => sum + toNum(s.stock), 0);
   }
 
   const finalPrice =
@@ -122,16 +92,19 @@ const formatProductForTorob = (product) => {
     ? basePrice
     : Math.max(basePrice, toNum(product.oldPrice), finalPrice);
 
-  /* موجودی: وضعیت out_ofstock از موجودیِ «سطح محصول» مشتق می‌شود که با
-     موجودی سایزها همگام نیست؛ اگر مجموع موجودی مثبت است، موجود است */
-  const inStock = product.status !== 'inactive' && stockQty > 0;
+  /* موجودی — همان منطق سایت (virtual مدل): status === 'active' و موجودی > 0.
+     موجودی مؤثر = بزرگ‌ترینِ موجودی سطح محصول و مجموع موجودی سایزها
+     (ادمین ممکن است فقط موجودی سطح محصول را پر کند و موجودی سایزها را خالی
+     بگذارد، یا برعکس — هر دو حالت پشتیبانی می‌شود) */
+  const stockQty = Math.max(toNum(product.stock), sizeStockSum);
+  const inStock = product.status === 'active' && stockQty > 0;
 
   /* تصاویر: اولی همیشه عکس اصلی؛ نسبی → مطلق؛ حداکثر ۲۰ */
   const imageLinks = [...new Set([product.mainImage, ...(product.images || [])].filter(Boolean))]
     .slice(0, 20)
     .map(absoluteUrl);
 
-  /* spec الزامی است — حتی دیکشنری خالی (آخرین آپدیت مستندات ترب) */
+  /* spec الزامی است — حتی دیکشنری خالی */
   const spec = {};
   const material = pick(product.material);
   const weight = String(product.weight || '').trim();
