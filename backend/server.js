@@ -36,6 +36,7 @@ const ticketRoutes = require('./routes/ticketRoutes');
 const heroRoutes = require('./routes/heroRoutes');
 const heroImageRoutes = require('./routes/heroImageRoutes');
 const torobRoutes = require('./routes/torobRoutes');
+const { startTorobPayRecovery } = require('./services/torobpayRecovery');
 const discountRoutes = require('./routes/discountRoutes');
 const seoController = require('./controllers/seoController');
 
@@ -73,6 +74,7 @@ mongoose.connection.once('open', async () => {
     invalidateCategoryCache();
     invalidateProductCache();
     console.log('✅ Seeding finished.');
+    startTorobPayRecovery();
   } catch (err) {
     console.error('🔴 Seeding error:', err);
   }

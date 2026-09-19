@@ -15,7 +15,7 @@ const generateOrderRef = () => 'NM-' + Date.now();
 const Setting = require('../models/Setting');
 
 // روش‌های پرداخت مجاز
-const ALLOWED_PAYMENT_METHODS = ['cod', 'online'];
+const ALLOWED_PAYMENT_METHODS = ['cod', 'online', 'torobpay'];
 
 // قیمت واحد با احتساب سایز انتخابی و تخفیف درصدی محصول
 const getUnitPrice = (product, sizeName) => {
@@ -201,7 +201,10 @@ const createOrder = async (req, res) => {
       user: userId,
       amount: total,
       method: paymentMethod,
-      provider: paymentMethod === 'online' ? 'zarinpal' : 'cash_on_delivery',
+      provider:
+        paymentMethod === 'online' ? 'zarinpal'
+        : paymentMethod === 'torobpay' ? 'torobpay'
+        : 'cash_on_delivery',
       status: paymentMethod === 'cod' ? 'paid' : 'pending'
     });
     await payment.save();

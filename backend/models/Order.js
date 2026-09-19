@@ -27,7 +27,7 @@ const orderSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   items: [orderItemSchema],
   shippingInfo: shippingInfoSchema,
-  paymentMethod: { type: String, enum: ['online', 'cod', 'wallet'], required: true },
+  paymentMethod: { type: String, enum: ['online', 'cod', 'wallet', 'torobpay'], required: true },
   paymentStatus: { type: String, enum: ['pending', 'processing', 'paid', 'failed', 'refunded'], default: 'pending' },
   subtotal: { type: Number, default: 0 },
   discountAmount: { type: Number, default: 0, min: 0 },
