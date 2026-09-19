@@ -142,8 +142,19 @@ const corsOptions = {
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   maxAge: 86400,
 };
-app.use(cors(corsOptions));
-app.options(/.*/, cors(corsOptions));
+// مسیر بازگشت از ترب‌پی یک form POST از دامنه torobpay.com است و CORS آن را رد می‌کند.
+// امنیت این مسیر با verify سمت سرور تأمین می‌شود، نه CORS.
+const corsMiddleware = cors(corsOptions);
+const CORS_EXEMPT_PATHS = new Set(['/api/payments/torobpay/callback']);
+
+app.use((req, res, next) => {
+  if (CORS_EXEMPT_PATHS.has(req.path)) return next();
+  corsMiddleware(req, res, next);
+});
+app.options(/.*/, (req, res, next) => {
+  if (CORS_EXEMPT_PATHS.has(req.path)) return next();
+  corsMiddleware(req, res, next);
+});
 
 app.use(compression({ level: 6, threshold: 1024 }));
 

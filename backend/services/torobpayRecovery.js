@@ -1,8 +1,15 @@
 /**
  * cron بازیابی پرداخت‌های اقساطی ترب‌پی
- * سناریو: کاربر پرداخت می‌کند اما callback به سایت نمی‌رسد.
- * سفارش در ترب‌پی W_FOR_VERIFY می‌شود و اگر تا ۱۵ دقیقه verify نشود FAILED می‌شود.
- * این job هر ۵ دقیقه وضعیت را از ترب‌پی می‌پرسد و چرخه verify/settle را کامل می‌کند.
+ *
+ * نگاشت وضعیت‌ها در status API ترب‌پی:
+ *   PENDING ← NEW, IPG, W_FOR_VERIFY  (W_FOR_VERIFY = پرداخت شده، منتظر verify!)
+ *   VERIFY  ← W_FOR_SETTLE            (قبلاً verify شده)
+ *   SETTLE  ← ONGOING, PAID, UPDATED  (تسویه شده)
+ *   REVERT  ← FAILED, CANCELED
+ *
+ * چون PENDING سه معنی دارد، تنها راه تشخیصِ «پرداخت‌شده ولی verify‌نشده»
+ * تلاش برای verify است: اگر سفارش W_FOR_VERIFY باشد موفق می‌شود،
+ * وگرنه خطای 1053 (وضعیت نامعتبر) می‌گیریم و صبر می‌کنیم.
  */
 const Payment = require('../models/Payment');
 const Order = require('../models/Order');
@@ -19,24 +26,36 @@ const STALE_PENDING_MS = 60 * 60 * 1000;
 
 let running = false;
 
+const markFailed = async (payment, reason) => {
+  payment.status = 'failed';
+  payment.failureReason = reason;
+  payment.failedAt = new Date();
+  await payment.save();
+};
+
 const recoverOne = async (payment) => {
   const order = await Order.findById(payment.order);
   if (!order) {
-    payment.status = 'failed';
-    payment.failureReason = 'OrderMissing';
-    await payment.save();
+    await markFailed(payment, 'OrderMissing');
     return;
   }
 
-  // سفارش با پرداخت دیگری کامل شده → این پرداخت دیرهنگام است، وجه را برگردان
+  // سفارش با پرداخت دیگری کامل شده → این توکن دیرهنگام است
   if (order.paymentStatus === 'paid' && payment.status !== 'paid') {
     const reverted = await revertPurchase(payment.authority);
-    payment.status = reverted.success ? 'refunded' : 'failed';
-    payment.failureReason = reverted.success ? 'DuplicatePaymentReverted' : 'DuplicatePaymentNeedsManualRefund';
-    await payment.save();
-    if (!reverted.success) {
+    if (reverted.success) {
+      payment.status = 'refunded';
+      payment.failureReason = 'DuplicatePaymentReverted';
+    } else if (reverted.code === 1053) {
+      // این توکن هیچ‌وقت پرداخت نشده (تلاش رهاشده) — نیازی به بازپرداخت نیست
+      payment.status = 'failed';
+      payment.failureReason = 'AbandonedToken';
+    } else {
+      payment.status = 'failed';
+      payment.failureReason = 'DuplicatePaymentNeedsManualRefund';
       console.error('[torobpay][recovery] بازپرداخت دستی لازم: payment=' + payment._id + ' order=' + order._id);
     }
+    await payment.save();
     return;
   }
 
@@ -48,40 +67,51 @@ const recoverOne = async (payment) => {
 
   const status = st.response && st.response.status;
   const refId = st.response && st.response.transactionId;
+  const ageMs = Date.now() - new Date(payment.createdAt).getTime();
+
+  if (status === 'SETTLE') {
+    // قبلاً verify و settle شده ولی به‌روزرسانی محلی نمانده (crash)
+    await finalizePaidTorobPay(payment, order, refId);
+    console.log('[torobpay][recovery] همگام‌سازی سفارش تسویه‌شده: payment=' + payment._id);
+    return;
+  }
 
   if (status === 'VERIFY') {
-    // کاربر پرداخته ولی callback نرسیده — نجات در پنجره ۱۵ دقیقه‌ای
+    // W_FOR_SETTLE: verify شده ولی settle نمانده (crash بین verify و settle)
+    const s = await settlePurchase(payment.authority);
+    if (!s.success) console.error('[torobpay][recovery] settle ناموفق: payment=' + payment._id, s.code, s.message);
+    await finalizePaidTorobPay(payment, order, refId);
+    console.log('[torobpay][recovery] settle کامل شد: payment=' + payment._id);
+    return;
+  }
+
+  if (status === 'REVERT') {
+    // FAILED/CANCELED سمت ترب‌پی — وجه به کاربر برگشته است
+    await markFailed(payment, 'TorobPayReverted');
+    console.warn('[torobpay][recovery] سفارش سمت ترب‌پی REVERT شد (وجه برگشته): payment=' + payment._id + ' order=' + order.orderRef);
+    return;
+  }
+
+  if (status === 'PENDING') {
+    // NEW / IPG / W_FOR_VERIFY — با تلاش verify تشخیص می‌دهیم
     const v = await verifyPurchase(payment.authority);
     if (v.success) {
       const s = await settlePurchase(payment.authority);
       if (!s.success) console.error('[torobpay][recovery] settle ناموفق: payment=' + payment._id, s.code, s.message);
       await finalizePaidTorobPay(payment, order, v.response && v.response.transactionId);
       console.log('[torobpay][recovery] پرداخت گم‌شده نجات یافت: payment=' + payment._id + ' order=' + order.orderRef);
-    } else if (v.code !== 1053) {
-      console.warn('[torobpay][recovery] verify ناموفق: payment=' + payment._id + ' code=' + v.code + ' ' + v.message);
+      return;
+    }
+    if (v.code === 1007 || v.code === 1005) {
+      // توکن/سفارش سمت ترب‌پی وجود ندارد — شکست قطعی
+      await markFailed(payment, 'TokenInvalid:' + v.code);
+      return;
+    }
+    // 1053 = هنوز پرداخت نشده (NEW/IPG) → صبر برای ران بعدی
+    if (ageMs > STALE_PENDING_MS) {
+      await markFailed(payment, 'PendingTimeout');
     }
     return;
-  }
-
-  if (status === 'SETTLE') {
-    // قبلاً verify/settle شده ولی به‌روزرسانی محلی نمانده
-    await finalizePaidTorobPay(payment, order, refId);
-    return;
-  }
-
-  if (status === 'REVERT') {
-    payment.status = 'failed';
-    payment.failureReason = 'TorobPayReverted';
-    payment.failedAt = new Date();
-    await payment.save();
-    return;
-  }
-
-  if (status === 'PENDING' && Date.now() - new Date(payment.createdAt).getTime() > STALE_PENDING_MS) {
-    payment.status = 'failed';
-    payment.failureReason = 'PendingTimeout';
-    payment.failedAt = new Date();
-    await payment.save();
   }
 };
 

@@ -277,8 +277,9 @@ const torobPayCallback = async (req, res) => {
       // شاید callback قبلی میان verify و save قطع شده باشد → با status چک کن
       if (verifyRes.code === 1053) {
         const st = await getPurchaseStatus(payment.authority);
-        if (st.success && st.response && st.response.status === 'SETTLE') {
-          await settlePurchase(payment.authority);
+        const stStatus = st.success && st.response && st.response.status;
+        if (stStatus === 'SETTLE' || stStatus === 'VERIFY') {
+          if (stStatus === 'VERIFY') await settlePurchase(payment.authority);
           await finalizePaidTorobPay(payment, order, st.response.transactionId);
           return ok(st.response.transactionId, order.orderRef);
         }
