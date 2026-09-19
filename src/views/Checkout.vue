@@ -177,8 +177,8 @@
                     <input type="radio" :value="method.id" v-model="selectedPayment" :disabled="method.disabled" />
                     <span class="payment-icon">{{ method.icon }}</span>
                     <div class="payment-info">
-                      <span class="payment-name">{{ $t(method.nameKey) }}</span>
-                      <span class="payment-desc">{{ $t(method.descKey) }}</span>
+                      <span class="payment-name">{{ method.title || $t(method.nameKey) }}</span>
+                      <span class="payment-desc">{{ method.description || $t(method.descKey) }}</span>
                     </div>
                     <span class="check-mark">✓</span>
                   </label>
@@ -333,7 +333,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
@@ -383,15 +383,62 @@ const shippingMethods = ref([
 const selectedShipping = ref('normal')
 const createdOrder = ref(null)
 
-const paymentMethods = [
+const paymentMethods = ref([
   { id: 'online', nameKey: 'checkout_payment_online_name', descKey: 'checkout_payment_online_desc', icon: '💳' },
   { id: 'cod', nameKey: 'checkout_payment_cod_name', descKey: 'checkout_payment_cod_desc', icon: '🏠' }
-]
+])
 const selectedPayment = ref('online')
 
+/* ---------- ترب‌پی (خرید اقساطی) ---------- */
+const TOROBPAY_METHOD = {
+  id: 'torobpay',
+  nameKey: 'checkout_payment_online_name', // فقط جایگزین پایه — عنوان واقعی از API ترب‌پی می‌آید
+  descKey: 'checkout_payment_online_desc',
+  icon: '🛍️',
+  title: 'پرداخت اقساطی با ترب‌پی',
+  description: 'دریافت اعتبار و خرید در ۴ قسط',
+}
+let torobpayLastCheckedAmount = null
+let torobpayTimer = null
+
+// پرسش از سرور: آیا برای این مبلغ، گزینه اقساطی نمایش داده شود؟
+const checkTorobpayEligibility = async () => {
+  const amount = Math.round(finalAmount.value)
+  if (!Number.isFinite(amount) || amount <= 0) return
+  if (amount === torobpayLastCheckedAmount) return
+
+  try {
+    const { paymentApi } = await import('../services/paymentApi')
+    const res = await paymentApi.checkTorobPayEligibility(amount)
+    const list = paymentMethods.value
+    const idx = list.findIndex((m) => m.id === 'torobpay')
+
+    if (res && res.success && res.eligible) {
+      torobpayLastCheckedAmount = amount
+      const method = { ...TOROBPAY_METHOD }
+      method.title = res.title || method.title
+      method.description = res.description || method.description
+      if (idx === -1) list.splice(1, 0, method) // بعد از «پرداخت اینترنتی»، قبل از «در محل»
+      else list.splice(idx, 1, method)
+    } else {
+      torobpayLastCheckedAmount = null
+      if (idx !== -1) list.splice(idx, 1)
+      if (selectedPayment.value === 'torobpay') selectedPayment.value = 'online'
+    }
+  } catch (e) {
+    // خطای بررسی ترب‌پی نباید فرآیند checkout را متوقف کند — گزینه فقط نمایش داده نمی‌شود
+  }
+}
+
+const scheduleTorobpayCheck = () => {
+  if (torobpayTimer) clearTimeout(torobpayTimer)
+  torobpayTimer = setTimeout(() => checkTorobpayEligibility(), 700)
+}
+
 const selectedPaymentName = computed(() => {
-  const method = paymentMethods.find(m => m.id === selectedPayment.value)
-  return method ? t(method.nameKey) : ''
+  const method = paymentMethods.value.find(m => m.id === selectedPayment.value)
+  if (!method) return ''
+  return method.title || t(method.nameKey)
 })
 
 const discountCode = ref('')
@@ -419,6 +466,9 @@ const totalPriceFormatted = computed(() => formatPrice(totalPrice.value) + ' ' +
 const discountAmount = computed(() => appliedDiscount.value?.amount || 0)
 const finalAmount = computed(() => totalPrice.value - discountAmount.value + shippingCost.value)
 const finalAmountFormatted = computed(() => formatPrice(finalAmount.value) + ' ' + t('products_currency'))
+
+// با تغییر مبلغ نهایی (اعمال/حذف تخفیف یا تغییر روش ارسال) صلاحیت ترب‌پی دوباره بررسی می‌شود
+watch(finalAmount, () => scheduleTorobpayCheck())
 
 const fieldErrors = ref({ fullName: '', phone: '', province: '', city: '', address: '', postalCode: '' })
 const touchedFields = ref({ fullName: false, phone: false, province: false, city: false, address: false, postalCode: false })
@@ -467,7 +517,7 @@ const isStep1Valid = computed(() =>
 )
 
 const isStep2Valid = computed(() =>
-  selectedPayment.value && !paymentMethods.find(m => m.id === selectedPayment.value)?.disabled
+  selectedPayment.value && !paymentMethods.value.find(m => m.id === selectedPayment.value)?.disabled
 )
 
 const nextStep = () => {
@@ -569,14 +619,17 @@ const submitOrder = async () => {
     orderData.value = order
     orderNumber.value = order.orderRef || order._id || ('NM-' + Date.now())
 
-    // پرداخت آنلاین
-    if (selectedPayment.value === 'online') {
+    // پرداخت آنلاین (زرین‌پال) یا پرداخت اقساطی (ترب‌پی)
+    if (selectedPayment.value === 'online' || selectedPayment.value === 'torobpay') {
       try {
         const { paymentApi } = await import('../services/paymentApi')
-        const paymentRes = await paymentApi.initiatePayment(order._id)
+        const paymentRes = selectedPayment.value === 'torobpay'
+          ? await paymentApi.initiateTorobPayPayment(order._id)
+          : await paymentApi.initiatePayment(order._id)
 
-        if (paymentRes.success && paymentRes.paymentUrl) {
-          window.location.href = paymentRes.paymentUrl
+        const gatewayUrl = paymentRes.paymentPageUrl || paymentRes.paymentUrl
+        if (paymentRes.success && gatewayUrl) {
+          window.location.href = gatewayUrl
           return
         }
         throw new Error(paymentRes.message || t('checkout_err_payment_gateway'))
@@ -584,7 +637,7 @@ const submitOrder = async () => {
         console.error('Payment initiation error:', payErr)
         // سفارش در createdOrder می‌ماند؛ کاربر می‌تواند دوباره تلاش کند
         // یا روش پرداخت را عوض کند (سفارش قبلی لغو و جدید ساخته می‌شود)
-        errorMessage.value = payErr.message || t('checkout_err_payment_gateway')
+        errorMessage.value = payErr.response?.data?.message || payErr.message || t('checkout_err_payment_gateway')
         isProcessing.value = false
         window.scrollTo({ top: 0, behavior: 'smooth' })
         return
@@ -660,6 +713,9 @@ onMounted(async () => {
   if (!shippingForm.value.fullName) shippingForm.value.fullName = user.value?.name || ''
   if (!shippingForm.value.phone) shippingForm.value.phone = user.value?.phone || ''
   if (!shippingForm.value.email) shippingForm.value.email = user.value?.email || ''
+
+  // بررسی صلاحیت ترب‌پی برای مبلغ فعلی سبد (پس از همگام‌سازی سبد با سرور)
+  scheduleTorobpayCheck()
 })
 </script>
 

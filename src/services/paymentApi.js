@@ -1,7 +1,7 @@
 import api from './api'
 
 export const paymentApi = {
-  // شروع پرداخت آنلاین — بک‌اند خودش callbackUrl را از ZARINPAL_CALLBACK_URL می‌گیرد
+  // شروع پرداخت آنلاین زرین‌پال — بک‌اند خودش callbackUrl را از ZARINPAL_CALLBACK_URL می‌گیرد
   async initiatePayment(orderId) {
     const res = await api.post('/payments/initiate', { orderId })
     return res.data
@@ -16,5 +16,19 @@ export const paymentApi = {
   // تلاش مجدد پرداخت برای یک سفارش پرداخت‌نشده
   async retryPayment(orderId) {
     return this.initiatePayment(orderId)
-  }
+  },
+
+  // ---------- ترب‌پی (خرید اقساطی) ----------
+
+  // بررسی صلاحیت نمایش گزینه اقساطی — amount به «تومان» (بک‌اند خودش به ریال تبدیل می‌کند)
+  async checkTorobPayEligibility(amount) {
+    const res = await api.get('/payments/torobpay/eligible', { params: { amount } })
+    return res.data
+  },
+
+  // شروع پرداخت اقساطی — خروجی: paymentPageUrl که کاربر باید به آن هدایت شود
+  async initiateTorobPayPayment(orderId) {
+    const res = await api.post('/payments/torobpay/initiate', { orderId })
+    return res.data
+  },
 }
