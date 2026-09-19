@@ -70,6 +70,8 @@ const errorMap = {
   PaymentProcessing: 'payment_err_processing',
   VerifyFailed: 'payment_err_verify_failed',
   ServerError: 'payment_err_server',
+  InvalidCallback: 'payment_err_invalid_callback',
+  AmountMismatch: 'payment_err_amount_mismatch',
 }
 
 const resolveErrorMessage = (code) => {

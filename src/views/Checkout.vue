@@ -175,7 +175,10 @@
                   <label v-for="method in paymentMethods" :key="method.id" class="payment-card"
                     :class="{ selected: selectedPayment === method.id, disabled: method.disabled }">
                     <input type="radio" :value="method.id" v-model="selectedPayment" :disabled="method.disabled" />
-                    <span class="payment-icon">{{ method.icon }}</span>
+                    <span class="payment-icon">
+                      <img v-if="method.logo" :src="method.logo" :alt="method.title || 'TorobPay'" class="payment-logo" />
+                      <template v-else>{{ method.icon }}</template>
+                    </span>
                     <div class="payment-info">
                       <span class="payment-name">{{ method.title || $t(method.nameKey) }}</span>
                       <span class="payment-desc">{{ method.description || $t(method.descKey) }}</span>
@@ -341,6 +344,7 @@ import { useCart } from '../stores/cart'
 import { useOrders } from '../stores/orders'
 import { useAuth } from '../stores/auth'
 import { useAddresses } from '../stores/addresses'
+import torobpayLogo from '../assests/logo/torobpay.jpg'
 
 const { t, locale } = useI18n()
 
@@ -384,8 +388,7 @@ const selectedShipping = ref('normal')
 const createdOrder = ref(null)
 
 const paymentMethods = ref([
-  { id: 'online', nameKey: 'checkout_payment_online_name', descKey: 'checkout_payment_online_desc', icon: '💳' },
-  { id: 'cod', nameKey: 'checkout_payment_cod_name', descKey: 'checkout_payment_cod_desc', icon: '🏠' }
+  { id: 'online', nameKey: 'checkout_payment_online_name', descKey: 'checkout_payment_online_desc', icon: '💳' }
 ])
 const selectedPayment = ref('online')
 
@@ -395,6 +398,7 @@ const TOROBPAY_METHOD = {
   nameKey: 'checkout_payment_online_name', // فقط جایگزین پایه — عنوان واقعی از API ترب‌پی می‌آید
   descKey: 'checkout_payment_online_desc',
   icon: '🛍️',
+  logo: torobpayLogo,
   title: 'پرداخت اقساطی با ترب‌پی',
   description: 'دریافت اعتبار و خرید در ۴ قسط',
 }
@@ -644,10 +648,8 @@ const submitOrder = async () => {
       }
     }
 
-    // پرداخت در محل (COD): نهایی است
-    orderComplete.value = true
-    isProcessing.value = false
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    // روش پرداخت نامعتبر (فقط online و torobpay مجازند — پرداخت در محل حذف شده است)
+    throw new Error(t('checkout_err_payment_gateway'))
   } catch (err) {
     console.error('Order submission error:', err)
     errorMessage.value = err.message || t('checkout_err_submit_retry')
@@ -862,6 +864,7 @@ onMounted(async () => {
   width: 42px; height: 42px; display: flex; align-items: center; justify-content: center;
   font-size: 1.3rem; border-radius: 10px; background: rgba(255,255,255,.05); flex-shrink: 0;
 }
+.payment-logo { width: 36px; height: 36px; object-fit: contain; border-radius: 8px; }
 .method-info,.payment-info { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .method-name,.payment-name { font-size: .92rem; font-weight: 600; }
 .method-desc,.payment-desc { font-size: .8rem; color: rgba(255,255,255,.45); }

@@ -1,4 +1,6 @@
-{"about_badge": "About Noormehr",
+{"payment_err_invalid_callback": "Invalid payment callback data. Please try again or contact support.",
+"payment_err_amount_mismatch": "The paid amount does not match the order total. If you were charged, the amount will be refunded automatically.",
+  "about_badge": "About Noormehr",
 "about_title_1": "Seven Decades at the Heart of Isfahan",
 "about_title_2": "Noormehr",
 "about_title_3": "Crafting and Offering the Finest Handicrafts",
