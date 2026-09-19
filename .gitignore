@@ -139,3 +139,4 @@ dist
 *.bak
 
 uploads/
+backend/.env.*

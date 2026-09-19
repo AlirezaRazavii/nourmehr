@@ -1,9 +1,6 @@
 /**
  * سرویس ارتباط با درگاه پرداخت اعتباری ترب‌پی (TorobPay)
- *
- * ⚠️ واحد پول:
- *   دیتابیس سایت = تومان | ترب‌پی = ریال
- *   همه تبدیل‌ها اینجا متمرکز شده (×۱۰)
+ * واحد پول: دیتابیس سایت = تومان | ترب‌پی = ریال (تبدیل ×۱۰ فقط اینجا)
  */
 const axios = require('axios');
 
@@ -14,7 +11,7 @@ const USERNAME = process.env.TOROBPAY_USERNAME;
 const PASSWORD = process.env.TOROBPAY_PASSWORD;
 
 /* مسیر اندپوینت‌ها — اگر مسیر توکن خرید در مستندات متفاوت بود،
-   با TOROBPAY_TOKEN_PATH در .env اصلاح می‌شود (نیازی به تغییر کد نیست). */
+   با TOROBPAY_TOKEN_PATH در .env اصلاح می‌شود (بدون تغییر کد). */
 const EP = {
   oauth: '/api/online/v1/oauth/token',
   token: process.env.TOROBPAY_TOKEN_PATH || '/api/online/payment/v1/token',
@@ -27,8 +24,8 @@ const EP = {
 };
 
 const TOMAN_TO_RIAL = 10;
-const MIN_AMOUNT_RIAL = 200_000;        // = ۲۰,۰۰۰ تومان
-const MAX_AMOUNT_RIAL = 1_000_000_000;  // = ۱۰۰,۰۰۰,۰۰۰ تومان
+const MIN_AMOUNT_RIAL = 200000;
+const MAX_AMOUNT_RIAL = 1000000000;
 
 const isTorobPayConfigured = () => !!(CLIENT_ID && CLIENT_SECRET && USERNAME && PASSWORD);
 
@@ -40,29 +37,30 @@ const isAmountInRange = (amountToman) => {
 };
 
 /* ------------------------- توکن JWT (با کش حافظه) ------------------------- */
-// توکن ~۱ ساعت اعتبار دارد؛ ۵۵ دقیقه کش می‌شود و در صورت 401 یک‌بار تازه می‌شود.
 let jwtCache = { token: null, expiresAt: 0 };
 
 const getAccessToken = async (forceRefresh = false) => {
   if (!isTorobPayConfigured()) throw new Error('درگاه ترب‌پی پیکربندی نشده است');
-  if (!forceRefresh && jwtCache.token && jwtCache.expiresAt - Date.now() > 60_000) {
+  if (!forceRefresh && jwtCache.token && jwtCache.expiresAt - Date.now() > 60000) {
     return jwtCache.token;
   }
-  const basic = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64');
+  const basic = Buffer.from(CLIENT_ID + ':' + CLIENT_SECRET).toString('base64');
   const { data } = await axios.post(
-    `${BASE_URL}${EP.oauth}`,
+    BASE_URL + EP.oauth,
     { username: USERNAME, password: PASSWORD },
-    { headers: { Authorization: `Basic ${basic}` }, timeout: 20_000 }
+    { headers: { Authorization: 'Basic ' + basic }, timeout: 20000 }
   );
-  const token = data?.access_token || data?.response?.access_token;
+  const token = (data && (data.access_token || (data.response && data.response.access_token))) || null;
   if (!token) throw new Error('پاسخ توکن ترب‌پی نامعتبر بود');
-  const expiresIn = Number(data?.expires_in) || 3300;
-  jwtCache = { token, expiresAt: Date.now() + expiresIn * 1000 };
+  const expiresIn = Number(data && data.expires_in) || 3300;
+  jwtCache = { token: token, expiresAt: Date.now() + expiresIn * 1000 };
   return token;
 };
 
 /* ------------------ فراخوانی عمومی اندپوینت‌های ترب‌پی ------------------ */
-const callApi = async (method, path, { body, params } = {}) => {
+const callApi = async (method, path, opts) => {
+  const body = opts && opts.body;
+  const params = opts && opts.params;
   let token;
   try {
     token = await getAccessToken();
@@ -73,21 +71,23 @@ const callApi = async (method, path, { body, params } = {}) => {
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const { data } = await axios.request({
-        method,
-        url: `${BASE_URL}${path}`,
+        method: method,
+        url: BASE_URL + path,
         data: body,
-        params,
-        headers: { Authorization: `Bearer ${token}` },
-        timeout: 25_000,
+        params: params,
+        headers: { Authorization: 'Bearer ' + token },
+        timeout: 25000,
       });
       if (data && data.successful) return { success: true, response: data.response };
-      // HTTP 2xx ولی successful=false (محافظ احتیاطی)
-      const e = data?.error || {};
-      return { success: false, code: e.code ?? 0, message: e.message || e.user_message || 'پاسخ نامعتبر از ترب‌پی' };
+      const e = (data && data.error) || {};
+      return {
+        success: false,
+        code: e.code || 0,
+        message: e.message || e.user_message || 'پاسخ نامعتبر از ترب‌پی',
+      };
     } catch (error) {
       const resp = error.response;
-      // توکن منقضی شده → تازه کن و یک‌بار دیگر تلاش کن
-      if (resp?.status === 401 && attempt === 0) {
+      if (resp && resp.status === 401 && attempt === 0) {
         try {
           token = await getAccessToken(true);
         } catch (err) {
@@ -96,11 +96,11 @@ const callApi = async (method, path, { body, params } = {}) => {
         continue;
       }
       if (resp) {
-        const e = resp.data?.error || {};
+        const e = (resp.data && resp.data.error) || {};
         return {
           success: false,
-          code: e.code ?? resp.status,
-          message: e.message || e.user_message || `خطای ترب‌پی (HTTP ${resp.status})`,
+          code: e.code || resp.status,
+          message: e.message || e.user_message || 'خطای ترب‌پی (HTTP ' + resp.status + ')',
         };
       }
       return { success: false, code: 0, message: 'ارتباط با درگاه ترب‌پی برقرار نشد' };
@@ -110,7 +110,6 @@ const callApi = async (method, path, { body, params } = {}) => {
 };
 
 /* --------------------------- بررسی صلاحیت (eligible) --------------------------- */
-// پاسخ فقط به مبلغ و مرچنت وابسته است (نه کاربر) → کش ۵ دقیقه‌ای امن است.
 const eligibleCache = new Map();
 const ELIGIBLE_CACHE_TTL = 5 * 60 * 1000;
 const ELIGIBLE_CACHE_MAX = 100;
@@ -128,22 +127,22 @@ const checkEligibility = async (amountToman) => {
 
   const result = {
     success: true,
-    eligible: !!res.response?.eligible,
-    title: res.response?.title_message || 'پرداخت اقساطی با ترب‌پی',
-    description: res.response?.description || '',
+    eligible: !!(res.response && res.response.eligible),
+    title: (res.response && res.response.title_message) || 'پرداخت اقساطی با ترب‌پی',
+    description: (res.response && res.response.description) || '',
   };
   if (eligibleCache.size >= ELIGIBLE_CACHE_MAX) eligibleCache.clear();
-  eligibleCache.set(amountRial, { result, at: Date.now() });
+  eligibleCache.set(amountRial, { result: result, at: Date.now() });
   return result;
 };
 
 /* ------------------------------ عملیات پرداخت ------------------------------ */
 const createPurchaseToken = async (payload) => callApi('POST', EP.token, { body: payload });
-const verifyPurchase = async (paymentToken) => callApi('POST', EP.verify, { body: { paymentToken } });
-const settlePurchase = async (paymentToken) => callApi('POST', EP.settle, { body: { paymentToken } });
-const revertPurchase = async (paymentToken) => callApi('POST', EP.revert, { body: { paymentToken } });
-const cancelPurchase = async (paymentToken) => callApi('POST', EP.cancel, { body: { paymentToken } });
-const getPurchaseStatus = async (paymentToken) => callApi('GET', EP.status, { params: { paymentToken } });
+const verifyPurchase = async (paymentToken) => callApi('POST', EP.verify, { body: { paymentToken: paymentToken } });
+const settlePurchase = async (paymentToken) => callApi('POST', EP.settle, { body: { paymentToken: paymentToken } });
+const revertPurchase = async (paymentToken) => callApi('POST', EP.revert, { body: { paymentToken: paymentToken } });
+const cancelPurchase = async (paymentToken) => callApi('POST', EP.cancel, { body: { paymentToken: paymentToken } });
+const getPurchaseStatus = async (paymentToken) => callApi('GET', EP.status, { params: { paymentToken: paymentToken } });
 
 module.exports = {
   isTorobPayConfigured,

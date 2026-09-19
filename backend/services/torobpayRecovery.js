@@ -1,6 +1,6 @@
 /**
  * cron بازیابی پرداخت‌های اقساطی ترب‌پی
- * سناریو: کاربر پرداخت می‌کند اما callback به سایت نمی‌رسد (قطعی، بستن تب و...)
+ * سناریو: کاربر پرداخت می‌کند اما callback به سایت نمی‌رسد.
  * سفارش در ترب‌پی W_FOR_VERIFY می‌شود و اگر تا ۱۵ دقیقه verify نشود FAILED می‌شود.
  * این job هر ۵ دقیقه وضعیت را از ترب‌پی می‌پرسد و چرخه verify/settle را کامل می‌کند.
  */
@@ -12,10 +12,10 @@ const {
 } = require('./torobpayService');
 const { finalizePaidTorobPay } = require('../controllers/torobpayPaymentController');
 
-const INTERVAL_MS = 5 * 60 * 1000;        // هر ۵ دقیقه
-const MIN_AGE_MS = 3 * 60 * 1000;         // قبل از ۳ دقیقه دست نزن (کاربر شاید در درگاه است)
+const INTERVAL_MS = 5 * 60 * 1000;
+const MIN_AGE_MS = 3 * 60 * 1000;
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
-const STALE_PENDING_MS = 60 * 60 * 1000;  // PENDING بیش از یک ساعت → محلی failed
+const STALE_PENDING_MS = 60 * 60 * 1000;
 
 let running = false;
 
@@ -35,36 +35,36 @@ const recoverOne = async (payment) => {
     payment.failureReason = reverted.success ? 'DuplicatePaymentReverted' : 'DuplicatePaymentNeedsManualRefund';
     await payment.save();
     if (!reverted.success) {
-      console.error(`🔴 [torobpay][recovery] بازپرداخت دستی لازم: payment=${payment._id} order=${order._id}`);
+      console.error('[torobpay][recovery] بازپرداخت دستی لازم: payment=' + payment._id + ' order=' + order._id);
     }
     return;
   }
 
   const st = await getPurchaseStatus(payment.authority);
   if (!st.success) {
-    console.warn(`[torobpay][recovery] status ناموفق: payment=${payment._id} code=${st.code} ${st.message}`);
+    console.warn('[torobpay][recovery] status ناموفق: payment=' + payment._id + ' code=' + st.code + ' ' + st.message);
     return; // خطای موقت — ران بعدی
   }
 
-  const status = st.response?.status;
-  const refId = st.response?.transactionId;
+  const status = st.response && st.response.status;
+  const refId = st.response && st.response.transactionId;
 
   if (status === 'VERIFY') {
     // کاربر پرداخته ولی callback نرسیده — نجات در پنجره ۱۵ دقیقه‌ای
     const v = await verifyPurchase(payment.authority);
     if (v.success) {
       const s = await settlePurchase(payment.authority);
-      if (!s.success) console.error(`[torobpay][recovery] ⚠️ settle ناموفق: payment=${payment._id}`, s.code, s.message);
-      await finalizePaidTorobPay(payment, order, v.response?.transactionId);
-      console.log(`🟢 [torobpay][recovery] پرداخت گم‌شده نجات یافت: payment=${payment._id} order=${order.orderRef}`);
+      if (!s.success) console.error('[torobpay][recovery] settle ناموفق: payment=' + payment._id, s.code, s.message);
+      await finalizePaidTorobPay(payment, order, v.response && v.response.transactionId);
+      console.log('[torobpay][recovery] پرداخت گم‌شده نجات یافت: payment=' + payment._id + ' order=' + order.orderRef);
     } else if (v.code !== 1053) {
-      console.warn(`[torobpay][recovery] verify ناموفق: payment=${payment._id} code=${v.code} ${v.message}`);
+      console.warn('[torobpay][recovery] verify ناموفق: payment=' + payment._id + ' code=' + v.code + ' ' + v.message);
     }
     return;
   }
 
   if (status === 'SETTLE') {
-    // قبلاً verify/settle شده ولی به‌روزرسانی محلی نمانده (crash بین verify و save)
+    // قبلاً verify/settle شده ولی به‌روزرسانی محلی نمانده
     await finalizePaidTorobPay(payment, order, refId);
     return;
   }
@@ -74,7 +74,6 @@ const recoverOne = async (payment) => {
     payment.failureReason = 'TorobPayReverted';
     payment.failedAt = new Date();
     await payment.save();
-    // سفارش pending می‌ماند تا کاربر دوباره تلاش کند
     return;
   }
 
@@ -103,7 +102,7 @@ const processPendingTorobPayPayments = async () => {
       try {
         await recoverOne(payment);
       } catch (err) {
-        console.error(`[torobpay][recovery] payment=${payment._id}:`, err.message);
+        console.error('[torobpay][recovery] payment=' + payment._id + ': ' + err.message);
       }
     }
   } catch (err) {
@@ -120,7 +119,8 @@ const startTorobPayRecovery = () => {
   }
   const t = setInterval(() => processPendingTorobPayPayments(), INTERVAL_MS);
   t.unref();
-  setTimeout(() => processPendingTorobPayPayments(), 90_000).unref();
+  const t2 = setTimeout(() => processPendingTorobPayPayments(), 90000);
+  t2.unref();
   console.log('🟢 TorobPay recovery cron فعال شد (هر ۵ دقیقه).');
 };
 

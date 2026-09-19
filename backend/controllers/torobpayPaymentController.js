@@ -1,13 +1,7 @@
 /**
  * کنترلر پرداخت اقساطی ترب‌پی
- *
- * جریان:
- *  ۱) Checkout گزینه اقساطی را فقط در صورت eligible نشان می‌دهد
- *  ۲) createOrder با paymentMethod='torobpay' (در orderController)
- *  ۳) POST /api/payments/torobpay/initiate → paymentPageUrl → ریدایرکت کاربر
- *  ۴) ترب‌پی کاربر را با POST به /api/payments/torobpay/callback برمی‌گرداند
- *  ۵) در callback: verify → settle → نهایی‌سازی سفارش → ریدایرکت به فرانت
- *  ۶) cron بازیابی (torobpayRecovery) حالت‌های گم‌شده را نجات می‌دهد
+ * جریان: eligible → createOrder(torobpay) → initiate → صفحه پرداخت ترب‌پی
+ *        → callback(verify+settle) → ریدایرکت به فرانت + cron بازیابی
  */
 const mongoose = require('mongoose');
 const Order = require('../models/Order');
@@ -26,11 +20,10 @@ const {
 const NON_PAYABLE_STATUSES = ['cancelled', 'refunded'];
 
 /* ------------------------------- کمک‌تابع‌ها ------------------------------- */
-// نام‌های دوزبانه ({fa, en}) یا رشته — یکنواخت به رشته تبدیل می‌شوند
 const extractName = (n) => {
   if (!n) return '';
   if (typeof n === 'string') return n;
-  return n.fa || n.en || '';
+  return (n && (n.fa || n.en)) || '';
 };
 
 // ساخت cartList طبق مستندات (فقط «یک» سبد قابل ارسال است)
@@ -40,16 +33,16 @@ const buildCartList = async (order) => {
     .select('category')
     .populate('category', 'name');
   const categoryNames = new Map(
-    products.map((p) => [String(p._id), extractName(p.category?.name) || 'عمومی'])
+    products.map((p) => [String(p._id), extractName(p.category && p.category.name) || 'عمومی'])
   );
 
   const cartItems = order.items.map((item, idx) => ({
     id: String(item.product),
-    name: extractName(item.name) || `کالا ${idx + 1}`,
+    name: extractName(item.name) || ('کالا ' + (idx + 1)),
     count: item.quantity,
     amount: toRial(item.price),
     category: categoryNames.get(String(item.product)) || 'عمومی',
-    commissionType: 0, // مقدار مجاز طبق مستندات
+    commissionType: 0,
   }));
 
   return [{
@@ -59,7 +52,7 @@ const buildCartList = async (order) => {
     shippingAmount: toRial(order.shippingCost),
     isTaxIncluded: false,
     isShipmentIncluded: false,
-    cartItems,
+    cartItems: cartItems,
   }];
 };
 
@@ -80,7 +73,7 @@ const finalizePaidTorobPay = async (payment, order, refId) => {
   }
   await order.save();
 
-  // سبد خرید پس از پرداخت موفق خالی می‌شود (مطابق الگوی زرین‌پال)
+  // سبد خرید پس از پرداخت موفق خالی می‌شود
   try {
     await Cart.deleteOne({ user: order.user });
   } catch (err) {
@@ -89,7 +82,6 @@ const finalizePaidTorobPay = async (payment, order, refId) => {
 };
 
 /* ------------------------------- eligible ------------------------------- */
-// این اندپوینت هرگز به فرانت خطا نمی‌دهد تا صفحه Checkout نشکند
 const getTorobPayEligibility = async (req, res) => {
   try {
     if (!isTorobPayConfigured()) return res.json({ success: true, eligible: false });
@@ -151,10 +143,8 @@ const initiateTorobPayPayment = async (req, res) => {
     const user = await User.findById(order.user).select('phone');
     const returnUrl =
       process.env.TOROBPAY_CALLBACK_URL ||
-      `${getClientUrl(req)}/api/payments/torobpay/callback`;
+      (getClientUrl(req) + '/api/payments/torobpay/callback');
 
-    // رکورد پرداخت: تلاش قبلیِ بدون توکن را بازاستفاده کن، وگرنه رکورد جدید
-    // (هر تلاش یک transactionId یکتا = _id رکورد پرداخت)
     let payment = await Payment.findOne({
       order: order._id,
       provider: 'torobpay',
@@ -176,17 +166,17 @@ const initiateTorobPayPayment = async (req, res) => {
       amount: toRial(order.total),
       discountAmount: toRial(order.discountAmount),
       externalSourceAmount: 0,
-      mobile: order.shippingInfo?.phone || user?.phone,
+      mobile: (order.shippingInfo && order.shippingInfo.phone) || (user && user.phone),
       paymentMethodTypeDto: 'ONLINE_CREDIT',
       returnURL: returnUrl,
-      transactionId: String(payment._id), // در callback با همین مقدار بازمی‌گردد
+      transactionId: String(payment._id),
       cartList: await buildCartList(order),
-      address: order.shippingInfo?.address,
-      postalCode: order.shippingInfo?.postalCode,
-      customer_full_name: order.shippingInfo?.fullName,
-      city: order.shippingInfo?.city,
-      province: order.shippingInfo?.province,
-      registration_phone_number: user?.phone || order.shippingInfo?.phone,
+      address: order.shippingInfo && order.shippingInfo.address,
+      postalCode: order.shippingInfo && order.shippingInfo.postalCode,
+      customer_full_name: order.shippingInfo && order.shippingInfo.fullName,
+      city: order.shippingInfo && order.shippingInfo.city,
+      province: order.shippingInfo && order.shippingInfo.province,
+      registration_phone_number: (user && user.phone) || (order.shippingInfo && order.shippingInfo.phone),
     };
 
     const result = await createPurchaseToken(payload);
@@ -199,7 +189,6 @@ const initiateTorobPayPayment = async (req, res) => {
     payment.amount = order.total;
     payment.callbackUrl = returnUrl;
     payment.status = 'pending';
-    payment.failureReason = undefined;
     await payment.save();
 
     return res.json({
@@ -219,14 +208,14 @@ const initiateTorobPayPayment = async (req, res) => {
 const torobPayCallback = async (req, res) => {
   const baseUrl = getClientUrl(req);
   const front = (params) =>
-    `${baseUrl}/payment/callback?provider=torobpay&${new URLSearchParams(params).toString()}`;
+    baseUrl + '/payment/callback?provider=torobpay&' + new URLSearchParams(params).toString();
   const fail = (code) => res.redirect(303, front({ status: 'failed', message: code }));
   const ok = (refId, orderRef) =>
     res.redirect(303, front({ status: 'success', refId: refId || '', orderRef: orderRef || '' }));
 
   try {
-    const transactionId = String(req.body?.transactionId || '').trim();
-    const state = String(req.body?.state || '').trim();
+    const transactionId = String((req.body && req.body.transactionId) || '').trim();
+    const state = String((req.body && req.body.state) || '').trim();
 
     if (!transactionId || !mongoose.isValidObjectId(transactionId)) return fail('InvalidCallback');
     const payment = await Payment.findById(transactionId);
@@ -240,19 +229,19 @@ const torobPayCallback = async (req, res) => {
 
     if (state !== 'OK') {
       payment.status = 'failed';
-      payment.failureReason = `TorobPayState:${state || 'EMPTY'}`;
+      payment.failureReason = 'TorobPayState:' + (state || 'EMPTY');
       payment.failedAt = new Date();
       await payment.save();
       return fail('PaymentCanceled');
     }
 
-
+    // بررسی مبلغ (ریال) — در صورت اختلاف، استعلام status ترب‌پی مرجع نهایی است
     const expectedRial = toRial(payment.amount);
-    const callbackAmount = Number(req.body?.amount);
+    const callbackAmount = Number(req.body && req.body.amount);
     if (Number.isFinite(callbackAmount) && callbackAmount > 0 && callbackAmount !== expectedRial) {
-      console.error(`[torobpay][callback] ⚠️ amount mismatch: got=${callbackAmount} expected=${expectedRial} payment=${payment._id}`);
+      console.error('[torobpay][callback] amount mismatch: got=' + callbackAmount + ' expected=' + expectedRial + ' payment=' + payment._id);
       const st = await getPurchaseStatus(payment.authority);
-      const statusAmount = st.success ? Number(st.response?.amount) : NaN;
+      const statusAmount = st.success ? Number(st.response && st.response.amount) : NaN;
       if (!st.success || statusAmount !== expectedRial) {
         payment.status = 'failed';
         payment.failureReason = 'AmountMismatch';
@@ -262,19 +251,19 @@ const torobPayCallback = async (req, res) => {
       }
     }
 
-
+    // اگر سفارش قبلاً با پرداخت دیگری کامل شده → وجه این توکن را برگردان
     if (order.paymentStatus === 'paid') {
       const reverted = await revertPurchase(payment.authority);
       payment.status = reverted.success ? 'refunded' : 'failed';
       payment.failureReason = reverted.success ? 'DuplicatePaymentReverted' : 'DuplicatePaymentNeedsManualRefund';
       await payment.save();
       if (!reverted.success) {
-        console.error(`🔴 [torobpay] پرداخت تکراری نیازمند بازپرداخت دستی: payment=${payment._id} order=${order._id}`);
+        console.error('[torobpay] پرداخت تکراری نیازمند بازپرداخت دستی: payment=' + payment._id + ' order=' + order._id);
       }
       return ok(order.paymentRefId, order.orderRef);
     }
 
-
+    // قفل اتمیک برای جلوگیری از race condition
     const claimed = await Payment.findOneAndUpdate(
       { _id: payment._id, status: { $nin: ['paid', 'processing'] } },
       { status: 'processing' },
@@ -282,15 +271,16 @@ const torobPayCallback = async (req, res) => {
     );
     if (!claimed) return fail('PaymentProcessing');
 
-
+    // verify: W_FOR_VERIFY → W_FOR_SETTLE
     const verifyRes = await verifyPurchase(payment.authority);
-
+    if (!verifyRes.success) {
+      // شاید callback قبلی میان verify و save قطع شده باشد → با status چک کن
       if (verifyRes.code === 1053) {
         const st = await getPurchaseStatus(payment.authority);
-        if (st.success && st.response?.status === 'SETTLE') {
+        if (st.success && st.response && st.response.status === 'SETTLE') {
           await settlePurchase(payment.authority);
-          await finalizePaidTorobPay(payment, order, st.response?.transactionId);
-          return ok(st.response?.transactionId, order.orderRef);
+          await finalizePaidTorobPay(payment, order, st.response.transactionId);
+          return ok(st.response.transactionId, order.orderRef);
         }
       }
       payment.status = 'failed';
@@ -300,13 +290,15 @@ const torobPayCallback = async (req, res) => {
       return fail('VerifyFailed');
     }
 
+    // settle: W_FOR_SETTLE → ONGOING (تأیید نهایی)
     const settleRes = await settlePurchase(payment.authority);
     if (!settleRes.success) {
-      console.error(`[torobpay][callback] ⚠️ settle ناموفق (verify موفق بود): payment=${payment._id}`, settleRes.code, settleRes.message);
+      // verify موفق بوده یعنی پول گرفته شده؛ settle خودکار هم پس از ۱۰ دقیقه انجام می‌شود
+      console.error('[torobpay][callback] settle ناموفق (verify موفق بود): payment=' + payment._id, settleRes.code, settleRes.message);
     }
 
-    await finalizePaidTorobPay(payment, order, verifyRes.response?.transactionId);
-    return ok(verifyRes.response?.transactionId, order.orderRef);
+    await finalizePaidTorobPay(payment, order, verifyRes.response && verifyRes.response.transactionId);
+    return ok(verifyRes.response && verifyRes.response.transactionId, order.orderRef);
   } catch (error) {
     console.error('[torobpay][callback] error:', error);
     return fail('ServerError');
