@@ -15,7 +15,7 @@ const generateOrderRef = () => 'NM-' + Date.now();
 const Setting = require('../models/Setting');
 
 // روش‌های پرداخت مجاز
-const ALLOWED_PAYMENT_METHODS = ['cod', 'online', 'torobpay'];
+const ALLOWED_PAYMENT_METHODS = ['online', 'torobpay'];
 
 // قیمت واحد با احتساب سایز انتخابی و تخفیف درصدی محصول
 const getUnitPrice = (product, sizeName) => {
