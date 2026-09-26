@@ -31,6 +31,7 @@ const AdminSettings = () => import('./views/admin/AdminSettings.vue')
 const AdminHero = () => import('./views/admin/AdminHero.vue')
 
 const routes = [
+  { path: '/landing', redirect: '/fa/landing' },
   { path: '/:lang', name: 'Home', component: Home },
   { path: '/:lang/products', name: 'Products', component: Products },
   { path: '/:lang/product/:id', name: 'ProductDetails', component: ProductDetails },
@@ -48,6 +49,7 @@ const routes = [
   { path: '/:lang/orders', redirect: to => `/${to.params.lang}/user/orders` },
   { path: '/:lang/profile', redirect: to => ({ name: 'UserProfile', params: { lang: to.params.lang } }), meta: { requiresAuth: true } },
   { path: '/:lang/discounts', name: 'Discounts', component: () => import('./views/Discounts.vue') },
+  { path: '/:lang/landing', name: 'Landing', component: () => import('./views/Landing.vue') },
 
   {
     path: '/:lang/user',
@@ -176,6 +178,7 @@ const routePathMap = {
   UserTickets: 'user/tickets',
   UserWishlist: 'user/wishlist',
   Discounts: 'discounts',
+  Landing: 'landing',
 }
 
 router.beforeEach(async (to, from, next) => {
