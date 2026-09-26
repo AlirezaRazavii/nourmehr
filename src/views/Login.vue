@@ -48,6 +48,29 @@ watch(code, (val) => {
   if (cleaned !== val) code.value = cleaned
 })
 
+/* ---------- پاک‌سازی شماره موبایل (ارقام فارسی + فرمت بین‌المللی) ---------- */
+const sanitizePhone = (raw) => {
+  if (!raw) return ''
+  let cleaned = String(raw)
+    // تبدیل ارقام فارسی/عربی به انگلیسی
+    .replace(/[۰-۹]/g, (d) => String(FA_DIGITS.indexOf(d)))
+    .replace(/[٠-٩]/g, (d) => String(AR_DIGITS.indexOf(d)))
+    // فقط ارقام بمانند (+ ، فاصله، خط تیره و کاراکترهای نامرئی حذف می‌شوند)
+    .replace(/\D/g, '')
+
+  // فرمت بین‌المللی: +989123456789 یا 00989123456789 → 09123456789
+  if (cleaned.startsWith('0098')) cleaned = '0' + cleaned.slice(4)
+  else if (cleaned.startsWith('98') && cleaned.length >= 12) cleaned = '0' + cleaned.slice(2)
+
+  return cleaned.slice(0, 11)
+}
+
+// هر مقداری که وارد شود (تایپ یا پیست) خودکار پاک‌سازی می‌شود
+watch(phone, (val) => {
+  const cleaned = sanitizePhone(val)
+  if (cleaned !== val) phone.value = cleaned
+})
+
 const startCountdown = (seconds = 120) => {
   resendCountdown.value = seconds
   clearInterval(countdownTimer)
@@ -191,7 +214,9 @@ const changeNumber = () => {
                   v-model="phone"
                   type="tel"
                   inputmode="numeric"
-                  maxlength="11"
+                  autocomplete="tel"
+                  name="phone"
+                  enterkeyhint="next"
                   placeholder="09123456789"
                   autofocus
                 />
