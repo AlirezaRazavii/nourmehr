@@ -77,25 +77,20 @@
             </ul>
 
             <div class="socials">
-              <a :href="socials.instagram" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <rect x="3" y="3" width="18" height="18" rx="5" />
-                  <circle cx="12" cy="12" r="4" />
-                  <circle cx="17.5" cy="6.5" r="1" />
-                </svg>
-              </a>
-              <a :href="socials.telegram" target="_blank" rel="noopener noreferrer" aria-label="Telegram">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M21 4L3 11l5 2 2 6 3-4 4 3 4-14z" />
-                </svg>
-              </a>
-              <a :href="socials.whatsapp" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M20 11.5A8.5 8.5 0 0 0 7.2 4.3 8.5 8.5 0 0 0 4 18l-1 3 3-1a8.5 8.5 0 0 0 14-8.5z" />
-                  <path d="M9.5 9.5c.3-.2.5-.5.7-.8.1-.2.1-.4 0-.6L9.8 7c-.1-.2-.3-.3-.5-.3H9c-.1 0-.2 0-.3.1-.5.2-1.1.6-1.3 1.2C7 9.2 7.4 10.3 8.3 11.3s2.1 1.6 2.9 1.9c.6.2 1.4.1 1.9-.3.4-.3.7-.8.8-1.3v-.3c0-.2-.1-.4-.3-.5l-1.1-.4c-.2-.1-.4-.1-.6 0-.3.2-.6.4-.8.7" />
-                </svg>
-              </a>
-            </div>
+  <a :href="socials.instagram" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="3" y="3" width="18" height="18" rx="5" />
+      <circle cx="12" cy="12" r="4" />
+      <circle cx="17.5" cy="6.5" r="1" />
+    </svg>
+  </a>
+  <a :href="socials.whatsapp" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M20 11.5A8.5 8.5 0 0 0 7.2 4.3 8.5 8.5 0 0 0 4 18l-1 3 3-1a8.5 8.5 0 0 0 14-8.5z" />
+      <path d="M9.5 9.5c.3-.2.5-.5.7-.8.1-.2.1-.4 0-.6L9.8 7c-.1-.2-.3-.3-.5-.3H9c-.1 0-.2 0-.3.1-.5.2-1.1.6-1.3 1.2C7 9.2 7.4 10.3 8.3 11.3s2.1 1.6 2.9 1.9c.6.2 1.4.1 1.9-.3.4-.3.7-.8.8-1.3v-.3c0-.2-.1-.4-.3-.5l-1.1-.4c-.2-.1-.4-.1-.6 0-.3.2-.6.4-.8.7" />
+    </svg>
+  </a>
+</div>
           </div>
         </nav>
       </div>
@@ -135,10 +130,10 @@ const phoneRaw = '+989123456789'
 const emailRaw = 'info@nourmehr.com'
 
 // لینک شبکه‌های اجتماعی در یک جا برای نگهداری آسان
+// لینک شبکه‌های اجتماعی در یک جا برای نگهداری آسان
 const socials = {
-  instagram: 'https://instagram.com/nourmehr',
-  telegram: 'https://t.me/nourmehr',
-  whatsapp: 'https://wa.me/989123456789'
+  instagram: 'https://www.instagram.com/nourmehr_handicrafts/',
+  whatsapp: 'https://wa.me/message/5H2LPQQQ64FRO1'
 }
 
 // افزودن پیشوند زبان به مسیرها (هماهنگ با روتر دوزبانه‌ی شما)
