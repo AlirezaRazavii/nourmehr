@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
@@ -26,6 +26,27 @@ const phone = ref('')
 const code = ref('')
 const resendCountdown = ref(0)
 let countdownTimer = null
+
+/* ---------- پاک‌سازی کد تایید (رفع باگ پیست) ---------- */
+const FA_DIGITS = '۰۱۲۳۴۵۶۷۸۹'
+const AR_DIGITS = '٠١٢٣٤٥٦٧٨٩'
+
+const sanitizeCode = (raw) => {
+  if (!raw) return ''
+  return String(raw)
+    // تبدیل ارقام فارسی/عربی به انگلیسی
+    .replace(/[۰-۹]/g, (d) => String(FA_DIGITS.indexOf(d)))
+    .replace(/[٠-٩]/g, (d) => String(AR_DIGITS.indexOf(d)))
+    // حذف هر کاراکتر غیررقمی (کاراکترهای نامرئی، فاصله، علامت RTL و...)
+    .replace(/\D/g, '')
+    .slice(0, 6)
+}
+
+// هر مقداری که وارد شود (تایپ، پیست یا autofill) خودکار پاک‌سازی می‌شود
+watch(code, (val) => {
+  const cleaned = sanitizeCode(val)
+  if (cleaned !== val) code.value = cleaned
+})
 
 const startCountdown = (seconds = 120) => {
   resendCountdown.value = seconds
@@ -99,6 +120,33 @@ const handleVerify = async () => {
   }
   redirectAfterLogin(result)
 }
+
+/* ---------- پر کردن خودکار کد از پیامک ---------- */
+// اندروید (کروم): با Web OTP API کد مستقیم از پیامک خوانده می‌شود
+// iOS: با autocomplete="one-time-code" کد به‌صورت پیشنهاد بالای کیبورد می‌آید
+const setupSmsAutoFill = () => {
+  if (!('OTPCredential' in window) || !navigator.credentials?.get) return
+
+  try {
+    const ac = new AbortController()
+    window.addEventListener('pagehide', () => ac.abort(), { once: true })
+
+    navigator.credentials.get({
+      otp: { format: 'text' },
+      signal: ac.signal,
+    }).then((otp) => {
+      if (otp?.code) {
+        code.value = sanitizeCode(otp.code)
+        handleVerify() // تایید خودکار بعد از پر شدن کد
+      }
+    }).catch(() => { /* cancel یا عدم پشتیبانی — بی‌اهمیت */ })
+  } catch (e) { /* مرورگر پشتیبانی نمی‌کند */ }
+}
+
+// هر وقت وارد مرحله «کد» شدیم، شنود پیامک شروع شود
+watch(step, (val) => {
+  if (val === 'code') setupSmsAutoFill()
+})
 
 const handleResend = async () => {
   if (resendCountdown.value > 0) return
@@ -178,7 +226,9 @@ const changeNumber = () => {
                   v-model="code"
                   type="text"
                   inputmode="numeric"
-                  maxlength="6"
+                  autocomplete="one-time-code"
+                  name="otp"
+                  enterkeyhint="done"
                   placeholder="------"
                   class="code-input"
                   autofocus
