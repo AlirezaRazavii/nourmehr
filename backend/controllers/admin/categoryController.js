@@ -9,7 +9,7 @@ const { invalidateCategoryCache } = require('../../utils/cache');
 
 const EDITABLE = [
   'name', 'slug', 'description', 'icon', 'image',
-  'sortOrder', 'status', 'parents', 'metaTitle', 'metaDescription', 'seo',
+  'sortOrder', 'showOnHome', 'status', 'parents', 'metaTitle', 'metaDescription', 'seo',
 ];
 
 const pick = (src = {}) =>
@@ -218,6 +218,37 @@ const deleteCategoryImage = async (req, res) => {
   }
 };
 
+/* ---------------------- تغییر ترتیب دسته‌بندی‌ها ---------------------- */
+const reorderCategories = async (req, res) => {
+  try {
+    const { items } = req.body || {};
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ success: false, message: 'لیست ترتیب ارسال نشده است' });
+    }
+
+    for (const item of items) {
+      if (!item?.id || !mongoose.Types.ObjectId.isValid(item.id) || !Number.isInteger(item.order)) {
+        return res.status(400).json({ success: false, message: 'فرمت لیست ترتیب نامعتبر است' });
+      }
+    }
+
+    const ops = items.map(({ id, order }) => ({
+      updateOne: {
+        filter: { _id: id },
+        update: { $set: { sortOrder: order } },
+      },
+    }));
+
+    await Category.bulkWrite(ops, { ordered: false });
+    invalidateCategoryCache();
+
+    res.json({ success: true, message: 'ترتیب دسته‌بندی‌ها به‌روزرسانی شد' });
+  } catch (error) {
+    fail(res, error);
+  }
+};
+
 module.exports = {
   getCategories,
   createCategory,
@@ -225,4 +256,5 @@ module.exports = {
   deleteCategory,
   uploadCategoryImage,
   deleteCategoryImage,
+  reorderCategories,
 };

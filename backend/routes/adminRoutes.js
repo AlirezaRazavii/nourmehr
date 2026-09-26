@@ -28,6 +28,7 @@ const {
   deleteCategory,
   uploadCategoryImage,
   deleteCategoryImage,
+    reorderCategories,
 } = require('../controllers/admin/categoryController');
 const { getSettings, updateSettings } = require('../controllers/admin/settingController');
 const { getCollections, createCollection, updateCollection, deleteCollection, setCollectionProducts } = require('../controllers/admin/collectionController');
@@ -238,8 +239,10 @@ router.post('/categories/delete-image', hasPermission(PERMISSIONS.CATEGORIES), d
 
 router.get('/categories', hasPermission(PERMISSIONS.CATEGORIES), getCategories);
 router.post('/categories', hasPermission(PERMISSIONS.CATEGORIES), normalizeSeo, createCategory);
+router.put('/categories/reorder', hasPermission(PERMISSIONS.CATEGORIES), reorderCategories);
 router.put('/categories/:id', hasPermission(PERMISSIONS.CATEGORIES), normalizeSeo, updateCategory);
 router.delete('/categories/:id', hasPermission(PERMISSIONS.CATEGORIES), deleteCategory);
+
 
 /* --------------------------------- تنظیمات --------------------------------- */
 router.get('/settings', hasPermission(PERMISSIONS.SETTINGS), getSettings);

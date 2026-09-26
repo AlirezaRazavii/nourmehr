@@ -176,6 +176,12 @@ export const adminApi = {
     return res.data
   },
 
+  async reorderCategories(items) {
+    const res = await api.put('/admin/categories/reorder', { items })
+    return res.data
+  },
+
+
   /* ----------------------------- کالکشن‌ها ------------------------------ */
   async getCollections() {
     const res = await api.get('/admin/collections')

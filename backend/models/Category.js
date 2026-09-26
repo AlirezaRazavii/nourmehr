@@ -15,6 +15,7 @@ const categorySchema = new mongoose.Schema({
   },
   status: { type: String, enum: ['active', 'inactive'], default: 'active' },
   sortOrder: { type: Number, default: 0 },
+  showOnHome: { type: Boolean, default: false },
   parents: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Category' }],
 
   // ---------- سئو ----------

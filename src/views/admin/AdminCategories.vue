@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onUnmounted } from 'vue'
 import { adminApi } from '../../services/adminApi'
+import { clearCategoriesCache } from '../../services/categoryApi'
 import { getImageUrl } from '../../utils/imageUrl'
 import SeoPanel from './SeoPanel.vue'
 
@@ -46,6 +47,7 @@ const blankForm = () => ({
   description: { fa: '', en: '' },
   status: 'active',
   sortOrder: 0,
+  showOnHome: false,
   parents: [],
   seo: {
     fa: { title: '', description: '', focusKeyword: '', canonicalUrl: '', ogImage: '', ogTitle: '', ogDescription: '', noIndex: false },
@@ -139,6 +141,7 @@ const openEdit = (cat) => {
     description: { fa: cat.description?.fa || '', en: cat.description?.en || '' },
     status: cat.status || 'active',
     sortOrder: cat.sortOrder ?? 0,
+    showOnHome: cat.showOnHome ?? false,
     parents: (cat.parents || []).map(p => (typeof p === 'string' ? p : catId(p))).filter(Boolean),
     seo: {
       fa: { ...blankForm().seo.fa, ...(cat.seo?.fa || {}) },
@@ -254,6 +257,7 @@ const saveCategory = async () => {
       description: { fa: form.value.description.fa, en: form.value.description.en },
       status: form.value.status,
       sortOrder: Number(form.value.sortOrder) || 0,
+      showOnHome: form.value.showOnHome === true,
       parents: form.value.parents,
       seo: form.value.seo,
     }
@@ -266,6 +270,7 @@ const saveCategory = async () => {
     if (!res?.success) throw new Error(res?.message || 'عملیات ناموفق بود')
 
     sessionUploads.value = new Set() // ذخیره شد، دیگر یتیم نیست
+    clearCategoriesCache() // تا صفحه اصلی فوراً به‌روز شود
     notify(id ? 'دسته‌بندی ویرایش شد' : 'دسته‌بندی ایجاد شد', 'success')
     await closeModal({ discardUploads: false })
     await fetchCategories()
@@ -289,6 +294,62 @@ const deleteCategory = async (id) => {
     notify(err.response?.data?.message || err.message || 'خطا در حذف دسته‌بندی', 'error')
   } finally {
     deletingId.value = null
+  }
+}
+
+/* ---------------------- صفحه اصلی و ترتیب ---------------------- */
+const togglingId = ref(null)
+
+/** روشن/خاموش کردن نمایش دسته‌بندی در صفحه اصلی (مستقیم از کارت) */
+const toggleShowOnHome = async (cat) => {
+  if (togglingId.value) return
+  togglingId.value = catId(cat)
+
+  const newValue = !cat.showOnHome
+  cat.showOnHome = newValue // آپدیت خوش‌بینانه
+
+  try {
+    const res = await adminApi.updateCategory(catId(cat), { showOnHome: newValue })
+    if (!res?.success) throw new Error(res?.message || 'عملیات ناموفق بود')
+    clearCategoriesCache() // تا صفحه اصلی فوراً به‌روز شود
+    notify(
+      newValue ? `«${cat.name?.fa || ''}» به صفحه اصلی اضافه شد` : `«${cat.name?.fa || ''}» از صفحه اصلی حذف شد`,
+      'success'
+    )
+  } catch (err) {
+    cat.showOnHome = !newValue // برگرداندن وضعیت قبلی
+    notify(err.response?.data?.message || err.message || 'خطا در تغییر وضعیت', 'error')
+  } finally {
+    togglingId.value = null
+  }
+}
+
+/** جایگاه دسته‌بندی در لیست کامل (نه لیستِ فیلترشده با جستجو) */
+const fullIndex = (cat) => categories.value.findIndex(c => catId(c) === catId(cat))
+
+/** جابجایی دسته‌بندی به بالا/پایین و ذخیره ترتیب جدید */
+const moveCategory = async (cat, dir) => {
+  const list = [...categories.value]
+  const index = list.findIndex(c => catId(c) === catId(cat))
+  const target = index + dir
+  if (index === -1 || target < 0 || target >= list.length) return
+
+  // جابجایی دو آیتم
+  ;[list[index], list[target]] = [list[target], list[index]]
+
+  // ترتیب جدید: ایندکس هر آیتم = sortOrder آن
+  const items = list.map((c, i) => ({ id: catId(c), order: i }))
+
+  categories.value = list // آپدیت خوش‌بینانه
+
+  try {
+    const res = await adminApi.reorderCategories(items)
+    if (!res?.success) throw new Error(res?.message || 'عملیات ناموفق بود')
+    clearCategoriesCache()
+    notify('ترتیب دسته‌بندی‌ها ذخیره شد', 'success')
+  } catch (err) {
+    notify(err.response?.data?.message || err.message || 'خطا در ذخیره ترتیب', 'error')
+    await fetchCategories() // برگشت به وضعیت سرور
   }
 }
 
@@ -390,7 +451,34 @@ const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('fa-IR') : '—')
           </div>
         </div>
 
+        <!-- سوییچ نمایش در صفحه اصلی -->
+        <div
+          class="home-toggle"
+          :class="{ active: cat.showOnHome, loading: togglingId === catId(cat) }"
+          @click="toggleShowOnHome(cat)"
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg>
+          <span class="home-toggle-text">{{ cat.showOnHome ? 'نمایش در صفحه اصلی' : 'عدم نمایش در صفحه اصلی' }}</span>
+          <span class="mini-switch" :class="{ on: cat.showOnHome }"><i></i></span>
+        </div>
+
         <div class="category-actions">
+          <button
+            class="move-btn"
+            title="انتقال به بالا"
+            :disabled="searchQuery.trim() !== '' || fullIndex(cat) === 0"
+            @click="moveCategory(cat, -1)"
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 15l-6-6-6 6"/></svg>
+          </button>
+          <button
+            class="move-btn"
+            title="انتقال به پایین"
+            :disabled="searchQuery.trim() !== '' || fullIndex(cat) === categories.length - 1"
+            @click="moveCategory(cat, 1)"
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
           <button class="action-btn edit" @click="openEdit(cat)">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             ویرایش
@@ -439,11 +527,11 @@ const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('fa-IR') : '—')
               </div>
 
               <div class="form-group">
-                <label class="form-label">وضعیت</label>
-                <select v-model="form.status" class="form-select">
-                  <option value="active">فعال</option>
-                  <option value="inactive">غیرفعال</option>
-                </select>
+                <label class="form-label">نمایش در صفحه اصلی</label>
+                <label class="switch-row">
+                  <input type="checkbox" v-model="form.showOnHome" />
+                  <span>{{ form.showOnHome ? 'در صفحه اصلی نمایش داده می‌شود' : 'در صفحه اصلی نمایش داده نمی‌شود' }}</span>
+                </label>
               </div>
 
               <div class="form-group">
@@ -805,6 +893,51 @@ const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('fa-IR') : '—')
 
 .modal-enter-active, .modal-leave-active { transition: opacity 0.25s ease; }
 .modal-enter-from, .modal-leave-to { opacity: 0; }
+
+/* ---------------------- سوییچ صفحه اصلی + ترتیب ---------------------- */
+.home-toggle {
+  display: flex; align-items: center; gap: 10px;
+  margin: 0 20px; padding: 10px 14px;
+  border-radius: 10px; cursor: pointer; user-select: none;
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.6);
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+.home-toggle:hover { background: rgba(255,255,255,0.05); }
+.home-toggle.active { background: rgba(197,160,89,0.12); border-color: rgba(197,160,89,0.4); color: #facc6b; }
+.home-toggle.loading { opacity: 0.6; pointer-events: none; }
+.home-toggle-text { flex: 1; font-size: 0.83rem; }
+
+.mini-switch {
+  position: relative; width: 38px; height: 20px; border-radius: 999px;
+  background: rgba(255,255,255,0.12); transition: background 0.25s; flex-shrink: 0;
+}
+.mini-switch i {
+  position: absolute; width: 14px; height: 14px; right: 3px; top: 3px;
+  border-radius: 50%; background: #fff; transition: transform 0.25s;
+}
+.mini-switch.on { background: #c5a059; }
+.mini-switch.on i { transform: translateX(-18px); }
+
+.move-btn {
+  flex: 0 0 44px; width: 44px;
+  display: flex; align-items: center; justify-content: center;
+  padding: 10px; border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.7);
+  cursor: pointer; font-family: inherit;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+.move-btn:hover:not(:disabled) { background: rgba(197,160,89,0.15); color: #facc6b; border-color: rgba(197,160,89,0.3); }
+.move-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.switch-row {
+  display: flex; align-items: center; gap: 10px; cursor: pointer;
+  padding: 11px 14px; border-radius: 10px;
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+  font-size: 0.85rem; color: rgba(255,255,255,0.75);
+}
+.switch-row input { accent-color: #c5a059; width: 18px; height: 18px; cursor: pointer; flex-shrink: 0; }
 
 /* ------------------------------ Responsive ---------------------------- */
 @media (max-width: 768px) {

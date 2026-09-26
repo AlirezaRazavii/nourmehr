@@ -2,7 +2,7 @@
   <div class="home-page">
     <Hero />
     <Features />
-
+    <HomeCategories/>
     <HomeCollections />
     <BrandStory />
     <Testimonials />
@@ -17,6 +17,7 @@ import Hero from '../components/Hero.vue'
 const Features = defineAsyncComponent(() => import('../components/Features.vue'))
 const BrandStory = defineAsyncComponent(() => import('../components/BrandStory.vue'))
 const HomeCollections = defineAsyncComponent(() => import('../components/HomeCollections.vue'))
+const HomeCategories = defineAsyncComponent(() => import('../components/HomeCategories.vue'))
 const Announcements = defineAsyncComponent(() => import('../components/Announcements.vue'))
 const Testimonials = defineAsyncComponent(() => import('../components/Testimonials.vue'))
 </script>
