@@ -1,4 +1,6 @@
-{"home_categories_title": "Product Category",
+{"checkout_post_paid": "Pay on Delivery",
+"checkout_post_paid_desc": "Shipping fee is paid upon delivery",
+  "home_categories_title": "Product Category",
   "payment_err_invalid_callback": "Invalid payment callback data. Please try again or contact support.",
 "payment_err_amount_mismatch": "The paid amount does not match the order total. If you were charged, the amount will be refunded automatically.",
   "about_badge": "About Noormehr",

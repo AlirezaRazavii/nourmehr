@@ -14,6 +14,18 @@ const { getStatusStyle, fetchOrders, cancelOrder } = ordersStore
 
 const selectedOrder = ref(null)
 
+/* ---------- تشخیص «پس کرایه» ---------- */
+const shippingInfoMap = ref({}) // id روش ارسال → postPaid
+
+const isOrderPostPaid = (order) => {
+  // سفارش‌های قدیمی که هزینه واقعی پرداخت شده بودند
+  if (Number(order?.shippingCost || 0) > 0) return false
+  const info = shippingInfoMap.value[order?.shippingInfo?.shippingMethod]
+  if (info) return info.postPaid === true
+  // روش نامشخص و بدون هزینه → چون فروشگاه پس‌کرایه‌ای است
+  return true
+}
+
 const formatDate = (d) => {
   if (!d) return ''
   try { return new Date(d).toLocaleDateString(locale.value === 'fa' ? 'fa-IR' : 'en-US') } catch { return '' }
@@ -42,6 +54,16 @@ const handleCancelOrder = async (orderId) => {
 }
 
 onMounted(async () => {
+  // دریافت تنظیمات ارسال برای تشخیص «پس کرایه»
+  try {
+    const { default: api } = await import('../../services/api')
+    const res = await api.get('/settings')
+    const opts = res?.data?.data?.shippingOptions || []
+    shippingInfoMap.value = Object.fromEntries(
+      opts.map(o => [o.id, { postPaid: o.postPaid !== false }])
+    )
+  } catch (e) { /* ignore */ }
+
   await fetchOrders()
   if (route.query.orderRef) {
     const target = (orders.value || []).find(o => o.orderRef === route.query.orderRef || o._id === route.query.orderRef)
@@ -97,13 +119,16 @@ onMounted(async () => {
               :key="item._id"
               class="order-item-thumb"
             >
-              <img :src="getImageUrl(item.image)" :alt="item.name" />
+              <img :src="getImageUrl(item.image)" :alt="item.name" /> 
             </div>
             <span v-if="order.items.length > 3" class="more-items">+{{ order.items.length - 3 }}</span>
           </div>
 
           <div class="order-footer">
-            <div class="order-total">{{ formatPrice(order.total) }} {{ $t('products_currency') }}</div>
+            <div class="order-total">
+              {{ formatPrice(order.total) }} {{ $t('products_currency') }}
+              <span v-if="isOrderPostPaid(order)" class="postpaid-badge">{{ $t('checkout_post_paid') }}</span>
+            </div>
             <button
               v-if="['pending', 'awaiting_payment'].includes(order.status)"
               class="cancel-btn"
@@ -174,6 +199,22 @@ onMounted(async () => {
             </div>
           </div>
           
+          <!-- خلاصه هزینه‌ها -->
+          <div class="costs-summary">
+            <div class="costs-row">
+              <span>{{ $t('checkout_shipping_cost') }}</span>
+              <span v-if="isOrderPostPaid(selectedOrder)" class="postpaid-text">{{ $t('checkout_post_paid') }}</span>
+              <span v-else>{{ formatPrice(selectedOrder.shippingCost) }} {{ $t('products_currency') }}</span>
+            </div>
+            <div v-if="selectedOrder.discountAmount" class="costs-row">
+              <span>{{ $t('checkout_discount') }}</span>
+              <span class="discount-text">- {{ formatPrice(selectedOrder.discountAmount) }} {{ $t('products_currency') }}</span>
+            </div>
+            <div v-if="isOrderPostPaid(selectedOrder)" class="postpaid-hint">
+              {{ $t('checkout_post_paid_desc') }}
+            </div>
+          </div>
+
           <div class="detail-total">
             <span>{{ $t('user_orders_total_amount') }}</span>
             <span class="total-price">{{ formatPrice(selectedOrder.total) }} {{ $t('products_currency') }}</span>
@@ -231,6 +272,14 @@ onMounted(async () => {
 .item-name { display: block; font-weight: 600; margin-bottom: 4px; word-break: break-word; }
 .item-qty { font-size: 0.85rem; opacity: 0.7; }
 .item-price { font-weight: 600; color: #facc6b; margin-inline-start: auto; }
+/* خلاصه هزینه‌ها */
+.costs-summary { display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 12px; background: rgba(255, 255, 255, 0.03); margin-bottom: 16px; }
+.costs-row { display: flex; justify-content: space-between; font-size: 0.9rem; opacity: 0.85; flex-wrap: wrap; gap: 6px; }
+.costs-row .postpaid-text { color: #facc6b; font-weight: 600; }
+.costs-row .discount-text { color: #22c55e; font-weight: 600; }
+.postpaid-hint { font-size: 0.8rem; color: rgba(255, 255, 255, 0.55); background: rgba(197, 160, 89, 0.08); border: 1px dashed rgba(197, 160, 89, 0.3); border-radius: 10px; padding: 10px 14px; line-height: 1.8; }
+.postpaid-badge { display: inline-block; padding: 2px 10px; border-radius: 999px; background: rgba(197, 160, 89, 0.15); border: 1px solid rgba(197, 160, 89, 0.4); color: #facc6b; font-size: 0.72rem; font-weight: 600; margin-inline-start: 8px; vertical-align: middle; }
+
 .detail-total { display: flex; justify-content: space-between; align-items: center; padding-top: 20px; border-top: 1px solid rgba(255, 255, 255, 0.1); font-size: 1.1rem; flex-wrap: wrap; gap: 10px; }
 .total-price { font-weight: 700; color: #facc6b; font-size: 1.3rem; }
 

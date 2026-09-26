@@ -4,7 +4,8 @@ const shippingOptionSchema = new mongoose.Schema({
   id: { type: String, required: true },
   title: { type: String, required: true },
   description: { type: String, default: '' },
-  cost: { type: Number, required: true, min: 0 },
+  postPaid: { type: Boolean, default: true },
+  cost: { type: Number, default: 0, min: 0 },
   icon: { type: String, default: '📦' },
   isActive: { type: Boolean, default: true },
   minOrder: { type: Number, default: 0 }
@@ -23,8 +24,8 @@ const settingSchema = new mongoose.Schema({
   shippingOptions: {
     type: [shippingOptionSchema],
     default: [
-      { id: 'express', title: 'ارسال پیشتاز', description: '۲ تا ۴ روز کاری', cost: 150000, icon: '🚀', isActive: true, minOrder: 0 },
-      { id: 'normal', title: 'ارسال سفارشی', description: '۴ تا ۷ روز کاری', cost: 80000, icon: '📦', isActive: true, minOrder: 0 }
+      { id: 'bus', title: 'ارسال با اتوبوس', description: '', postPaid: true, cost: 0, icon: '🚌', isActive: true, minOrder: 0 },
+      { id: 'post', title: 'ارسال با پست', description: '', postPaid: true, cost: 0, icon: '📮', isActive: true, minOrder: 0 }
     ]
   },
   contactPhone: String,

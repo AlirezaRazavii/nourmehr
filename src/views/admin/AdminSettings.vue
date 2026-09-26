@@ -63,10 +63,7 @@ const fetchSettings = async () => {
         },
         paymentMethods: res.data.paymentMethods || [],
         shippingMethods: res.data.shippingMethods || [],
-        shippingOptions: res.data.shippingOptions || [
-          { id: 'express', title: 'ارسال پیشتاز', description: '۲ تا ۴ روز کاری', cost: 150000, icon: '🚀', isActive: true, minOrder: 0 },
-          { id: 'normal', title: 'ارسال سفارشی', description: '۴ تا ۷ روز کاری', cost: 80000, icon: '📦', isActive: true, minOrder: 0 }
-        ]
+        shippingOptions: (res.data.shippingOptions || []).map(o => ({ ...o, postPaid: o.postPaid !== false }))
       }
     }
   } catch (err) {
@@ -81,7 +78,14 @@ onMounted(fetchSettings)
 const saveSettings = async () => {
   saving.value = true
   try {
-    const res = await adminApi.updateSettings(settings.value)
+    const payload = {
+      ...settings.value,
+      shippingOptions: (settings.value.shippingOptions || []).map(o => ({
+        ...o,
+        cost: o.postPaid ? 0 : (Number(o.cost) || 0)
+      }))
+    }
+    const res = await adminApi.updateSettings(payload)
     if (res.success) {
       alert('تنظیمات با موفقیت ذخیره شد!')
     } else {
@@ -112,6 +116,7 @@ const addShippingOption = () => {
     id: 'shipping_' + Date.now(),
     title: '',
     description: '',
+    postPaid: true,
     cost: 0,
     icon: '📦',
     isActive: true,
@@ -213,8 +218,8 @@ const removeShippingOption = (idx) => {
       <div class="settings-section glass-card">
         <div class="section-header-flex">
           <div>
-            <h3 class="section-title" style="margin-bottom: 4px;">روش‌ها و هزینه‌های ارسال</h3>
-            <p class="section-desc">مدیریت پویای عناوین، هزینه‌ها، آیکون و وضعیت فعال بودن روش‌های ارسال</p>
+            <h3 class="section-title" style="margin-bottom: 4px;">روش‌های ارسال</h3>
+            <p class="section-desc">عنوان و نحوه پرداخت کرایه هر روش ارسال را مدیریت کنید</p>
           </div>
           <button class="add-shipping-btn" @click="addShippingOption">+ افزودن روش ارسال جدید</button>
         </div>
@@ -242,11 +247,20 @@ const removeShippingOption = (idx) => {
             </div>
 
             <div class="shipping-card-body">
-              <div class="form-group">
-                <label class="form-label">توضیحات زمان تحویل</label>
-                <input v-model="option.description" type="text" class="form-input" placeholder="مثلاً ۲ تا ۴ روز کاری" />
+              <!-- پس کرایه: هزینه ارسال با گیرنده -->
+              <div class="postpaid-row" :class="{ active: option.postPaid }">
+                <div class="toggle-info">
+                  <span class="toggle-label">پس کرایه</span>
+                  <span class="toggle-desc">هزینه ارسال هنگام تحویل کالا توسط مشتری پرداخت می‌شود و به مبلغ سفارش اضافه نمی‌شود</span>
+                </div>
+                <label class="toggle-switch">
+                  <input v-model="option.postPaid" type="checkbox" />
+                  <span class="toggle-slider"></span>
+                </label>
               </div>
-              <div class="form-group">
+
+              <!-- فقط وقتی پس کرایه خاموش باشد، فیلد قیمت نمایش داده می‌شود -->
+              <div v-if="!option.postPaid" class="form-group">
                 <label class="form-label">هزینه ارسال (تومان)</label>
                 <input v-model.number="option.cost" type="number" min="0" step="1000" class="form-input" placeholder="مثلاً 150000" />
               </div>
@@ -714,9 +728,26 @@ const removeShippingOption = (idx) => {
 }
 
 .shipping-card-body {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 14px;
+}
+
+/* ردیف پس کرایه */
+.postpaid-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+.postpaid-row.active {
+  background: rgba(197,160,89,0.12);
+  border-color: rgba(197,160,89,0.4);
 }
 
 @media (max-width: 640px) {

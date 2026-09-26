@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { adminApi } from '../../services/adminApi'
 
@@ -13,6 +13,32 @@ const statusFilter = ref('')
 const selectedOrder = ref(null)
 const showDetail = ref(false)
 const updatingStatus = ref(false)
+
+/* ---------- تشخیص «پس کرایه» برای سفارش‌ها ---------- */
+const shippingInfoMap = ref({}) // id روش ارسال → { title, postPaid }
+
+onMounted(async () => {
+  try {
+    const res = await adminApi.getSettings()
+    const opts = res?.data?.shippingOptions || []
+    shippingInfoMap.value = Object.fromEntries(
+      opts.map(o => [o.id, { title: o.title, postPaid: o.postPaid !== false }])
+    )
+  } catch (e) {
+    console.error('خطا در دریافت تنظیمات ارسال:', e)
+  }
+})
+
+const shippingTitle = (id) => shippingInfoMap.value[id]?.title || ''
+
+const isOrderPostPaid = (order) => {
+  // سفارش‌های قدیمی که هزینه واقعی پرداخت شده بودند → همان هزینه نمایش داده می‌شود
+  if (Number(order?.shippingCost || 0) > 0) return false
+  const info = shippingInfoMap.value[order?.shippingInfo?.shippingMethod]
+  if (info) return info.postPaid === true
+  // روش نامشخص و بدون هزینه → چون فروشگاه پس‌کرایه‌ای است
+  return true
+}
 
 const statusColors = {
   pending: { bg: 'rgba(245,158,11,0.15)', color: '#f59e0b', text: 'در انتظار' },
@@ -202,6 +228,11 @@ const changeOrderStatus = async (newStatus) => {
                 <span class="info-label">تلفن:</span>
                 <span>{{ selectedOrder.user?.phone || selectedOrder.shippingInfo?.phone }}</span>
               </div>
+              <div class="info-chip" v-if="shippingTitle(selectedOrder.shippingInfo?.shippingMethod)">
+                <span class="info-label">روش ارسال:</span>
+                <span>{{ shippingTitle(selectedOrder.shippingInfo.shippingMethod) }}</span>
+                <span v-if="isOrderPostPaid(selectedOrder)" class="postpaid-mini">پس کرایه</span>
+              </div>
               <div class="info-chip">
                 <span class="info-label">وضعیت:</span>
                 <select :value="selectedOrder.status" class="inline-select" :disabled="updatingStatus" @change="changeOrderStatus($event.target.value)">
@@ -226,7 +257,11 @@ const changeOrderStatus = async (newStatus) => {
             <div class="order-totals">
               <div class="total-row"><span>جمع جزئی:</span><span>{{ selectedOrder.subtotal?.toLocaleString('fa-IR') }} تومان</span></div>
               <div class="total-row" v-if="selectedOrder.discountAmount"><span>تخفیف:</span><span>-{{ selectedOrder.discountAmount.toLocaleString('fa-IR') }} تومان</span></div>
-              <div class="total-row"><span>هزینه ارسال:</span><span>{{ selectedOrder.shippingCost?.toLocaleString('fa-IR') }} تومان</span></div>
+              <div class="total-row">
+                <span>هزینه ارسال:</span>
+                <span v-if="isOrderPostPaid(selectedOrder)" class="postpaid-text">پس کرایه (با گیرنده)</span>
+                <span v-else>{{ selectedOrder.shippingCost?.toLocaleString('fa-IR') }} تومان</span>
+              </div>
               <div class="total-row final"><span>مبلغ نهایی:</span><span>{{ selectedOrder.total?.toLocaleString('fa-IR') }} تومان</span></div>
             </div>
           </div>
@@ -602,6 +637,18 @@ const changeOrderStatus = async (newStatus) => {
   justify-content: space-between;
   font-size: 0.88rem;
   opacity: 0.8;
+}
+
+.total-row .postpaid-text { color: #facc6b; font-weight: 600; }
+.postpaid-mini {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: rgba(197,160,89,0.15);
+  border: 1px solid rgba(197,160,89,0.4);
+  color: #facc6b;
+  font-size: 0.72rem;
+  font-weight: 600;
+  margin-inline-start: 6px;
 }
 
 .total-row.final {

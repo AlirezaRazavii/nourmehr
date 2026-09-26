@@ -34,7 +34,8 @@
             </div>
             <div class="order-detail-row">
               <span>{{ $t('checkout_shipping_cost') }}:</span>
-              <span>{{ orderData.shippingCost === 0 ? $t('checkout_free') : formatPrice(orderData.shippingCost) + ' ' + $t('products_currency') }}</span>
+              <span v-if="isPostPaid">{{ $t('checkout_post_paid') }}</span>
+              <span v-else>{{ orderData.shippingCost === 0 ? $t('checkout_free') : formatPrice(orderData.shippingCost) + ' ' + $t('products_currency') }}</span>
             </div>
             <div v-if="orderData.discountAmount" class="order-detail-row discount">
               <span>{{ $t('checkout_discount') }}:</span>
@@ -149,7 +150,10 @@
                           {{ $t('checkout_min_order') }}: {{ formatPrice(method.minOrder) }} {{ $t('products_currency') }}
                         </span>
                       </div>
-                      <span v-if="method.cost !== undefined || method.price !== undefined" class="method-price">
+                      <span v-if="method.postPaid !== false" class="method-price postpaid">
+                        {{ $t('checkout_post_paid') }}
+                      </span>
+                      <span v-else-if="method.cost !== undefined || method.price !== undefined" class="method-price">
                         {{ (method.cost ?? method.price) === 0 ? $t('checkout_free') : formatPrice(method.cost ?? method.price) + ' ' + $t('products_currency') }}
                       </span>
                       <span class="check-mark">✓</span>
@@ -311,7 +315,7 @@
 
               <div class="summary-row">
                 <span>{{ $t('checkout_shipping_cost') }}</span>
-                <span :class="{ free: shippingCost === 0 }">{{ shippingCostFormatted }}</span>
+                <span :class="{ free: !isPostPaid && shippingCost === 0, postpaid: isPostPaid }">{{ shippingCostFormatted }}</span>
               </div>
 
 
@@ -673,10 +677,12 @@ onMounted(async () => {
         shippingMethods.value = activeOptions.map(opt => ({
           id: opt.id,
           title: opt.title,
-          description: opt.description,
+          // روش پس‌کرایه‌ای: توضیحات قدیمی (زمان تحویل) پاک و هزینه صفر می‌شود
+          description: opt.postPaid !== false ? '' : (opt.description || ''),
+          postPaid: opt.postPaid !== false,
           icon: opt.icon || '📦',
-          cost: opt.cost,
-          price: opt.cost,
+          cost: opt.postPaid !== false ? 0 : (opt.cost || 0),
+          price: opt.postPaid !== false ? 0 : (opt.cost || 0),
           minOrder: opt.minOrder || 0
         }))
         if (!shippingMethods.value.some(m => m.id === selectedShipping.value)) {
@@ -870,6 +876,14 @@ onMounted(async () => {
 .method-desc,.payment-desc { font-size: .8rem; color: rgba(255,255,255,.45); }
 .method-hint { font-size: .75rem; color: #facc6b; margin-top: 2px; }
 .method-price { font-size: .9rem; font-weight: 600; color: #facc6b; white-space: nowrap; }
+.method-price.postpaid {
+  background: rgba(197,160,89,0.15);
+  border: 1px solid rgba(197,160,89,0.4);
+  color: #facc6b;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: .82rem;
+}
 .check-mark {
   width: 22px; height: 22px; border-radius: 50%; border: 1px solid rgba(255,255,255,.2);
   display: flex; align-items: center; justify-content: center;
@@ -973,6 +987,7 @@ onMounted(async () => {
 .summary-rows { display: flex; flex-direction: column; gap: 12px; }
 .summary-row { display: flex; justify-content: space-between; font-size: .88rem; color: rgba(255,255,255,.7); flex-wrap: wrap; gap: 5px; }
 .summary-row .free { color: #5cbe7d; font-weight: 600; }
+.summary-row .postpaid { color: #facc6b; font-weight: 600; }
 .summary-row.total { font-size: 1.05rem; font-weight: 700; color: #facc6b; }
 .summary-row.discount .discount-value { color: #5cbe7d; font-weight: 600; }
 .free-shipping-hint-sidebar {

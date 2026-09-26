@@ -10,8 +10,8 @@ const getSettings = async (req, res) => {
     }
     if (!settings.shippingOptions || settings.shippingOptions.length === 0) {
       settings.shippingOptions = [
-        { id: 'express', title: 'ارسال پیشتاز', description: '۲ تا ۴ روز کاری', cost: 150000, icon: '🚀', isActive: true, minOrder: 0 },
-        { id: 'normal', title: 'ارسال سفارشی', description: '۴ تا ۷ روز کاری', cost: 80000, icon: '📦', isActive: true, minOrder: 0 }
+        { id: 'bus', title: 'ارسال با اتوبوس', description: '', postPaid: true, cost: 0, icon: '🚌', isActive: true, minOrder: 0 },
+        { id: 'post', title: 'ارسال با پست', description: '', postPaid: true, cost: 0, icon: '📮', isActive: true, minOrder: 0 }
       ];
       await settings.save();
     }
@@ -42,8 +42,8 @@ const getPublicSettings = async (req, res) => {
       if (!settings) { settings = new Setting(); await settings.save(); }
       if (!settings.shippingOptions || settings.shippingOptions.length === 0) {
         settings.shippingOptions = [
-          { id: 'express', title: 'ارسال پیشتاز', description: '۲ تا ۴ روز کاری', cost: 150000, icon: '🚀', isActive: true, minOrder: 0 },
-          { id: 'normal', title: 'ارسال سفارشی', description: '۴ تا ۷ روز کاری', cost: 80000, icon: '📦', isActive: true, minOrder: 0 }
+          { id: 'bus', title: 'ارسال با اتوبوس', description: '', postPaid: true, cost: 0, icon: '🚌', isActive: true, minOrder: 0 },
+          { id: 'post', title: 'ارسال با پست', description: '', postPaid: true, cost: 0, icon: '📮', isActive: true, minOrder: 0 }
         ];
         await settings.save();
       }
