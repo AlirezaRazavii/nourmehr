@@ -30,6 +30,7 @@ const kavenegarProvider = {
       params: {
         receptor: phone,
         token: code,
+        token2: code,
         template: TEMPLATE_CODE,
       },
     });
@@ -57,7 +58,7 @@ const melipayamakProvider = {
       password: API_KEY.split(':')[1],
       to: phone,
       from: FROM,
-      text: `کد تایید شما: ${code}`,
+      text: `نورمهر\nکد تایید شما: ${code}\n@Nourmehr.ir #${code}`,
     });
     if (response.data?.RetStatus === 1) {
       return { success: true };
