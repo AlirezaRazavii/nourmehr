@@ -152,32 +152,8 @@ const createOrder = async (req, res) => {
     const total = Math.max(0, subtotal - discountAmount) + shippingCost;
 
 
-    // کاهش موجودی (اتمیک، سازگار با MongoDB standalone)
-    // فهرست محصولاتی که موجودی‌شان کم شده تا در صورت خطا برگردانده شوند
-    const decremented = [];
-    try {
-      for (const item of cart.items) {
-        if (!item.product) continue;
-        const result = await Product.updateOne(
-          { _id: item.product._id, stock: { $gte: item.quantity } },
-          { $inc: { stock: -item.quantity } }
-        );
-        if (result.matchedCount === 0) {
-          // بازگرداندن موجودی محصولاتی که تا اینجا کم شده بود
-          for (const d of decremented) {
-            await Product.findByIdAndUpdate(d.id, { $inc: { stock: d.qty } });
-          }
-          return res.status(400).json({ success: false, message: `موجودی محصول ${item.product.name} کافی نیست` });
-        }
-        decremented.push({ id: item.product._id, qty: item.quantity });
-      }
-    } catch (stockErr) {
-      for (const d of decremented) {
-        await Product.findByIdAndUpdate(d.id, { $inc: { stock: d.qty } });
-      }
-      throw stockErr;
-    }
-
+    // ---- ساخت سند سفارش و اعتبارسنجی کامل «قبل از» رزرو موجودی ----
+    // فیکس باگ: خطاهایی مثل کدپستی نامعتبر دیگر باعث گم شدن موجودی نمی‌شوند
     const order = new Order({
       orderRef: generateOrderRef(),
       user: userId,
@@ -193,7 +169,56 @@ const createOrder = async (req, res) => {
       status: 'pending',
       paymentStatus: 'pending'
     });
-    await order.save();
+    await order.validate();
+
+    // ---- لغو خودکار سفارش‌های پرداخت‌نشده قبلی همین کاربر ----
+    // فیکس باگ «قفل چندبرابری موجودی»: کاربر که دوباره checkout می‌کند،
+    // سفارش پرداخت‌نشده قبلی‌اش لغو و موجودی‌اش آزاد می‌شود
+    const staleOrders = await Order.find({
+      _id: { $ne: order._id },
+      user: userId,
+      status: 'pending',
+      paymentStatus: { $in: ['pending', 'failed'] },
+    });
+    for (const stale of staleOrders) {
+      stale.status = 'cancelled';
+      if (stale.discountCode && stale.discountConsumed) {
+        await rollbackDiscount(stale.discountCode);
+        stale.discountConsumed = false;
+      }
+      await stale.save();
+      // آزادسازی موجودی رزروشده سفارش قدیمی
+      for (const item of stale.items) {
+        await Product.findByIdAndUpdate(item.product, { $inc: { stock: item.quantity } });
+      }
+    }
+
+    // ---- رزرو اتمیک موجودی + ذخیره سفارش، با بازگرداندن کامل در هر خطا ----
+    const decremented = [];
+    try {
+      for (const item of cart.items) {
+        if (!item.product) continue;
+        const result = await Product.updateOne(
+          { _id: item.product._id, stock: { $gte: item.quantity } },
+          { $inc: { stock: -item.quantity } }
+        );
+        if (result.matchedCount === 0) {
+          const err = new Error(`موجودی محصول ${item.product.name} کافی نیست`);
+          err.statusCode = 400;
+          throw err;
+        }
+        decremented.push({ id: item.product._id, qty: item.quantity });
+      }
+      await order.save(); // اگر ذخیره خطا داد، موجودی رزروشده برگردانده می‌شود
+    } catch (err) {
+      for (const d of decremented) {
+        await Product.findByIdAndUpdate(d.id, { $inc: { stock: d.qty } });
+      }
+      if (err.statusCode) {
+        return res.status(err.statusCode).json({ success: false, message: err.message });
+      }
+      throw err;
+    }
 
     // ایجاد رکورد پرداخت
     const payment = new Payment({
@@ -201,30 +226,13 @@ const createOrder = async (req, res) => {
       user: userId,
       amount: total,
       method: paymentMethod,
-      provider:
-        paymentMethod === 'online' ? 'zarinpal'
-        : paymentMethod === 'torobpay' ? 'torobpay'
-        : 'cash_on_delivery',
-      status: paymentMethod === 'cod' ? 'paid' : 'pending'
+      provider: paymentMethod === 'online' ? 'zarinpal' : 'torobpay',
+      status: 'pending'
     });
     await payment.save();
 
-    // برای پرداخت در محل (COD): سفارش تأیید، تخفیف مصرف، و سبد خرید خالی می‌شود
-    if (paymentMethod === 'cod') {
-      order.status = 'confirmed';
-      order.paymentStatus = 'paid';
-      if (order.discountCode && !order.discountConsumed) {
-        const consumed = await consumeDiscount(order.discountCode);
-        if (consumed) order.discountConsumed = true;
-      }
-      await order.save();
-
-      // فقط در COD سبد را همین‌جا خالی می‌کنیم
-      await Cart.deleteOne({ user: userId });
-    }
-    // برای پرداخت آنلاین: سبد را نگه می‌داریم تا اگر پرداخت شکست خورد
-    // کاربر بتواند دوباره تلاش کند یا به COD تغییر دهد.
-    // حذف سبد بعد از تأیید موفق در paymentController انجام می‌شود.
+    // سبد خرید عمداً نگه داشته می‌شود و فقط بعد از «پرداخت موفق»
+    // در کنترلر پرداخت پاک می‌شود — تا کاربر بتواند دوباره تلاش کند
 
     // ایجاد اعلان برای ادمین
     try {

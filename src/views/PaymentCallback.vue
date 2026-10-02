@@ -49,10 +49,13 @@
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { useCart } from '../stores/cart'
 
 const router = useRouter()
 const route = useRoute()
 const { t, locale } = useI18n()
+const cartStore = useCart()
+const cartStore = useCart()
 
 const isVerifying = ref(true)
 const paymentSuccess = ref(false)
@@ -109,6 +112,9 @@ onMounted(() => {
 
   if (status === 'success' || status === 'OK') {
     paymentSuccess.value = true
+    // بک‌اند بعد از پرداخت موفق سبد را پاک کرده — state فرانت را همگام کن
+    // تا بج سبد در ناوبار فوراً صفر شود
+    cartStore.fetchCart().catch(() => {})
   } else {
     paymentSuccess.value = false
     errorMessage.value = resolveErrorMessage(

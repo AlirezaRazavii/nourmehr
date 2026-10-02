@@ -366,7 +366,7 @@ const formatPrice = (n) => Number(n || 0).toLocaleString(locale.value === 'fa' ?
 const router = useRouter()
 const cartStore = useCart()
 const { cartItems, totalItems, totalPrice, isEmpty } = storeToRefs(cartStore)
-const { clearCart, fetchCart } = cartStore
+const { fetchCart } = cartStore
 const ordersStore = useOrders()
 const authStore = useAuth()
 const { user } = storeToRefs(authStore)
@@ -620,8 +620,9 @@ const submitOrder = async () => {
 
       order = result.order
       createdOrder.value = order
-      // بک‌اند سبد را هنگام ساخت سفارش پاک می‌کند؛ فرانت را هم همگام کن
-      await clearCart()
+      // ⚠️ سبد اینجا عمداً پاک نمی‌شود!
+      // بک‌اند سبد را فقط بعد از «پرداخت موفق» (در callback درگاه) پاک می‌کند.
+      // اگر پرداخت شکست بخورد، سبد می‌ماند تا کاربر دوباره تلاش کند.
     }
 
     orderData.value = order
