@@ -55,7 +55,6 @@ const router = useRouter()
 const route = useRoute()
 const { t, locale } = useI18n()
 const cartStore = useCart()
-const cartStore = useCart()
 
 const isVerifying = ref(true)
 const paymentSuccess = ref(false)
