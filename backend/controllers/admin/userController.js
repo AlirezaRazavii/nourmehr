@@ -4,16 +4,31 @@ const { PERMISSIONS } = require('../../config/permissions');
 
 const VALID_PERMISSIONS = Object.values(PERMISSIONS);
 
+const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 const getUsers = async (req, res) => {
   try {
-    const { search, role, status, page = 1, limit = 10 } = req.query;
+    const { search, role, status } = req.query;
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20)); // حداکثر ۱۰۰
     const filter = {};
-    if (search) filter.$or = [{ name: { $regex: search, $options: 'i' } }, { email: { $regex: search, $options: 'i' } }, { phone: { $regex: search, $options: 'i' } }];
+    if (search) {
+      const safe = escapeRegex(search);
+      filter.$or = [
+        { name: { $regex: safe, $options: 'i' } },
+        { email: { $regex: safe, $options: 'i' } },
+        { phone: { $regex: safe, $options: 'i' } }
+      ];
+    }
     if (role && role !== 'all') filter.role = role;
     if (status && status !== 'all') filter.status = status;
     const skip = (page - 1) * limit;
-    const users = await User.find(filter).select('-password').skip(skip).limit(parseInt(limit));
-    const total = await User.countDocuments(filter);
+
+    // جدیدترین کاربران اول + دو کوئری موازی (سریع‌تر)
+    const [users, total] = await Promise.all([
+      User.find(filter).select('-password').sort({ createdAt: -1 }).skip(skip).limit(limit),
+      User.countDocuments(filter)
+    ]);
 
     const userIds = users.map(u => u._id);
     let stats = [];
@@ -32,7 +47,8 @@ const getUsers = async (req, res) => {
       return { ...userObj, ordersCount: stat.ordersCount, totalSpent: stat.totalSpent };
     });
 
-    res.json({ success: true, data: usersWithStats, total });
+    const totalPages = Math.ceil(total / limit);
+    res.json({ success: true, data: usersWithStats, total, page, limit, totalPages });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
