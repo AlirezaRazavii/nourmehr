@@ -30,6 +30,63 @@ const getLocalizedDesc = (desc) => {
   return desc[locale.value] || desc.fa || desc.en || ''
 }
 
+/* ---------- کپی کد تخفیف ---------- */
+const copyToClipboard = async (text) => {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text)
+    } else {
+      // سازگاری با http یا مرورگرهای قدیمی
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+    }
+    return true
+  } catch (err) {
+    return false
+  }
+}
+
+// کپی از روی کارت (با فیدبیک سبز)
+const copiedId = ref(null)
+let copyTimer = null
+
+const copyCode = async (discount) => {
+  const code = String(discount.code || '').trim()
+  if (!code) return
+  const ok = await copyToClipboard(code)
+  if (ok) {
+    copiedId.value = discount._id || discount.id
+    clearTimeout(copyTimer)
+    copyTimer = setTimeout(() => { copiedId.value = null }, 2000)
+  } else {
+    alert('کپی خودکار نشد — دستی کپی کنید: ' + code)
+  }
+}
+
+// کپی از داخل فرم ساخت/ویرایش
+const copiedFormCode = ref(false)
+
+const copyFormCode = async () => {
+  const code = String(form.value.code || '').trim()
+  if (!code) {
+    alert('اول کد تخفیف را وارد کن')
+    return
+  }
+  const ok = await copyToClipboard(code)
+  if (ok) {
+    copiedFormCode.value = true
+    setTimeout(() => { copiedFormCode.value = false }, 2000)
+  } else {
+    alert('کپی خودکار نشد — دستی کپی کنید: ' + code)
+  }
+}
+
 const fetchDiscounts = async () => {
   loading.value = true
   const res = await adminApi.getDiscounts()
@@ -163,7 +220,19 @@ const deleteDiscount = async (id) => {
     <div v-else class="discounts-grid">
       <div v-for="discount in discounts" :key="discount._id || discount.id" class="discount-card glass">
         <div class="discount-header">
-          <div class="discount-code">{{ discount.code }}</div>
+          <div class="code-group">
+            <div class="discount-code">{{ discount.code }}</div>
+            <button
+              class="copy-btn"
+              :class="{ copied: copiedId === (discount._id || discount.id) }"
+              :title="copiedId === (discount._id || discount.id) ? 'کپی شد!' : 'کپی کد'"
+              @click="copyCode(discount)"
+            >
+              <svg v-if="copiedId !== (discount._id || discount.id)" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <svg v-else viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+              <span>{{ copiedId === (discount._id || discount.id) ? 'کپی شد!' : 'کپی' }}</span>
+            </button>
+          </div>
           <span class="status-badge" :style="{ background: statusColors[discount.status]?.bg, color: statusColors[discount.status]?.color }">
             {{ statusColors[discount.status]?.text }}
           </span>
@@ -227,7 +296,17 @@ const deleteDiscount = async (id) => {
             <div class="form-grid">
               <div class="form-group">
                 <label class="form-label">کد تخفیف</label>
-                <input v-model="form.code" type="text" class="form-input" placeholder="مثال: NOURMEHR" />
+                <div class="code-input-row">
+                  <input v-model="form.code" type="text" class="form-input" placeholder="مثال: NOURMEHR" />
+                  <button
+                    type="button"
+                    class="copy-btn"
+                    :class="{ copied: copiedFormCode }"
+                    @click="copyFormCode"
+                  >
+                    {{ copiedFormCode ? 'کپی شد!' : 'کپی' }}
+                  </button>
+                </div>
               </div>
               <div class="form-group">
                 <label class="form-label">نوع تخفیف</label>
@@ -405,6 +484,42 @@ const deleteDiscount = async (id) => {
   justify-content: space-between;
   align-items: flex-start;
 }
+
+.code-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+/* دکمه کپی */
+.copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(197,160,89,0.35);
+  background: rgba(197,160,89,0.1);
+  color: #facc6b;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  flex-shrink: 0;
+}
+.copy-btn:hover { background: rgba(197,160,89,0.2); }
+.copy-btn.copied {
+  background: rgba(34,197,94,0.15);
+  border-color: rgba(34,197,94,0.4);
+  color: #22c55e;
+}
+
+/* ردیف فیلد کد در فرم */
+.code-input-row { display: flex; gap: 8px; }
+.code-input-row .form-input { flex: 1; min-width: 0; }
 
 .discount-code {
   font-size: 1.3rem;
