@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { adminApi } from '../../services/adminApi'
 
@@ -11,6 +11,11 @@ const orders = ref([])
 const total = ref(0)
 const statusFilter = ref('')
 const selectedOrder = ref(null)
+
+/* ---------- صفحه‌بندی ---------- */
+const page = ref(1)
+const pageSize = 20
+const totalPages = ref(1)
 const showDetail = ref(false)
 const updatingStatus = ref(false)
 
@@ -54,10 +59,12 @@ const statusColors = {
 const tabs = [
   { label: 'همه', value: '' },
   { label: 'در انتظار', value: 'pending' },
+  { label: 'تایید شده', value: 'confirmed' },
   { label: 'در حال پردازش', value: 'processing' },
   { label: 'ارسال شده', value: 'shipped' },
   { label: 'تحویل داده شده', value: 'delivered' },
   { label: 'لغو شده', value: 'cancelled' },
+  { label: 'عودت داده شده', value: 'refunded' },
 ]
 
 const statusOptions = [
@@ -74,12 +81,13 @@ const fetchOrders = async () => {
   loading.value = true
   error.value = ''
   try {
-    const params = {}
+    const params = { page: page.value, limit: pageSize }
     if (statusFilter.value) params.status = statusFilter.value
     const res = await adminApi.getOrders(params)
     if (res.success) {
       orders.value = res.data || []
       total.value = res.total || 0
+      totalPages.value = res.totalPages || 1
     } else {
       orders.value = []
       total.value = 0
@@ -97,7 +105,33 @@ const fetchOrders = async () => {
 
 // فیلتر وضعیت را با کوئری مسیر همگام کن (مثل /admin/orders?status=pending)
 watch(() => route.query.status, () => { statusFilter.value = route.query.status || '' }, { immediate: true })
+// تغییر فیلتر → برگرد به صفحه اول
+watch(statusFilter, () => { page.value = 1 }, { immediate: true })
 watch(statusFilter, fetchOrders, { immediate: true })
+
+/* ---------- کنترل صفحه‌بندی ---------- */
+const goToPage = (p) => {
+  const target = Math.min(Math.max(1, p), totalPages.value)
+  if (target === page.value) return
+  page.value = target
+  fetchOrders()
+}
+
+// شماره صفحه‌ها با «...»: ۱ ... ۴ ۵ ۶ ... ۹
+const visiblePages = computed(() => {
+  const t = totalPages.value
+  const c = page.value
+  if (t <= 7) return Array.from({ length: t }, (_, i) => i + 1)
+  const list = [1]
+  if (c > 3) list.push('...')
+  for (let i = Math.max(2, c - 1); i <= Math.min(t - 1, c + 1); i++) list.push(i)
+  if (c < t - 2) list.push('...')
+  list.push(t)
+  return list
+})
+
+const rangeStart = computed(() => (total.value === 0 ? 0 : (page.value - 1) * pageSize + 1))
+const rangeEnd = computed(() => Math.min(page.value * pageSize, total.value))
 
 const formatDate = (d) => d ? new Date(d).toLocaleDateString('fa-IR') : '-'
 
@@ -263,6 +297,23 @@ const changeOrderStatus = async (newStatus) => {
           </tbody>
         </table>
       </div>
+
+      <!-- صفحه‌بندی -->
+      <div v-if="total > pageSize" class="pagination-bar">
+        <span class="pagination-info">
+          نمایش {{ rangeStart.toLocaleString('fa-IR') }} تا {{ rangeEnd.toLocaleString('fa-IR') }} از {{ total.toLocaleString('fa-IR') }} سفارش
+        </span>
+        <div class="pagination-btns">
+          <button class="page-btn" :disabled="page <= 1 || loading" @click="goToPage(page - 1)">قبلی</button>
+          <template v-for="(p, idx) in visiblePages" :key="idx">
+            <span v-if="p === '...'" class="page-dots">…</span>
+            <button v-else class="page-btn" :class="{ active: p === page }" :disabled="loading" @click="goToPage(p)">
+              {{ p.toLocaleString('fa-IR') }}
+            </button>
+          </template>
+          <button class="page-btn" :disabled="page >= totalPages || loading" @click="goToPage(page + 1)">بعدی</button>
+        </div>
+      </div>
     </div>
 
     <!-- Order Detail Modal -->
@@ -300,6 +351,11 @@ const changeOrderStatus = async (newStatus) => {
                   <option v-for="opt in statusOptions" :key="opt.value" :value="opt.value" :disabled="isStatusDisabled(opt.value)">{{ opt.label }}</option>
                 </select>
               </div>
+            </div>
+
+            <!-- چرا بعضی گزینه‌ها خاموش‌اند؟ -->
+            <div v-if="selectedOrder.paymentStatus !== 'paid' && !['cancelled', 'refunded'].includes(selectedOrder.status)" class="status-warning">
+              ⚠️ این سفارش هنوز <strong>پرداخت نشده</strong> — تا تکمیل پرداخت، فقط «در انتظار» و «لغو شده» قابل انتخاب است.
             </div>
 
             <div class="order-address">
@@ -561,6 +617,52 @@ const changeOrderStatus = async (newStatus) => {
 .empty-icon {
   font-size: 2.5rem;
 }
+
+/* هشدار وضعیت پرداخت‌نشده */
+.status-warning {
+  font-size: 0.82rem;
+  line-height: 1.8;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(245,158,11,0.08);
+  border: 1px solid rgba(245,158,11,0.3);
+  color: #fbbf24;
+}
+
+/* ---------- صفحه‌بندی ---------- */
+.pagination-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+.pagination-info { font-size: 0.82rem; opacity: 0.6; }
+.pagination-btns { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.page-btn {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.03);
+  color: rgba(255,255,255,0.7);
+  font-size: 0.85rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+.page-btn:hover:not(:disabled) { border-color: rgba(197,160,89,0.4); color: #facc6b; }
+.page-btn.active {
+  background: rgba(197,160,89,0.15);
+  border-color: rgba(197,160,89,0.5);
+  color: #facc6b;
+  font-weight: 600;
+}
+.page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.page-dots { padding: 0 4px; opacity: 0.4; }
 
 /* Modal */
 .modal-overlay {

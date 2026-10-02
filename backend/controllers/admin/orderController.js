@@ -9,17 +9,25 @@ const TERMINAL_STATUSES = ['cancelled', 'refunded'];
 
 const getOrders = async (req, res) => {
   try {
-    const { status, page = 1, limit = 10 } = req.query;
+    const { status } = req.query;
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20)); // حداکثر ۱۰۰
     const filter = {};
     if (status) filter.status = status;
     const skip = (page - 1) * limit;
-    const orders = await Order.find(filter)
-      .populate('user', 'name email phone')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
-    const total = await Order.countDocuments(filter);
-    res.json({ success: true, data: orders, total });
+
+    // دو کوئری موازی — سریع‌تر
+    const [orders, total] = await Promise.all([
+      Order.find(filter)
+        .populate('user', 'name email phone')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Order.countDocuments(filter)
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+    res.json({ success: true, data: orders, total, page, limit, totalPages });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
