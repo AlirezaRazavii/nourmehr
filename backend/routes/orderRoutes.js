@@ -1,6 +1,6 @@
 const express = require('express');
 const { protect } = require('../middleware/authMiddleware');
-const { validateDiscount, createOrder, getMyOrders, getOrderById, cancelOrder } = require('../controllers/orderController');
+const { validateDiscount, createOrder, getMyOrders, getOrderById, cancelOrder, restoreCartFromOrder } = require('../controllers/orderController');
 
 const router = express.Router();
 router.use(protect);
