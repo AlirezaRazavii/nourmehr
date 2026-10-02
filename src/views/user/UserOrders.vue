@@ -53,6 +53,35 @@ const handleCancelOrder = async (orderId) => {
   }
 }
 
+/* ---------- ادامه پرداخت سفارش ناتمام ---------- */
+const payingId = ref(null)
+
+const canPayOrder = (order) =>
+  ['pending', 'awaiting_payment'].includes(order.status) && order.paymentStatus !== 'paid'
+
+const resumePayment = async (order) => {
+  if (payingId.value) return
+  payingId.value = order._id
+  try {
+    const { paymentApi } = await import('../../services/paymentApi')
+    // بر اساس روش پرداخت خود سفارش، درگاه درست را صدا بزن
+    const res = order.paymentMethod === 'torobpay'
+      ? await paymentApi.initiateTorobPayPayment(order._id)
+      : await paymentApi.initiatePayment(order._id)
+
+    const url = res.paymentUrl || res.paymentPageUrl
+    if (res.success && url) {
+      window.location.href = url
+      return
+    }
+    alert(res.message || 'خطا در شروع پرداخت')
+  } catch (err) {
+    alert(err.response?.data?.message || err.message || 'خطا در شروع پرداخت')
+  } finally {
+    payingId.value = null
+  }
+}
+
 onMounted(async () => {
   // دریافت تنظیمات ارسال برای تشخیص «پس کرایه»
   try {
@@ -129,13 +158,23 @@ onMounted(async () => {
               {{ formatPrice(order.total) }} {{ $t('products_currency') }}
               <span v-if="isOrderPostPaid(order)" class="postpaid-badge">{{ $t('checkout_post_paid') }}</span>
             </div>
-            <button
-              v-if="['pending', 'awaiting_payment'].includes(order.status)"
-              class="cancel-btn"
-              @click.stop="handleCancelOrder(order._id)"
-            >
-              {{ $t('user_orders_cancel') }}
-            </button>
+            <div class="footer-actions">
+              <button
+                v-if="canPayOrder(order)"
+                class="pay-btn"
+                :disabled="payingId === order._id"
+                @click.stop="resumePayment(order)"
+              >
+                {{ payingId === order._id ? '...' : $t('user_orders_pay_now') }}
+              </button>
+              <button
+                v-if="['pending', 'awaiting_payment'].includes(order.status)"
+                class="cancel-btn"
+                @click.stop="handleCancelOrder(order._id)"
+              >
+                {{ $t('user_orders_cancel') }}
+              </button>
+            </div>
           </div>
         </article>
       </TransitionGroup>
@@ -250,6 +289,22 @@ onMounted(async () => {
 .order-total { font-weight: 600; color: #facc6b; }
 .cancel-btn { padding: 8px 16px; border-radius: 999px; border: 1px solid rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.1); color: #ef4444; font-size: 0.85rem; cursor: pointer; transition: all 0.25s ease; flex-shrink: 0; }
 .cancel-btn:hover { background: #ef4444; color: #fff; }
+.footer-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.pay-btn {
+  padding: 8px 20px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(135deg, #facc6b, #c5a059);
+  color: #1a1206;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  flex-shrink: 0;
+  font-family: inherit;
+}
+.pay-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(197,160,89,0.4); }
+.pay-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .order-detail { flex: 1; box-sizing: border-box; }
 .back-btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(15, 23, 42, 0.8); color: #fff; cursor: pointer; margin-bottom: 20px; }

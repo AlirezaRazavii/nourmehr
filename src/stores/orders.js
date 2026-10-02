@@ -50,7 +50,8 @@ export const useOrders = defineStore('orders', () => {
       }
       const response = await api.post('/orders', payload)
       const newOrder = response.data.order
-      orders.value.unshift(newOrder)
+      // اگر سفارشِ استفاده‌مجدد است، نسخه قبلی در لیست را جایگزین کن (نه تکراری)
+      orders.value = [newOrder, ...orders.value.filter(o => o._id !== newOrder._id)]
       currentOrder.value = newOrder
       return { success: true, order: newOrder }
     } catch (err) {

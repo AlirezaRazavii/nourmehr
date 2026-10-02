@@ -327,6 +327,7 @@
   "user_addresses_delete_error": "خطا در حذف آدرس",
   "user_addresses_set_default_error": "خطا در تنظیم آدرس پیش‌فرض",
   "user_orders_title": "سفارشات من",
+  "user_orders_pay_now": "ادامه پرداخت",
   "user_orders_empty": "هنوز سفارشی ثبت نکرده‌اید",
   "user_orders_view_products": "مشاهده محصولات",
   "user_orders_order": "سفارش",

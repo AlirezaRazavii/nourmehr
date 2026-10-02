@@ -152,46 +152,75 @@ const createOrder = async (req, res) => {
     const total = Math.max(0, subtotal - discountAmount) + shippingCost;
 
 
-    // ---- ساخت سند سفارش و اعتبارسنجی کامل «قبل از» رزرو موجودی ----
-    // فیکس باگ: خطاهایی مثل کدپستی نامعتبر دیگر باعث گم شدن موجودی نمی‌شوند
-    const order = new Order({
-      orderRef: generateOrderRef(),
-      user: userId,
-      items: orderItems,
-      shippingInfo,
-      paymentMethod,
-      subtotal,
-      discountAmount,
-      shippingCost,
-      total,
-      discountCode: validDiscountCode,
-      discountConsumed: false,
-      status: 'pending',
-      paymentStatus: 'pending'
-    });
-    await order.validate();
-
-    // ---- لغو خودکار سفارش‌های پرداخت‌نشده قبلی همین کاربر ----
-    // فیکس باگ «قفل چندبرابری موجودی»: کاربر که دوباره checkout می‌کند،
-    // سفارش پرداخت‌نشده قبلی‌اش لغو و موجودی‌اش آزاد می‌شود
-    const staleOrders = await Order.find({
-      _id: { $ne: order._id },
+    // ---- ادامه همان سفارش پرداخت‌نشده (نه لغو، نه سفارش جدید!) ----
+    // اگر کاربر قبلاً سفارشی ثبت کرده ولی پرداختش کامل نشده، همان سفارش
+    // با اطلاعات جدید به‌روزرسانی می‌شود — همان شماره سفارش باقی می‌ماند
+    let order = await Order.findOne({
       user: userId,
       status: 'pending',
       paymentStatus: { $in: ['pending', 'failed'] },
-    });
-    for (const stale of staleOrders) {
-      stale.status = 'cancelled';
-      if (stale.discountCode && stale.discountConsumed) {
-        await rollbackDiscount(stale.discountCode);
-        stale.discountConsumed = false;
+    }).sort({ createdAt: -1 });
+
+    // اقلام رزروشده قبلی — برای بازگرداندن در صورت خطا
+    let previousItems = null;
+
+    if (order) {
+      // اگر پرداختی همین الان در حال تأیید است (کاربر داخل درگاه)، اجازه تغییر نده
+      const processingPayment = await Payment.exists({ order: order._id, status: 'processing' });
+      if (processingPayment) {
+        return res.status(400).json({
+          success: false,
+          message: 'پرداخت این سفارش در حال تأیید است. چند لحظه صبر کنید و دوباره تلاش کنید.',
+        });
       }
-      await stale.save();
-      // آزادسازی موجودی رزروشده سفارش قدیمی
-      for (const item of stale.items) {
+
+      previousItems = order.items.map(i => ({ product: i.product, quantity: i.quantity }));
+
+      // آزادسازی موقت موجودی رزروشده قبلی (بعداً با اقلام جدید دوباره رزرو می‌شود)
+      for (const item of previousItems) {
         await Product.findByIdAndUpdate(item.product, { $inc: { stock: item.quantity } });
       }
+      // اگر به هر دلیلی تخفیف مصرف شده بود، برگردان
+      if (order.discountCode && order.discountConsumed) {
+        await rollbackDiscount(order.discountCode);
+        order.discountConsumed = false;
+      }
+      // توکن‌های درگاهِ معلق قبلی باطل شوند (تا پرداخت قدیمی با مبلغ قدیمی نگیرد)
+      await Payment.updateMany(
+        { order: order._id, status: 'pending' },
+        { $set: { status: 'failed', failureReason: 'OrderUpdated' } }
+      );
+
+      // به‌روزرسانی همان سفارش
+      order.items = orderItems;
+      order.shippingInfo = shippingInfo;
+      order.paymentMethod = paymentMethod;
+      order.subtotal = subtotal;
+      order.discountAmount = discountAmount;
+      order.discountCode = validDiscountCode;
+      order.shippingCost = shippingCost;
+      order.total = total;
+      order.paymentStatus = 'pending';
+    } else {
+      order = new Order({
+        orderRef: generateOrderRef(),
+        user: userId,
+        items: orderItems,
+        shippingInfo,
+        paymentMethod,
+        subtotal,
+        discountAmount,
+        shippingCost,
+        total,
+        discountCode: validDiscountCode,
+        discountConsumed: false,
+        status: 'pending',
+        paymentStatus: 'pending'
+      });
     }
+
+    // اعتبارسنجی کامل «قبل از» رزرو موجودی
+    await order.validate();
 
     // ---- رزرو اتمیک موجودی + ذخیره سفارش، با بازگرداندن کامل در هر خطا ----
     const decremented = [];
@@ -211,8 +240,19 @@ const createOrder = async (req, res) => {
       }
       await order.save(); // اگر ذخیره خطا داد، موجودی رزروشده برگردانده می‌شود
     } catch (err) {
+      // موجودی رزروشده جدید را برگردان
       for (const d of decremented) {
         await Product.findByIdAndUpdate(d.id, { $inc: { stock: d.qty } });
+      }
+      // اگر سفارشِ استفاده‌مجدد بود، رزرو قبلی‌اش را دوباره برقرار کن
+      // تا همان سفارش همچنان قابل پرداخت بماند
+      if (previousItems) {
+        for (const item of previousItems) {
+          await Product.updateOne(
+            { _id: item.product, stock: { $gte: item.quantity } },
+            { $inc: { stock: -item.quantity } }
+          );
+        }
       }
       if (err.statusCode) {
         return res.status(err.statusCode).json({ success: false, message: err.message });

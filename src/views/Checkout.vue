@@ -580,16 +580,8 @@ const submitOrder = async () => {
 
   try {
     let order = createdOrder.value
-
-    // اگر سفارشی از تلاش قبلی وجود دارد ولی روش پرداختش با انتخاب فعلی فرق دارد،
-    // آن سفارش ناموفق را لغو کن تا سفارش جدید با روش درست ساخته شود
-    if (order && order.paymentMethod !== selectedPayment.value) {
-      try {
-        await ordersStore.cancelOrder(order._id)
-      } catch (e) { /* ignore */ }
-      createdOrder.value = null
-      order = null
-    }
+    // اگر روش پرداخت عوض شود، بک‌اند همان سفارش را به‌روزرسانی می‌کند
+    // (بدون لغو و ساختن سفارش جدید)
 
     // فقط اگر سفارشی ساخته نشده، سفارش جدید بساز
     if (!order) {

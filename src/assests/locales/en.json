@@ -332,6 +332,7 @@
   "user_orders_cancel_confirm": "Are you sure you want to cancel this order?",
   "user_orders_cancel_success": "Order canceled successfully",
   "user_orders_cancel_error": "Error canceling order",
+  "user_orders_pay_now": "Pay Now",
   "user_nav_dashboard": "Dashboard",
   "user_nav_orders": "Orders",
   "user_nav_addresses": "Addresses",
