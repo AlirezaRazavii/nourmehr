@@ -58,6 +58,21 @@ const buildCartList = async (order) => {
 
 /* -------- نهایی‌سازی موفق (مشترک بین callback و cron بازیابی) -------- */
 const finalizePaidTorobPay = async (payment, order, refId) => {
+  // محافظ: اگر سفارش در این فاصله لغو شده (کاربر/ادمین/انقضای ۲۴ ساعته)،
+  // پول را برگردان — سفارشِ بدون موجودیِ رزرو، تأیید نشود (جلوگیری از فروش بیش از حد)
+  if (NON_PAYABLE_STATUSES.includes(order.status)) {
+    const reverted = await revertPurchase(payment.authority).catch(() => ({ success: false }));
+    payment.status = reverted.success ? 'refunded' : 'failed';
+    payment.failureReason = reverted.success ? 'OrderCancelledReverted' : 'OrderCancelledNeedsManualRefund';
+    await payment.save();
+    console.error(
+      '[torobpay] finalize روی سفارش لغوشده — برگشت وجه ' +
+      (reverted.success ? 'انجام شد' : 'نیازمند بررسی دستی') +
+      ' | payment=' + payment._id + ' order=' + order._id
+    );
+    return false;
+  }
+
   payment.status = 'paid';
   if (refId) payment.refId = String(refId);
   payment.paidAt = payment.paidAt || new Date();
@@ -79,6 +94,7 @@ const finalizePaidTorobPay = async (payment, order, refId) => {
   } catch (err) {
     console.error('[torobpay] cart delete error:', err.message);
   }
+  return true;
 };
 
 /* ------------------------------- eligible ------------------------------- */
@@ -249,6 +265,19 @@ const torobPayCallback = async (req, res) => {
         await payment.save();
         return fail('AmountMismatch');
       }
+    }
+
+    // اگر سفارش در فاصله پرداخت لغو شده → وجه برگردد و سفارش لغو بماند
+    // (نه اینکه سفارشِ بدون موجودیِ رزرو تأیید شود)
+    if (NON_PAYABLE_STATUSES.includes(order.status)) {
+      const reverted = await revertPurchase(payment.authority).catch(() => ({ success: false }));
+      payment.status = reverted.success ? 'refunded' : 'failed';
+      payment.failureReason = reverted.success ? 'OrderCancelledReverted' : 'OrderCancelledNeedsManualRefund';
+      await payment.save();
+      if (!reverted.success) {
+        console.error('[torobpay] پرداختِ سفارش لغوشده نیازمند بازپرداخت دستی: payment=' + payment._id + ' order=' + order._id);
+      }
+      return fail('OrderCancelled');
     }
 
     // اگر سفارش قبلاً با پرداخت دیگری کامل شده → وجه این توکن را برگردان
