@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
@@ -87,6 +87,23 @@ const resumePayment = async (order) => {
 const editOrder = (order) => {
   router.push({ name: 'Checkout', params: { lang: locale.value }, query: { order: order._id } })
 }
+
+/* ---------- خط زمانی روند سفارش ---------- */
+const ORDER_TIMELINE_STEPS = [
+  { key: 'pending', icon: '📝', titleKey: 'user_orders_step_registered' },
+  { key: 'confirmed', icon: '💳', titleKey: 'user_orders_step_paid' },
+  { key: 'processing', icon: '📦', titleKey: 'user_orders_step_processing' },
+  { key: 'shipped', icon: '🚚', titleKey: 'user_orders_step_shipped' },
+  { key: 'delivered', icon: '🏠', titleKey: 'user_orders_step_delivered' },
+]
+
+const currentStepIndex = computed(() => {
+  // وضعیت قدیمی 'paid' هم مثل confirmed رفتار می‌کند
+  const s = selectedOrder.value?.status === 'paid' ? 'confirmed' : selectedOrder.value?.status
+  return ORDER_TIMELINE_STEPS.findIndex(st => st.key === s)
+})
+
+const showTimeline = computed(() => currentStepIndex.value >= 0)
 
 onMounted(async () => {
   // دریافت تنظیمات ارسال برای تشخیص «پس کرایه»
@@ -220,6 +237,34 @@ onMounted(async () => {
             </div>
           </div>
 
+          <!-- خط زمانی روند سفارش -->
+          <div v-if="showTimeline" class="order-timeline">
+            <h4>🚚 {{ $t('user_orders_timeline_title') }}</h4>
+            <div class="timeline">
+              <div
+                v-for="(step, idx) in ORDER_TIMELINE_STEPS"
+                :key="step.key"
+                class="tl-step"
+                :class="{ done: idx < currentStepIndex, current: idx === currentStepIndex }"
+              >
+                <div class="tl-marker">
+                  <span class="tl-icon">{{ step.icon }}</span>
+                  <span v-if="idx < ORDER_TIMELINE_STEPS.length - 1" class="tl-line"></span>
+                </div>
+                <div class="tl-content">
+                  <span class="tl-title">{{ $t(step.titleKey) }}</span>
+                  <span
+                    v-if="idx === currentStepIndex && step.key === 'shipped' && selectedOrder.tracking?.code"
+                    class="tl-code"
+                  >
+                    {{ $t('user_orders_tracking_code') }}: {{ selectedOrder.tracking.code }}
+                    <template v-if="selectedOrder.tracking.carrier">({{ selectedOrder.tracking.carrier }})</template>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div v-if="selectedOrder.shippingInfo" class="detail-section">
             <h4>📍 {{ $t('user_orders_shipping_address') }}</h4>
             <div class="shipping-info">
@@ -350,6 +395,38 @@ onMounted(async () => {
 .detail-date { opacity: 0.7; font-size: 0.9rem; }
 .status-badge { display: flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 999px; font-size: 0.9rem; font-weight: 600; flex-shrink: 0; }
 .detail-section { margin-bottom: 24px; }
+
+/* خط زمانی روند سفارش */
+.order-timeline {
+  background: rgba(255,255,255,0.03);
+  border-radius: 14px;
+  padding: 18px 20px;
+  margin-bottom: 24px;
+}
+.order-timeline h4 { font-size: 1rem; margin: 0 0 16px; color: #facc6b; }
+.timeline { display: flex; flex-direction: column; }
+.tl-step { display: flex; gap: 14px; }
+.tl-marker { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+.tl-icon {
+  width: 38px; height: 38px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
+  font-size: 1rem; transition: all 0.3s ease;
+}
+.tl-line { width: 2px; flex: 1; min-height: 22px; background: rgba(255,255,255,0.08); margin: 4px 0; }
+.tl-step.done .tl-icon { background: rgba(34,197,94,0.12); border-color: rgba(34,197,94,0.35); }
+.tl-step.done .tl-line { background: rgba(34,197,94,0.35); }
+.tl-step.current .tl-icon {
+  background: rgba(197,160,89,0.15);
+  border-color: #c5a059;
+  box-shadow: 0 0 0 4px rgba(197,160,89,0.12);
+}
+.tl-content { padding: 8px 0 16px; }
+.tl-step:last-child .tl-content { padding-bottom: 0; }
+.tl-title { font-size: 0.9rem; color: rgba(255,255,255,0.45); font-weight: 500; }
+.tl-step.done .tl-title { color: rgba(255,255,255,0.8); }
+.tl-step.current .tl-title { color: #facc6b; font-weight: 700; }
+.tl-code { display: block; font-size: 0.8rem; color: #facc6b; font-family: monospace; margin-top: 4px; }
 .detail-section h4 { font-size: 1rem; margin: 0 0 12px; color: #facc6b; }
 .shipping-info p, .tracking-info { font-size: 0.9rem; line-height: 1.8; margin: 0; word-break: break-word; }
 .tracking-info { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }

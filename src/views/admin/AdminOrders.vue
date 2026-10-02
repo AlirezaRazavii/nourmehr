@@ -62,7 +62,6 @@ const tabs = [
 
 const statusOptions = [
   { value: 'pending', label: 'در انتظار' },
-  { value: 'awaiting_payment', label: 'در انتظار پرداخت' },
   { value: 'confirmed', label: 'تایید شده' },
   { value: 'processing', label: 'در حال پردازش' },
   { value: 'shipped', label: 'ارسال شده' },
@@ -104,7 +103,69 @@ const formatDate = (d) => d ? new Date(d).toLocaleDateString('fa-IR') : '-'
 
 const openDetail = (order) => {
   selectedOrder.value = order
+  // فرم رهگیری را با مقدار فعلی سفارش پر کن
+  trackingForm.value = {
+    code: order.tracking?.code || '',
+    carrier: order.tracking?.carrier || ''
+  }
   showDetail.value = true
+}
+
+/* ---------- کد رهگیری و شرکت حمل ---------- */
+const trackingForm = ref({ code: '', carrier: '' })
+const savingTracking = ref(false)
+
+const canSetTracking = (order) =>
+  ['confirmed', 'processing', 'shipped', 'delivered'].includes(order?.status)
+
+const saveTracking = async () => {
+  if (!trackingForm.value.code.trim()) {
+    alert('کد رهگیری را وارد کنید')
+    return
+  }
+  savingTracking.value = true
+  try {
+    const id = selectedOrder.value._id || selectedOrder.value.id
+    const res = await adminApi.updateOrderTracking(id, {
+      code: trackingForm.value.code.trim(),
+      carrier: trackingForm.value.carrier.trim()
+    })
+    if (!res.success) throw new Error(res.message || 'خطا در ذخیره رهگیری')
+
+    // به‌روزرسانی در جزئیات و لیست
+    const tracking = res.data?.tracking || {
+      code: trackingForm.value.code.trim(),
+      carrier: trackingForm.value.carrier.trim()
+    }
+    selectedOrder.value = { ...selectedOrder.value, tracking }
+    const idx = orders.value.findIndex(o => (o._id || o.id) === id)
+    if (idx !== -1) orders.value[idx] = { ...orders.value[idx], tracking }
+
+    alert('اطلاعات رهگیری ذخیره شد ✅')
+  } catch (err) {
+    alert('خطا: ' + (err.response?.data?.message || err.message || 'عملیات ناموفق بود'))
+  } finally {
+    savingTracking.value = false
+  }
+}
+
+/* ---------- گارد گزینه‌های وضعیت (هماهنگ با بک‌اند گام ۵) ---------- */
+const isStatusDisabled = (optionValue) => {
+  const order = selectedOrder.value
+  if (!order) return false
+  const current = order.status
+
+  // سفارش لغو/عودت‌شده قابل تغییر نیست
+  if (['cancelled', 'refunded'].includes(current)) return optionValue !== current
+
+  // جریان ارسال/تحویل فقط با پرداخت موفق
+  if (['confirmed', 'processing', 'shipped', 'delivered'].includes(optionValue)
+      && order.paymentStatus !== 'paid') return true
+
+  // عودت فقط برای پرداخت‌شده‌ها
+  if (optionValue === 'refunded' && order.paymentStatus !== 'paid') return true
+
+  return false
 }
 
 const changeOrderStatus = async (newStatus) => {
@@ -236,7 +297,7 @@ const changeOrderStatus = async (newStatus) => {
               <div class="info-chip">
                 <span class="info-label">وضعیت:</span>
                 <select :value="selectedOrder.status" class="inline-select" :disabled="updatingStatus" @change="changeOrderStatus($event.target.value)">
-                  <option v-for="opt in statusOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                  <option v-for="opt in statusOptions" :key="opt.value" :value="opt.value" :disabled="isStatusDisabled(opt.value)">{{ opt.label }}</option>
                 </select>
               </div>
             </div>
@@ -244,6 +305,22 @@ const changeOrderStatus = async (newStatus) => {
             <div class="order-address">
               <strong>آدرس ارسال:</strong>
               <span>{{ selectedOrder.shippingInfo?.province }}، {{ selectedOrder.shippingInfo?.city }}، {{ selectedOrder.shippingInfo?.address }} - کدپستی: {{ selectedOrder.shippingInfo?.postalCode }}</span>
+            </div>
+
+            <!-- فرم رهگیری -->
+            <div v-if="canSetTracking(selectedOrder)" class="tracking-section">
+              <strong class="tracking-title">🚚 رهگیری مرسوله</strong>
+              <div class="tracking-form">
+                <input v-model="trackingForm.carrier" type="text" class="tracking-input" placeholder="شرکت حمل (پست، تیپاکس، اتوبوس...)" />
+                <input v-model="trackingForm.code" type="text" class="tracking-input tracking-code-input" placeholder="کد رهگیری" dir="ltr" />
+                <button class="tracking-save-btn" :disabled="savingTracking" @click="saveTracking">
+                  {{ savingTracking ? '...' : 'ذخیره' }}
+                </button>
+              </div>
+              <span v-if="selectedOrder.tracking?.code" class="tracking-current">
+                ثبت‌شده فعلی: {{ selectedOrder.tracking.carrier || '—' }} | {{ selectedOrder.tracking.code }}
+              </span>
+              <span class="tracking-hint">پیشنهاد: همزمان وضعیت را «ارسال شده» بگذارید تا مشتری ببیند</span>
             </div>
 
             <div class="order-items-list">
@@ -602,6 +679,49 @@ const changeOrderStatus = async (newStatus) => {
   color: #facc6b;
   font-size: 0.85rem;
 }
+
+/* فرم رهگیری */
+.tracking-section {
+  font-size: 0.9rem;
+  padding: 14px;
+  border-radius: 12px;
+  background: rgba(197,160,89,0.06);
+  border: 1px dashed rgba(197,160,89,0.3);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tracking-title { color: #facc6b; font-size: 0.85rem; }
+.tracking-form { display: flex; gap: 8px; flex-wrap: wrap; }
+.tracking-input {
+  flex: 1;
+  min-width: 140px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #fff;
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  outline: none;
+}
+.tracking-input:focus { border-color: rgba(197,160,89,0.5); }
+.tracking-code-input { direction: ltr; font-family: ui-monospace, monospace; }
+.tracking-save-btn {
+  padding: 9px 20px;
+  border-radius: 8px;
+  border: none;
+  background: linear-gradient(135deg, #c5a059, #8f7032);
+  color: #000;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  flex-shrink: 0;
+}
+.tracking-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.tracking-current { font-size: 0.8rem; color: #facc6b; }
+.tracking-hint { font-size: 0.75rem; opacity: 0.5; }
 
 .order-items-list {
   display: flex;

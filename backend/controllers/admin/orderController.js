@@ -1,10 +1,11 @@
 const Order = require('../../models/Order');
-const { consumeDiscount, rollbackDiscount } = require('../../utils/discountEngine');
+const Product = require('../../models/Product');
+const { rollbackDiscount } = require('../../utils/discountEngine');
 
-// وضعیت‌هایی که یعنی سفارش نهایی/معتبر شده و باید تخفیف مصرف شود
-const CONSUME_STATUSES = ['paid', 'confirmed', 'processing', 'shipped', 'delivered'];
-// وضعیت‌هایی که یعنی سفارش لغو شده و باید تخفیف برگردد
-const ROLLBACK_STATUSES = ['cancelled', 'refunded'];
+// وضعیت‌های جریان ارسال — فقط برای سفارش‌های «پرداخت‌شده» مجاز
+const FULFILLMENT_STATUSES = ['confirmed', 'processing', 'shipped', 'delivered'];
+// وضعیت‌های پایان‌کار — موجودی و تخفیف باید برگردد
+const TERMINAL_STATUSES = ['cancelled', 'refunded'];
 
 const getOrders = async (req, res) => {
   try {
@@ -38,7 +39,7 @@ const updateOrderStatus = async (req, res) => {
   try {
     const { status } = req.body;
     const validStatuses = [
-      'pending', 'paid', 'confirmed', 'processing',
+      'pending', 'confirmed', 'processing',
       'shipped', 'delivered', 'cancelled', 'refunded',
     ];
 
@@ -52,42 +53,69 @@ const updateOrderStatus = async (req, res) => {
     }
 
     const previousStatus = order.status;
-    order.status = status;
 
-    // --- منطق مصرف / بازگردانی تخفیف ---
-    if (order.discountCode) {
-      const shouldConsume = CONSUME_STATUSES.includes(status);
-      const shouldRollback = ROLLBACK_STATUSES.includes(status);
-
-      // مصرف تخفیف فقط اگر قبلاً مصرف نشده باشد
-      if (shouldConsume && !order.discountConsumed) {
-        const ok = await consumeDiscount(order.discountCode);
-        if (ok) {
-          order.discountConsumed = true;
-        } else {
-          // ظرفیت کد پر شده — جلوی تأیید سفارش را می‌گیریم
-          order.status = previousStatus;
-          await order.save();
-          return res.status(400).json({
-            success: false,
-            message: 'ظرفیت کد تخفیف این سفارش تکمیل شده و امکان تأیید نیست',
-          });
-        }
-      }
-
-      // بازگردانی تخفیف فقط اگر قبلاً مصرف شده باشد
-      if (shouldRollback && order.discountConsumed) {
-        await rollbackDiscount(order.discountCode);
-        order.discountConsumed = false;
-      }
+    // بدون تغییر؟
+    if (previousStatus === status) {
+      return res.json({ success: true, message: 'وضعیت سفارش تغییری نکرد', data: order });
     }
 
-    await order.save();
+    // ۱) سفارش لغو/عودت‌شده قابل بازگشت نیست
+    //    (وگرنه موجودی دوبار برگردانده می‌شد!)
+    if (TERMINAL_STATUSES.includes(previousStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: 'سفارش لغو/عودت‌شده قابل تغییر نیست. در صورت نیاز، سفارش جدید ثبت شود.',
+      });
+    }
 
+    // ۲) جریان ارسال/تحویل فقط برای سفارش‌های پرداخت‌شده مجاز است
+    //    (فیکس ریشه باگ تخفیف — دیگر سفارش پرداخت‌نشده «تأیید» نمی‌شود)
+    if (FULFILLMENT_STATUSES.includes(status) && order.paymentStatus !== 'paid') {
+      return res.status(400).json({
+        success: false,
+        message: 'این سفارش هنوز پرداخت نشده است — تا تکمیل پرداخت قابل پردازش نیست',
+      });
+    }
+
+    // ۳) عودت وجه فقط برای سفارش‌های پرداخت‌شده
+    if (status === 'refunded' && order.paymentStatus !== 'paid') {
+      return res.status(400).json({
+        success: false,
+        message: 'عودت فقط برای سفارش‌های پرداخت‌شده ممکن است',
+      });
+    }
+
+    // ۴) تغییر اتمیک — اگر همزمان (کرون انقضا / کاربر / ادمین دیگر) وضعیت را
+    //    عوض کرده باشد، این درخواست رد می‌شود تا موجودی دو بار برنگردد
+    const claimed = await Order.findOneAndUpdate(
+      { _id: order._id, status: previousStatus },
+      { $set: { status } },
+      { new: true }
+    );
+    if (!claimed) {
+      return res.status(409).json({
+        success: false,
+        message: 'وضعیت این سفارش همزمان تغییر کرده است — لیست را رفرش کنید',
+      });
+    }
+
+    // ۵) لغو/عودت → موجودی رزروشده برگردد + تخفیف مصرف‌شده rollback شود
+    if (TERMINAL_STATUSES.includes(status)) {
+      for (const item of order.items) {
+        await Product.findByIdAndUpdate(item.product, { $inc: { stock: item.quantity } });
+      }
+      if (order.discountCode && order.discountConsumed) {
+        await rollbackDiscount(order.discountCode);
+        await Order.updateOne({ _id: order._id }, { $set: { discountConsumed: false } });
+      }
+      console.log(`[admin] سفارش ${order.orderRef} → ${status} | موجودی و تخفیف برگشت داده شد`);
+    }
+
+    const fresh = await Order.findById(order._id);
     return res.json({
       success: true,
       message: 'وضعیت سفارش با موفقیت به‌روزرسانی شد',
-      data: order,
+      data: fresh,
     });
   } catch (error) {
     console.error('updateOrderStatus error:', error);
@@ -95,4 +123,33 @@ const updateOrderStatus = async (req, res) => {
   }
 };
 
-module.exports = { getOrders, getOrderById, updateOrderStatus };
+// ثبت / به‌روزرسانی کد رهگیری و شرکت حمل
+const updateOrderTracking = async (req, res) => {
+  try {
+    const { code, carrier } = req.body;
+    if (!code || !String(code).trim()) {
+      return res.status(400).json({ success: false, message: 'کد رهگیری الزامی است' });
+    }
+
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ success: false, message: 'سفارش یافت نشد' });
+
+    // کد رهگیری برای سفارشِ در جریان ارسال معنا دارد
+    if (['pending', 'cancelled', 'refunded'].includes(order.status)) {
+      return res.status(400).json({ success: false, message: 'برای این وضعیت سفارش، کد رهگیری ثبت نمی‌شود' });
+    }
+
+    order.tracking = {
+      code: String(code).trim(),
+      carrier: carrier ? String(carrier).trim() : '',
+    };
+    await order.save();
+
+    return res.json({ success: true, message: 'اطلاعات رهگیری ذخیره شد', data: order });
+  } catch (error) {
+    console.error('updateOrderTracking error:', error);
+    return res.status(500).json({ success: false, message: 'خطا در ذخیره اطلاعات رهگیری' });
+  }
+};
+
+module.exports = { getOrders, getOrderById, updateOrderStatus, updateOrderTracking };

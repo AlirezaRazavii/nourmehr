@@ -22,6 +22,11 @@ export const adminApi = {
     return res.data
   },
 
+  async updateOrderTracking(id, data) {
+    const res = await api.put(`/admin/orders/${id}/tracking`, data)
+    return res.data
+  },
+
   async getUsers(params = {}) {
     const query = new URLSearchParams(params).toString()
     const res = await api.get(`/admin/users${query ? '?' + query : ''}`)

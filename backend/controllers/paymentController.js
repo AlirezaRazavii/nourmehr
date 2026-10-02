@@ -118,17 +118,25 @@ const verifyOnlinePayment = async (req, res) => {
       claimed.paidAt = new Date();
       await claimed.save();
 
-      order.paymentStatus = 'paid';
-      order.status = 'confirmed';
+      // محافظ: به‌روزرسانی شرطی — اگر سفارش در همین فاصله لغو شده باشد
+      // (ادمین/انقضای ۲۴ ساعته)، سفارش لغو بماند و پولِ گرفته‌شده برای عودت دستی ثبت شود
+      const finalized = await Order.findOneAndUpdate(
+        { _id: order._id, status: { $nin: NON_PAYABLE_STATUSES } },
+        { $set: { paymentStatus: 'paid', status: 'confirmed' } },
+        { new: true }
+      );
+
+      if (!finalized) {
+        console.error('[verifyOnlinePayment] پرداخت موفق روی سفارش لغوشده — نیازمند عودت دستی: order=' + order._id);
+        return fail('OrderCancelled');
+      }
 
       if (order.discountCode && !order.discountConsumed) {
         const consumed = await consumeDiscount(order.discountCode);
-        if (consumed) order.discountConsumed = true;
+        if (consumed) await Order.updateOne({ _id: order._id }, { $set: { discountConsumed: true } });
       }
 
-      await order.save();
-
-      // پرداخت موفق: حالا سبد خرید کاربر خالی می‌شود
+      // پرداخت موفقِ نهایی‌شده: سبد خرید کاربر خالی می‌شود
       try {
         await Cart.deleteOne({ user: order.user });
       } catch (cartErr) {

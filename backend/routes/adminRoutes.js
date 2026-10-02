@@ -7,7 +7,7 @@ const { upload, blogUpload, handleUploadError } = require('../middleware/upload'
 const uploadHero = require('../middleware/uploadHero');
 
 const { getDashboardStats } = require('../controllers/admin/dashboardController');
-const { getOrders, getOrderById, updateOrderStatus } = require('../controllers/admin/orderController');
+const { getOrders, getOrderById, updateOrderStatus, updateOrderTracking } = require('../controllers/admin/orderController');
 const {
   getUsers,
   updateUserStatus,
@@ -184,6 +184,7 @@ router.get('/dashboard', getDashboardStats);
 router.get('/orders', hasPermission(PERMISSIONS.ORDERS), getOrders);
 router.get('/orders/:id', hasPermission(PERMISSIONS.ORDERS), getOrderById);
 router.put('/orders/:id/status', hasPermission(PERMISSIONS.ORDERS), updateOrderStatus);
+router.put('/orders/:id/tracking', hasPermission(PERMISSIONS.ORDERS), updateOrderTracking);
 
 /* --------------------------------- کاربران --------------------------------- */
 router.get('/users', hasPermission(PERMISSIONS.USERS), getUsers);

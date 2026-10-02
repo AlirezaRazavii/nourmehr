@@ -9,7 +9,12 @@
 "about_title_3": "تولید و عرضه‌ی نفیس‌ترین صنایع دستی",
 "about_hero_desc": "نورمهر با بیش از هفتاد سال تجربه در تولید و فروش صنایع دستی اصفهان، امروز با پنج شعبه فعال، بیش از ۸۰ همکار و نزدیک به هزار نوع محصول در خدمت مشتریان و سازمان‌های سراسر ایران است.",
 "about_scroll": "اسکرول کنید",
-
+"user_orders_timeline_title": "روند سفارش",
+"user_orders_step_registered": "ثبت سفارش",
+"user_orders_step_paid": "پرداخت و تأیید",
+"user_orders_step_processing": "در حال بسته‌بندی",
+"user_orders_step_shipped": "ارسال شد",
+"user_orders_step_delivered": "تحویل داده شد",
 "about_story_badge": "Our Story",
 "about_story_title": "داستان نورمهر",
 "about_story_lead": "نورمهر بیش از هفت دهه است که در اصفهان، شهر هنر ایران، فعالیت می‌کند؛ از یک مجموعه‌ی کوچک در دل بازار تا برندی با پنج شعبه فعال و نزدیک به هزار نوع محصول دست‌ساز.",
