@@ -1,12 +1,13 @@
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import { useOrders } from '../../stores/orders'
 import { getImageUrl } from '../../utils/imageUrl'
 
 const route = useRoute()
+const router = useRouter()
 const { t, locale } = useI18n()
 const ordersStore = useOrders()
 const { orders, isLoading } = storeToRefs(ordersStore)
@@ -80,6 +81,11 @@ const resumePayment = async (order) => {
   } finally {
     payingId.value = null
   }
+}
+
+// ویرایش سفارش ناتمام: رفتن به checkout با اطلاعات همین سفارش
+const editOrder = (order) => {
+  router.push({ name: 'Checkout', params: { lang: locale.value }, query: { order: order._id } })
 }
 
 onMounted(async () => {
@@ -166,6 +172,13 @@ onMounted(async () => {
                 @click.stop="resumePayment(order)"
               >
                 {{ payingId === order._id ? '...' : $t('user_orders_pay_now') }}
+              </button>
+              <button
+                v-if="canPayOrder(order)"
+                class="edit-btn"
+                @click.stop="editOrder(order)"
+              >
+                {{ $t('user_orders_edit') }}
               </button>
               <button
                 v-if="['pending', 'awaiting_payment'].includes(order.status)"
@@ -258,6 +271,13 @@ onMounted(async () => {
             <span>{{ $t('user_orders_total_amount') }}</span>
             <span class="total-price">{{ formatPrice(selectedOrder.total) }} {{ $t('products_currency') }}</span>
           </div>
+
+          <div v-if="canPayOrder(selectedOrder)" class="detail-actions">
+            <button class="pay-btn" :disabled="payingId === selectedOrder._id" @click="resumePayment(selectedOrder)">
+              {{ payingId === selectedOrder._id ? '...' : $t('user_orders_pay_now') }}
+            </button>
+            <button class="edit-btn" @click="editOrder(selectedOrder)">{{ $t('user_orders_edit') }}</button>
+          </div>
         </div>
       </div>
     </Transition>
@@ -305,6 +325,21 @@ onMounted(async () => {
 }
 .pay-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(197,160,89,0.4); }
 .pay-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.edit-btn {
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(197,160,89,0.4);
+  background: rgba(197,160,89,0.1);
+  color: #facc6b;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  flex-shrink: 0;
+  font-family: inherit;
+}
+.edit-btn:hover { background: rgba(197,160,89,0.2); }
+.detail-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
 
 .order-detail { flex: 1; box-sizing: border-box; }
 .back-btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(15, 23, 42, 0.8); color: #fff; cursor: pointer; margin-bottom: 20px; }

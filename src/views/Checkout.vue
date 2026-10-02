@@ -341,7 +341,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { useCart } from '../stores/cart'
@@ -364,6 +364,7 @@ const getLocalizedText = (value) => {
 const formatPrice = (n) => Number(n || 0).toLocaleString(locale.value === 'fa' ? 'fa-IR' : 'en-US')
 
 const router = useRouter()
+const route = useRoute()
 const cartStore = useCart()
 const { cartItems, totalItems, totalPrice, isEmpty } = storeToRefs(cartStore)
 const { fetchCart } = cartStore
@@ -693,6 +694,24 @@ onMounted(async () => {
     await fetchCart()
   } catch (e) { /* ignore */ }
 
+  // --- حالت «ادامه سفارش ناتمام»: آدرس ?order=ORDER_ID ---
+  let continueOrder = null
+  if (route.query.order) {
+    try {
+      const res = await ordersStore.fetchOrderById(route.query.order)
+      if (res?.success) continueOrder = res.data
+    } catch (e) { /* ignore */ }
+
+    // سبد با اقلام «همین سفارش» جایگزین می‌شود — ادامه همان سفارش
+    if (continueOrder) {
+      try {
+        const { default: api } = await import('../services/api')
+        await api.post(`/orders/${continueOrder._id}/restore-cart`)
+        await fetchCart()
+      } catch (e) { /* ignore */ }
+    }
+  }
+
   // حالا که سبد قطعاً همگام شده، بررسی خالی‌بودن انجام بده
   if (isEmpty.value && !orderComplete.value) {
     router.push('/cart')
@@ -702,14 +721,40 @@ onMounted(async () => {
   try {
     await addressesStore.fetchAddresses()
   } catch (e) { /* ignore */ }
-  const addr = defaultAddress.value || (addresses.value && addresses.value[0])
-  if (addr) {
-    shippingForm.value.fullName = addr.fullName || ''
-    shippingForm.value.phone = addr.phone || ''
-    shippingForm.value.province = addr.province || ''
-    shippingForm.value.city = addr.city || ''
-    shippingForm.value.address = addr.address || ''
-    shippingForm.value.postalCode = addr.postalCode || ''
+
+  // اگر حالت «ادامه سفارش» است، فرم از خودِ سفارش پر می‌شود
+  // تا کاربر همه اطلاعات را ببیند و هرچه بخواهد ویرایش کند
+  if (continueOrder?.shippingInfo) {
+    const si = continueOrder.shippingInfo
+    shippingForm.value.fullName = si.fullName || ''
+    shippingForm.value.phone = si.phone || ''
+    shippingForm.value.email = si.email || ''
+    shippingForm.value.province = si.province || ''
+    shippingForm.value.city = si.city || ''
+    shippingForm.value.address = si.address || ''
+    shippingForm.value.postalCode = si.postalCode || ''
+    shippingForm.value.note = si.note || ''
+    // روش پرداخت قبلی خودکار انتخاب می‌شود
+    if (continueOrder.paymentMethod) selectedPayment.value = continueOrder.paymentMethod
+    // روش ارسال قبلی (فقط اگر هنوز در لیست فعال باشد)
+    if (si.shippingMethod && shippingMethods.value.some(m => m.id === si.shippingMethod)) {
+      selectedShipping.value = si.shippingMethod
+    }
+    // کد تخفیف قبلی خودکار اعمال می‌شود
+    if (continueOrder.discountCode && !appliedDiscount.value) {
+      discountCode.value = continueOrder.discountCode
+      applyDiscount().catch(() => {})
+    }
+  } else {
+    const addr = defaultAddress.value || (addresses.value && addresses.value[0])
+    if (addr) {
+      shippingForm.value.fullName = addr.fullName || ''
+      shippingForm.value.phone = addr.phone || ''
+      shippingForm.value.province = addr.province || ''
+      shippingForm.value.city = addr.city || ''
+      shippingForm.value.address = addr.address || ''
+      shippingForm.value.postalCode = addr.postalCode || ''
+    }
   }
   if (!shippingForm.value.fullName) shippingForm.value.fullName = user.value?.name || ''
   if (!shippingForm.value.phone) shippingForm.value.phone = user.value?.phone || ''

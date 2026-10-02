@@ -347,4 +347,36 @@ const cancelOrder = async (req, res) => {
   }
 };
 
-module.exports = { validateDiscount, createOrder, getMyOrders, getOrderById, cancelOrder };
+// بازیابی سبد خرید از سفارش پرداخت‌نشده (برای ویرایش و ادامه سفارش)
+const restoreCartFromOrder = async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ success: false, message: 'سفارش یافت نشد' });
+    if (order.user.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+    if (order.status !== 'pending' || order.paymentStatus === 'paid') {
+      return res.status(400).json({ success: false, message: 'این سفارش قابل ویرایش نیست' });
+    }
+
+    // سبد فعلی با اقلام همین سفارش جایگزین می‌شود
+    // (بدون چک موجودی — چون همین سفارش موجودی را رزرو کرده است)
+    await Cart.findOneAndDelete({ user: req.user._id });
+    const cart = new Cart({
+      user: req.user._id,
+      items: order.items.map(i => ({
+        product: i.product,
+        quantity: i.quantity,
+        color: i.color || '',
+        size: i.size || ''
+      }))
+    });
+    await cart.save();
+
+    res.json({ success: true, message: 'سبد خرید از سفارش بازیابی شد' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+module.exports = { validateDiscount, createOrder, getMyOrders, getOrderById, cancelOrder, restoreCartFromOrder };

@@ -10,5 +10,6 @@ router.post('/', createOrder);
 router.get('/', getMyOrders);
 router.get('/:id', getOrderById);
 router.put('/:id/cancel', cancelOrder);
+router.post('/:id/restore-cart', protect, restoreCartFromOrder);
  
 module.exports = router;
