@@ -33,6 +33,14 @@ const formatDate = (d) => {
 }
 const formatPrice = (n) => Number(n || 0).toLocaleString(locale.value === 'fa' ? 'fa-IR' : 'en-US')
 
+// نمایش نام آیتم — هم رشته ساده (سفارش‌های جدید) هم آبجکت دوزبانه (سفارش‌های قدیمی)
+const getLocalizedText = (value) => {
+  if (!value) return ''
+  if (typeof value === 'string') return value
+  if (typeof value === 'object') return value[locale.value] || value.fa || ''
+  return ''
+}
+
 const goToOrderDetail = (orderId) => {
   selectedOrder.value = orders.value.find(o => (o._id || o.id) === orderId)
 }
