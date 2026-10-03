@@ -51,6 +51,9 @@ const reviewSubmitMsg = ref('')
 const formatPrice = (n) =>
   Number(n || 0).toLocaleString(locale.value === 'fa' ? 'fa-IR' : 'en-US')
 
+// اطلاعات قیمت کارت‌های محصولات مرتبط (مثل کارت صفحه محصولات)
+const getPriceInfo = (p) => getProductPriceInfo(p)
+
 const getLocalizedText = (value) => {
   if (!value) return ''
   if (typeof value === 'string') return value
