@@ -716,7 +716,7 @@ watch(locale, () => setProductSeo(product.value, locale.value))
               </div>
 
               <div class="card-content">
-                <h2 class="product-title">{{ getLocalizedText(item.name) }}</h2>
+                <h2 class="card-title">{{ getLocalizedText(item.name) }}</h2>
                 <div class="title-underline"></div>
 
                 <div class="card-footer">
@@ -913,7 +913,14 @@ watch(locale, () => setProductSeo(product.value, locale.value))
 .card-badge { position: absolute; bottom: 10px; right: 10px; z-index: 3; display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 9px; background: rgba(0,0,0,0.5); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.08); font-size: 0.62rem; color: #f5d78e; font-weight: 500; max-width: calc(100% - 20px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .card-content { padding: clamp(10px,1.2vw,14px); display: flex; flex-direction: column; gap: 7px; flex: 1; }
-.product-title { font-size: clamp(0.82rem,1vw,0.95rem); font-weight: 700; color: #f0f0f0; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; margin: 0; }
+.card-title {
+  font-size: clamp(0.78rem, 1vw, 0.9rem);
+  font-weight: 700;
+  color: #f0f0f0;
+  line-height: 1.55;
+  margin: 0;
+  overflow-wrap: break-word;
+}
 .title-underline { width: 28px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, #c5a059, transparent); transition: width 0.5s cubic-bezier(0.16,1,0.3,1); }
 
 /* قیمت کارت محصولات مرتبط — مثل صفحه محصولات */
