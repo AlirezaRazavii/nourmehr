@@ -265,6 +265,21 @@ const onGalleryUp = (e) => {
 }
 
 const onGalleryCancel = () => { gSwiping = false }
+
+/* ───────── ناوبری عکس‌ها (فلش‌ها + کیبورد) ───────── */
+const totalImages = computed(() => productImages.value.length)
+
+const nextImage = () => {
+  const total = totalImages.value
+  if (total < 2) return
+  activeImage.value = (activeImage.value + 1) % total
+}
+
+const prevImage = () => {
+  const total = totalImages.value
+  if (total < 2) return
+  activeImage.value = (activeImage.value - 1 + total) % total
+}
 const changeQuantity = (delta) => {
   const next = quantity.value + delta
   if (next >= 1 && next <= maxQty.value) quantity.value = next
@@ -307,7 +322,10 @@ const toggleZoom = () => {
   if (gSwiped) { gSwiped = false; return } // کلیکِ بعد از سوایپ = زوم نشود
   isZoomed.value = !isZoomed.value
 }
-const closeZoom = () => { isZoomed.value = false }
+const closeZoom = () => {
+  if (gSwiped) { gSwiped = false; return } // بعد از سوایپ در زوم، بسته نشود
+  isZoomed.value = false
+}
 const goBack = () => { router.push({ name: 'Products', params: { lang: locale.value } }) }
 const goToCart = () => { router.push({ name: 'Cart', params: { lang: locale.value } }) }
 
@@ -321,7 +339,14 @@ const formatDate = (d) => {
 }
 
 const handleKeydown = (e) => {
-  if (e.key === 'Escape' && isZoomed.value) closeZoom()
+  if (e.key === 'Escape' && isZoomed.value) { closeZoom(); return }
+  // فلش‌های کیبورد ← → برای جابجایی بین عکس‌ها
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    if (totalImages.value < 2) return
+    const rtl = document.documentElement.getAttribute('dir') === 'rtl'
+    if (e.key === 'ArrowRight') rtl ? prevImage() : nextImage()
+    else rtl ? nextImage() : prevImage()
+  }
 }
 
 onMounted(() => {
@@ -416,6 +441,19 @@ watch(locale, () => setProductSeo(product.value, locale.value))
                 <path d="m21 21-4.35-4.35M11 8v6M8 11h6"/>
               </svg>
             </div>
+
+            <!-- فلش‌های قبلی/بعدی -->
+            <button v-if="totalImages > 1" class="gallery-arrow prev" type="button" aria-label="عکس قبلی" @click.stop="prevImage">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            </button>
+            <button v-if="totalImages > 1" class="gallery-arrow next" type="button" aria-label="عکس بعدی" @click.stop="nextImage">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+            </button>
+
+            <!-- شمارنده عکس -->
+            <span v-if="totalImages > 1" class="image-counter">
+              <b>{{ formatPrice(activeImage + 1) }}</b> / {{ formatPrice(totalImages) }}
+            </span>
           </div>
 
           <div class="thumbnails">
@@ -749,11 +787,29 @@ watch(locale, () => setProductSeo(product.value, locale.value))
 
     <!-- مودال زوم -->
     <Transition name="zoom">
-      <div v-if="isZoomed && product" class="zoom-modal" @click="closeZoom">
+      <div
+        v-if="isZoomed && product"
+        class="zoom-modal"
+        @click="closeZoom"
+        @pointerdown="onGalleryDown"
+        @pointerup="onGalleryUp"
+        @pointercancel="onGalleryCancel"
+      >
         <div class="zoom-content">
           <img :src="productImages[activeImage] || productImages[0]" :alt="getLocalizedText(product?.name)" />
-          <button type="button" class="zoom-close" @click.stop="closeZoom" aria-label="بستن">✕</button>
         </div>
+
+        <!-- کنترل‌های داخل زوم -->
+        <button v-if="totalImages > 1" class="zoom-arrow prev" type="button" aria-label="عکس قبلی" @click.stop="prevImage">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <button v-if="totalImages > 1" class="zoom-arrow next" type="button" aria-label="عکس بعدی" @click.stop="nextImage">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+        <span v-if="totalImages > 1" class="zoom-counter">
+          <b>{{ formatPrice(activeImage + 1) }}</b> / {{ formatPrice(totalImages) }}
+        </span>
+        <button type="button" class="zoom-close" @click.stop="closeZoom" aria-label="بستن">✕</button>
       </div>
     </Transition>
   </section>
@@ -940,8 +996,64 @@ watch(locale, () => setProductSeo(product.value, locale.value))
 .zoom-modal { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.95); display: flex; align-items: center; justify-content: center; z-index: 1000; cursor: zoom-out; }
 .zoom-content { position: relative; max-width: 90vw; max-height: 90vh; }
 .zoom-content img { max-width: 100%; max-height: 90vh; object-fit: contain; }
-.zoom-close { position: absolute; top: -40px; inset-inline-end: 0; width: 36px; height: 36px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.3); background: rgba(0, 0, 0, 0.5); color: #fff; font-size: 1.2rem; cursor: pointer; transition: background 0.2s, color 0.2s; }
-.zoom-close:hover { background: #c5a059; color: #000; }
+/* ✕ بستن: ثابت در گوشه بالای صفحه — همیشه داخل کادر (فیکس شناور بودن) */
+.zoom-close { position: fixed; top: 20px; inset-inline-end: 20px; width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.3) !important; background: rgba(0, 0, 0, 0.6) !important; color: #fff !important; font-size: 1.2rem; cursor: pointer; transition: background 0.2s, color 0.2s; z-index: 1002; padding: 0 !important; }
+.zoom-close:hover { background: #c5a059 !important; color: #000 !important; }
+
+/* فلش‌های گالری روی عکس اصلی */
+.gallery-arrow {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 44px; height: 44px; border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: #fff !important;
+  padding: 0 !important;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; z-index: 3;
+  backdrop-filter: blur(6px);
+  transition: background 0.25s ease, color 0.25s ease, border-color 0.25s ease;
+}
+.gallery-arrow:hover { background: #c5a059 !important; color: #000 !important; border-color: #c5a059 !important; }
+.gallery-arrow.prev { inset-inline-start: 14px; }
+.gallery-arrow.next { inset-inline-end: 14px; }
+[dir="rtl"] .gallery-arrow svg { transform: rotate(180deg); }
+
+/* شمارنده عکس */
+.image-counter {
+  position: absolute; top: 16px; inset-inline-start: 16px;
+  padding: 4px 12px; border-radius: 999px;
+  background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(8px);
+  font-family: ui-monospace, monospace; font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.85); z-index: 3; direction: ltr;
+}
+.image-counter b { color: #facc6b; }
+
+/* کنترل‌های داخل مودال زوم */
+.zoom-arrow {
+  position: fixed; top: 50%; transform: translateY(-50%);
+  width: 52px; height: 52px; border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5) !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+  color: #fff !important;
+  padding: 0 !important;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; z-index: 1002;
+  backdrop-filter: blur(6px);
+  transition: background 0.25s ease, color 0.25s ease, border-color 0.25s ease;
+}
+.zoom-arrow:hover { background: #c5a059 !important; color: #000 !important; border-color: #c5a059 !important; }
+.zoom-arrow.prev { inset-inline-start: 24px; }
+.zoom-arrow.next { inset-inline-end: 24px; }
+[dir="rtl"] .zoom-arrow svg { transform: rotate(180deg); }
+
+.zoom-counter {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  padding: 6px 18px; border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(8px);
+  font-family: ui-monospace, monospace; font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.85); z-index: 1002; direction: ltr;
+}
+.zoom-counter b { color: #facc6b; }
 .fade-enter-active, .fade-leave-active { transition: opacity 0.4s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 .image-fade-enter-active, .image-fade-leave-active { transition: opacity 0.4s ease, transform 0.4s ease; }
