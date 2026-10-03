@@ -135,6 +135,13 @@ const rangeEnd = computed(() => Math.min(page.value * pageSize, total.value))
 
 const formatDate = (d) => d ? new Date(d).toLocaleDateString('fa-IR') : '-'
 
+// نام آیتم سفارش — هم رشته ساده (سفارش‌های جدید) هم آبجکت دوزبانه (سفارش‌های قدیمی)
+const itemName = (name) => {
+  if (!name) return '—'
+  if (typeof name === 'string') return name
+  return name.fa || name.en || ''
+}
+
 const openDetail = (order) => {
   selectedOrder.value = order
   // فرم رهگیری را با مقدار فعلی سفارش پر کن
@@ -270,7 +277,7 @@ const changeOrderStatus = async (newStatus) => {
               <td>
                 <div class="items-cell">
                   <span v-for="(item, idx) in order.items" :key="idx" class="item-tag">
-                    {{ item.name }} × {{ item.quantity }}
+                    {{ itemName(item.name) }} × {{ item.quantity }}
                   </span>
                 </div>
               </td>
@@ -381,7 +388,7 @@ const changeOrderStatus = async (newStatus) => {
 
             <div class="order-items-list">
               <div v-for="(item, idx) in selectedOrder.items" :key="idx" class="order-item-row">
-                <span class="item-name">{{ item.name }}</span>
+                <span class="item-name">{{ itemName(item.name) }}</span>
                 <span class="item-qty">× {{ item.quantity }}</span>
                 <span class="item-price">{{ (item.price * item.quantity).toLocaleString('fa-IR') }} تومان</span>
               </div>

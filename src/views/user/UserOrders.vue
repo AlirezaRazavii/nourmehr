@@ -286,9 +286,9 @@ onMounted(async () => {
             <h4>🛒 {{ $t('user_orders_products') }} ({{ $t('user_order_items_count', { count: selectedOrder.items.length }) }})</h4>
             <div class="detail-items">
               <div v-for="item in selectedOrder.items" :key="item._id" class="detail-item">
-                <img :src="getImageUrl(item.image)" :alt="item.name" />
+                <img :src="getImageUrl(item.image)" :alt="getLocalizedText(item.name)" />
                 <div class="item-info">
-                  <span class="item-name">{{ item.name }}</span>
+                  <span class="item-name">{{ getLocalizedText(item.name) }}</span>
                   <span class="item-qty">{{ $t('user_orders_quantity') }}: {{ item.quantity }}</span>
                 </div>
                 <span class="item-price">{{ formatPrice(item.price) }} {{ $t('products_currency') }}</span>

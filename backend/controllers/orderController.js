@@ -17,6 +17,13 @@ const Setting = require('../models/Setting');
 // روش‌های پرداخت مجاز
 const ALLOWED_PAYMENT_METHODS = ['online', 'torobpay'];
 
+// نام فارسی محصول به‌صورت رشته ساده — برای ذخیره در سفارش
+const getLocalizedName = (name) => {
+  if (!name) return '';
+  if (typeof name === 'string') return name;
+  return name.fa || name.en || '';
+};
+
 // قیمت واحد با احتساب سایز انتخابی و تخفیف درصدی محصول
 const getUnitPrice = (product, sizeName) => {
   let base = product.price;
@@ -151,7 +158,8 @@ const createOrder = async (req, res) => {
       originalSubtotal += getOriginalUnitPrice(product, item.size) * item.quantity;
       orderItems.push({
         product: product._id,
-        name: product.name,
+        // نام به‌صورت رشته ساده ذخیره شود (نه آبجکت دوزبانه)
+        name: getLocalizedName(product.name),
         price: unitPrice,
         quantity: item.quantity,
         color: item.color || '',
