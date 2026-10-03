@@ -6,13 +6,15 @@ const Order = require('../models/Order');
 const VALID_ORDER_STATUSES = ['paid', 'confirmed', 'processing', 'shipped', 'delivered'];
 
 /**
- * محاسبه مبلغ تخفیف روی کالاها (percent و fixed)
+ * محاسبه مبلغ تخفیف (percent و fixed)
+ * @param {number} base - پایه محاسبه درصد (قیمت اصلی قبل از تخفیف محصول)
+ * @param {number} [cap] - سقف نهایی (مبلغ قابل پرداخت) — پیش‌فرض: همان base
  */
-function calcDiscountAmount(discount, subtotal) {
+function calcDiscountAmount(discount, base, cap) {
   let amount = 0;
 
   if (discount.type === 'percent') {
-    amount = Math.round((subtotal * discount.value) / 100);
+    amount = Math.round((base * discount.value) / 100);
   } else if (discount.type === 'fixed') {
     amount = discount.value;
   }
@@ -20,7 +22,9 @@ function calcDiscountAmount(discount, subtotal) {
   if (discount.maxDiscount != null && discount.maxDiscount > 0 && amount > discount.maxDiscount) {
     amount = discount.maxDiscount;
   }
-  if (amount > subtotal) amount = subtotal;
+  // هرگز بیشتر از مبلغ قابل پرداخت نشود تا جمع کل منفی نشود
+  const finalCap = cap != null && Number.isFinite(Number(cap)) ? Number(cap) : base;
+  if (amount > finalCap) amount = finalCap;
 
   return Math.max(0, amount);
 }
@@ -28,11 +32,12 @@ function calcDiscountAmount(discount, subtotal) {
 /**
  * اعتبارسنجی کامل کد تخفیف (بدون مصرف)
  * @param {string} code
- * @param {number} subtotal
+ * @param {number} subtotal - مبلغ قابل پرداخت (با تخفیف محصول) — سقف تخفیف و مبنای حداقل خرید
  * @param {string} userId - شناسه کاربر لاگین‌شده (برای محدودیت هر کاربر و اولین خرید)
+ * @param {number|null} [originalSubtotal] - قیمت اصلی (بدون تخفیف محصول) — پایه محاسبه درصد
  * @returns { discount, amount }
  */
-async function validateDiscount(code, subtotal, userId = null) {
+async function validateDiscount(code, subtotal, userId = null, originalSubtotal = null) {
   if (!code || !String(code).trim()) {
     const err = new Error('کد تخفیف وارد نشده است');
     err.statusCode = 400;
@@ -104,8 +109,8 @@ async function validateDiscount(code, subtotal, userId = null) {
       }
     }
   }
-
-  const amount = calcDiscountAmount(discount, subtotal);
+  const percentBase = Number(originalSubtotal) > 0 ? Number(originalSubtotal) : subtotal;
+  const amount = calcDiscountAmount(discount, percentBase, subtotal);
 
   if (amount <= 0) {
     const err = new Error('این کد تخفیف برای سبد فعلی قابل اعمال نیست');

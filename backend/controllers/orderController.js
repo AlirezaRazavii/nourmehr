@@ -42,6 +42,19 @@ const getUnitPrice = (product, sizeName) => {
   return base;
 };
 
+// قیمت واحد «اصلی» (بدون تخفیف محصول/سایز) — پایه محاسبه درصد کد تخفیف
+const getOriginalUnitPrice = (product, sizeName) => {
+  if (sizeName && Array.isArray(product.sizes)) {
+    const s = product.sizes.find(x => {
+      if (!x || !x.name) return false;
+      if (typeof x.name === 'string') return x.name === sizeName;
+      return x.name.fa === sizeName || x.name.en === sizeName;
+    });
+    if (s && s.price) return s.price;
+  }
+  return product.price;
+};
+
 // محاسبه پویا و پایداری هزینه ارسال بر اساس تنظیمات دیتابیس
 const calculateShippingCost = async (methodId) => {
   try {
@@ -62,15 +75,30 @@ const calculateShippingCost = async (methodId) => {
 // اعتبارسنجی کد تخفیف (بدون مصرف) — برای فرم Checkout
 const validateDiscount = async (req, res) => {
   try {
-    const { code, subtotal } = req.body;
-    if (subtotal == null || isNaN(Number(subtotal)) || Number(subtotal) < 0) {
-      return res.status(400).json({ success: false, message: 'مبلغ سبد خرید نامعتبر است' });
-    }
+    const { code } = req.body;
     const userId = req.user._id;
-    const { discount, amount } = await validateDiscountEngine(code, Number(subtotal), userId);
+
+    // سبد از خود سرور محاسبه می‌شود (امن‌تر — کلاینت عدد دلخواه نفرستد):
+    // payable  = مبلغ قابل پرداخت (با تخفیف محصول)
+    // original = قیمت اصلی (بدون تخفیف محصول) — پایه درصد کد تخفیف
+    let payable = 0;
+    let original = 0;
+    const cart = await Cart.findOne({ user: userId }).populate('items.product');
+    for (const item of (cart?.items || [])) {
+      const product = item.product;
+      if (!product) continue;
+      payable += getUnitPrice(product, item.size) * item.quantity;
+      original += getOriginalUnitPrice(product, item.size) * item.quantity;
+    }
+
+    if (payable <= 0) {
+      return res.status(400).json({ success: false, message: 'سبد خرید خالی است' });
+    }
+
+    const { discount, amount } = await validateDiscountEngine(code, payable, userId, original);
 
     const message = discount.type === 'percent'
-      ? `کد تخفیف ${discount.value}٪ اعمال شد`
+      ? `کد تخفیف ${discount.value}٪ روی قیمت اصلی اعمال شد`
       : `کد تخفیف ${amount.toLocaleString('fa-IR')} تومانی اعمال شد`;
 
     return res.json({
@@ -110,6 +138,7 @@ const createOrder = async (req, res) => {
     }
 
     let subtotal = 0;
+    let originalSubtotal = 0; // قیمت اصلی (قبل از تخفیف محصول) — پایه درصد کد تخفیف
     const orderItems = [];
     for (const item of cart.items) {
       const product = item.product;
@@ -119,6 +148,7 @@ const createOrder = async (req, res) => {
       }
       const unitPrice = getUnitPrice(product, item.size);
       subtotal += unitPrice * item.quantity;
+      originalSubtotal += getOriginalUnitPrice(product, item.size) * item.quantity;
       orderItems.push({
         product: product._id,
         name: product.name,
@@ -139,7 +169,7 @@ const createOrder = async (req, res) => {
     let validDiscountCode = null;
     if (discountCode) {
       try {
-        const result = await validateDiscountEngine(discountCode, subtotal, userId);
+        const result = await validateDiscountEngine(discountCode, subtotal, userId, originalSubtotal);
         discountAmount = result.amount;
         validDiscountCode = result.discount.code;
       } catch (err) {
