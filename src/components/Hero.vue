@@ -55,7 +55,8 @@ const canAutoplay = computed(() =>
   total.value > 1 &&
   inView.value &&
   pageVisible.value &&
-  !hoverPaused.value
+  !hoverPaused.value &&
+  !swipePaused.value
 )
 
 const delay = computed(() => {
@@ -117,17 +118,51 @@ const preload = (i) => {
   })
 }
 
-/* ───────── swipe ───────── */
+/* ───────── swipe (لمسی + ماوس) ───────── */
 let sx = 0, sy = 0, swiping = false
-const onDown = (e) => { sx = e.clientX; sy = e.clientY; swiping = true }
-const onUp = (e) => {
+const swipePaused = ref(false) // حین کشیدن، اتوپلی مکث شود
+const dragOffset = ref(0)      // فیدبک بصری: محتوا کمی همراه انگشت بیاید
+
+const onDown = (e) => {
+  sx = e.clientX
+  sy = e.clientY
+  swiping = true
+  if (!swipePaused.value) {
+    swipePaused.value = true
+    sync()
+  }
+}
+
+const onMove = (e) => {
   if (!swiping) return
-  swiping = false
   const dx = e.clientX - sx
   const dy = e.clientY - sy
+  // فقط کشیدنِ افقیِ محسوس دنبال شود (عمودی مال اسکرول صفحه است)
+  if (Math.abs(dx) > Math.abs(dy) + 8) {
+    dragOffset.value = Math.max(-90, Math.min(90, dx))
+  }
+}
+
+const onUp = (e) => {
+  if (!swiping) return
+  const dx = e.clientX - sx
+  const dy = e.clientY - sy
+  endSwipe()
   if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy)) return
   const rtl = document.documentElement.getAttribute('dir') === 'rtl'
   dx > 0 ? (rtl ? next() : prev()) : (rtl ? prev() : next())
+}
+
+// مرورگر ژست را برای اسکرول صفحه گرفت (کشیدن عمودی) → وضعیت ریست شود
+const onCancel = () => endSwipe()
+
+const endSwipe = () => {
+  swiping = false
+  dragOffset.value = 0
+  if (swipePaused.value) {
+    swipePaused.value = false
+    sync()
+  }
 }
 
 /* ───────── data ───────── */
@@ -235,7 +270,9 @@ watch(locale, () => { stop(); seen.clear(); load() })
     @mouseenter="settings.pauseOnHover && (hoverPaused = true, sync())"
     @mouseleave="settings.pauseOnHover && (hoverPaused = false, sync())"
     @pointerdown="onDown"
+    @pointermove="onMove"
     @pointerup="onUp"
+    @pointercancel="onCancel"
   >
     <!-- پس‌زمینه -->
     <div class="hero__bg">
@@ -254,7 +291,10 @@ watch(locale, () => { stop(); seen.clear(); load() })
       <span class="hero__veil" aria-hidden="true"></span>
     </div>
 
-    <div class="hero__inner">
+    <div
+      class="hero__inner"
+      :style="dragOffset ? { transform: `translateX(${dragOffset * 0.12}px)`, transition: 'none' } : null"
+    >
       <!-- متن -->
       <div class="hero__text">
         <Transition name="rise" mode="out-in">
@@ -366,6 +406,10 @@ watch(locale, () => { stop(); seen.clear(); load() })
   color: var(--ink);
   font-family: 'Vazirmatn', system-ui, sans-serif;
   user-select: none;
+  /* ⬅ کلید کار کردن سوایپ لمسی:
+     سوایپ افقی مال ما، اسکرول عمودی مال مرورگر.
+     بدون این خط، مرورگر ژست لمسی را می‌گیرد و pointerup هرگز اجرا نمی‌شود */
+  touch-action: pan-y;
 }
 
 /* ── پس‌زمینه ── */
@@ -386,6 +430,8 @@ watch(locale, () => { stop(); seen.clear(); load() })
 /* ── چیدمان ── */
 .hero__inner {
   position: relative; z-index: 2;
+  /* برگشت نرم محتوا بعد از رها کردن انگشت */
+  transition: transform .4s cubic-bezier(.16,1,.3,1);
   width: 100%;
   max-width: 1320px;
   margin: 0 auto;
@@ -601,7 +647,7 @@ watch(locale, () => { stop(); seen.clear(); load() })
   .bg-enter-active, .bg-leave-active,
   .rise-enter-active, .rise-leave-active,
   .pop-enter-active, .pop-leave-active,
-  .cta, .arrow, .dot-btn { transition-duration: .01ms !important; }
+  .cta, .arrow, .dot-btn, .hero__inner { transition-duration: .01ms !important; }
   .rise-enter-from, .pop-enter-from { transform: none; }
   .dot-btn.on .fill { animation: none; transform: scaleX(1); }
   .sk-ring { animation: none; }
