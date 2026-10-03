@@ -9,6 +9,7 @@ import { useAuth } from '../stores/auth'
 import { useWishlist } from '../stores/wishlist'
 
 import { getProductImages, getImageUrl } from '../utils/imageUrl'
+import { getProductPriceInfo } from '../utils/productPrice'
 import api from '../services/api'
 import { setProductSeo, resetSeoMeta } from '../utils/seoMeta'
 
@@ -233,6 +234,34 @@ const loadProduct = async (idOrSlug) => {
 }
 
 const changeImage = (index) => { activeImage.value = index }
+
+/* ───────── سوایپ گالری (لمسی + ماوس) ───────── */
+let gsx = 0, gsy = 0, gSwiping = false, gSwiped = false
+
+const onGalleryDown = (e) => {
+  gsx = e.clientX
+  gsy = e.clientY
+  gSwiping = true
+  gSwiped = false // هر لمس جدید پرچم سوایپ قبلی را پاک می‌کند
+}
+
+const onGalleryUp = (e) => {
+  if (!gSwiping) return
+  gSwiping = false
+  const total = productImages.value.length
+  if (total < 2) return
+  const dx = e.clientX - gsx
+  const dy = e.clientY - gsy
+  if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy)) return
+
+  gSwiped = true // بعد از سوایپ، کلیکِ زوم اجرا نشود
+
+  const rtl = document.documentElement.getAttribute('dir') === 'rtl'
+  const dir = dx > 0 ? (rtl ? 1 : -1) : (rtl ? -1 : 1)
+  activeImage.value = (activeImage.value + dir + total) % total
+}
+
+const onGalleryCancel = () => { gSwiping = false }
 const changeQuantity = (delta) => {
   const next = quantity.value + delta
   if (next >= 1 && next <= maxQty.value) quantity.value = next
@@ -271,7 +300,10 @@ const handleAddToCart = async () => {
   setTimeout(() => { addedToCart.value = false }, 2000)
 }
 
-const toggleZoom = () => { isZoomed.value = !isZoomed.value }
+const toggleZoom = () => {
+  if (gSwiped) { gSwiped = false; return } // کلیکِ بعد از سوایپ = زوم نشود
+  isZoomed.value = !isZoomed.value
+}
 const closeZoom = () => { isZoomed.value = false }
 const goBack = () => { router.push({ name: 'Products', params: { lang: locale.value } }) }
 const goToCart = () => { router.push({ name: 'Cart', params: { lang: locale.value } }) }
@@ -353,7 +385,13 @@ watch(locale, () => setProductSeo(product.value, locale.value))
       <div class="main-content">
         <!-- ستون چپ: گالری -->
         <div class="gallery-section">
-          <div class="main-image-wrapper glass" @click="toggleZoom">
+          <div
+            class="main-image-wrapper glass"
+            @click="toggleZoom"
+            @pointerdown="onGalleryDown"
+            @pointerup="onGalleryUp"
+            @pointercancel="onGalleryCancel"
+          >
             <div class="image-glow"></div>
             <span v-if="product.discountPercent" class="discount-badge">
               {{ formatPrice(product.discountPercent) }}% {{ $t('product_discount') }}
@@ -678,12 +716,20 @@ watch(locale, () => setProductSeo(product.value, locale.value))
                 <h2 class="product-title">{{ getLocalizedText(item.name) }}</h2>
                 <div class="title-underline"></div>
 
-                <div class="desc-box">
-                  <span class="desc-label">{{ $t('products_description') }}</span>
-                  <p class="short-desc">{{ getLocalizedText(item.shortDesc) || $t('products_no_description') }}</p>
-                </div>
-
                 <div class="card-footer">
+                  <div class="card-price-box">
+                    <span v-if="getPriceInfo(item).oldPrice" class="price-old">
+                      {{ formatPrice(getPriceInfo(item).oldPrice) }}
+                    </span>
+                    <div class="price-current-wrap">
+                      <span v-if="getPriceInfo(item).hasMultipleSizes" class="price-prefix">
+                        {{ locale === 'fa' ? 'از' : 'From' }}
+                      </span>
+                      <span class="price-amount">{{ formatPrice(getPriceInfo(item).minPrice) }}</span>
+                      <span class="price-currency">{{ $t('products_currency') }}</span>
+                    </div>
+                  </div>
+
                   <router-link :to="{ name: 'ProductDetails', params: { lang: locale, id: item._id || item.id || item.slug } }" class="view-btn" @click.stop>
                     <span class="view-text">{{ $t('products_view') }}</span>
                     <span class="view-arrow">
@@ -733,10 +779,10 @@ watch(locale, () => setProductSeo(product.value, locale.value))
 .back-btn:hover { background: #c5a059 !important; color: #000 !important; border-color: #c5a059; transform: translateX(4px); }
 .main-content { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 40px; margin-bottom: 50px; }
 .gallery-section { display: flex; flex-direction: column; gap: 16px; }
-.main-image-wrapper { position: relative; border-radius: 24px; overflow: hidden; background: rgba(5, 8, 20, 0.9); border: 1px solid rgba(255, 255, 255, 0.1); cursor: zoom-in; aspect-ratio: 1; }
+.main-image-wrapper { position: relative; border-radius: 24px; overflow: hidden; background: rgba(5, 8, 20, 0.9); border: 1px solid rgba(255, 255, 255, 0.1); cursor: zoom-in; aspect-ratio: 1; touch-action: pan-y; /* سوایپ افقی مال ما، اسکرول عمودی مال مرورگر */ }
 .image-glow { position: absolute; inset: -50%; background: radial-gradient(circle at center, rgba(197, 160, 89, 0.3), transparent 50%); animation: glowPulse 4s ease-in-out infinite; pointer-events: none; }
 @keyframes glowPulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 0.8; } }
-.main-image { width: 100%; height: 100%; object-fit: contain; padding: 20px; position: relative; z-index: 1; }
+.main-image { width: 100%; height: 100%; object-fit: contain; padding: 20px; position: relative; z-index: 1; user-select: none; -webkit-user-drag: none; }
 .discount-badge { position: absolute; top: 16px; inset-inline-end: 16px; padding: 6px 14px; border-radius: 999px; background: linear-gradient(135deg, #ef4444, #dc2626); color: #fff; font-size: 0.85rem; font-weight: 600; z-index: 2; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4); }
 .zoom-hint { position: absolute; bottom: 16px; inset-inline-start: 16px; width: 40px; height: 40px; border-radius: 50%; background: rgba(0, 0, 0, 0.5); display: flex; align-items: center; justify-content: center; color: #fff; opacity: 0.7; transition: opacity 0.2s; z-index: 2; }
 .main-image-wrapper:hover .zoom-hint { opacity: 1; }
@@ -867,11 +913,15 @@ watch(locale, () => setProductSeo(product.value, locale.value))
 .product-title { font-size: clamp(0.82rem,1vw,0.95rem); font-weight: 700; color: #f0f0f0; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; margin: 0; }
 .title-underline { width: 28px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, #c5a059, transparent); transition: width 0.5s cubic-bezier(0.16,1,0.3,1); }
 
-.desc-box { border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 8px 10px 9px; background: rgba(255,255,255,0.02); }
-.desc-label { display: inline-block; font-size: 0.6rem; color: #c5a059; letter-spacing: 1px; margin-bottom: 4px; }
-.short-desc { font-size: clamp(0.7rem,0.85vw,0.78rem); color: rgba(255,255,255,0.5); line-height: 1.6; margin: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* قیمت کارت محصولات مرتبط — مثل صفحه محصولات */
+.card-price-box { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.price-old { font-size: 0.72rem; color: rgba(255, 255, 255, 0.4); text-decoration: line-through; line-height: 1; }
+.price-current-wrap { display: flex; align-items: center; gap: 4px; line-height: 1.2; flex-wrap: wrap; }
+.price-prefix { font-size: 0.75rem; color: #c5a059; font-weight: 600; }
+.price-amount { font-size: 0.95rem; font-weight: 700; color: #facc6b; }
+.price-currency { font-size: 0.7rem; color: rgba(255, 255, 255, 0.6); font-weight: 400; }
 
-.card-footer { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: auto; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.04); }
+.card-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.04); flex-wrap: wrap; }
 
 .view-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 11px; background: linear-gradient(135deg, #2bbf9e, #1a8f78); border: none; color: #fff; text-decoration: none; font-size: 0.72rem; font-weight: 600; cursor: pointer; transition: all 0.35s cubic-bezier(0.16,1,0.3,1); flex-shrink: 0; }
 .view-btn:hover { filter: brightness(1.1); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(43,191,158,0.3); }
@@ -1020,6 +1070,35 @@ watch(locale, () => setProductSeo(product.value, locale.value))
     transform: none !important;
   }
   .bg-grid { display: none !important; }
+}
+
+/* ───────── موبایل: محصولات مرتبط = کارت‌های کوچک کنار هم با اسکرول افقی ───────── */
+@media (max-width: 768px) {
+  .products-grid-inner {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    gap: 12px;
+    padding: 4px 4px 14px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(197,160,89,0.4) transparent;
+  }
+  .products-grid-inner::-webkit-scrollbar { height: 5px; }
+  .products-grid-inner::-webkit-scrollbar-track { background: transparent; }
+  .products-grid-inner::-webkit-scrollbar-thumb { background: rgba(197,160,89,0.4); border-radius: 999px; }
+
+  .product-card {
+    flex: 0 0 185px;
+    scroll-snap-align: start;
+  }
+
+  /* فشرده‌تر شدن داخل کارت در عرض کم */
+  .card-footer { gap: 6px; }
+  .price-amount { font-size: 0.85rem; }
+  .price-old { font-size: 0.68rem; }
+  .view-btn { padding: 6px 10px; font-size: 0.68rem; }
+  .view-arrow { width: 15px; height: 15px; }
 }
 
 </style>
