@@ -297,6 +297,7 @@ onMounted(async () => {
                 <img :src="getImageUrl(item.image)" :alt="getLocalizedText(item.name)" />
                 <div class="item-info">
                   <span class="item-name">{{ getLocalizedText(item.name) }}</span>
+                  <span v-if="item.size" class="item-size">{{ $t('user_orders_item_size') }}: {{ item.size }}</span>
                   <span class="item-qty">{{ $t('user_orders_quantity') }}: {{ item.quantity }}</span>
                 </div>
                 <span class="item-price">{{ formatPrice(item.price) }} {{ $t('products_currency') }}</span>
@@ -446,6 +447,7 @@ onMounted(async () => {
 .item-info { flex: 1; min-width: 120px; }
 .item-name { display: block; font-weight: 600; margin-bottom: 4px; word-break: break-word; }
 .item-qty { font-size: 0.85rem; opacity: 0.7; }
+.item-size { display: block; font-size: 0.8rem; color: #facc6b; margin-top: 2px; }
 .item-price { font-weight: 600; color: #facc6b; margin-inline-start: auto; }
 /* خلاصه هزینه‌ها */
 .costs-summary { display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 12px; background: rgba(255, 255, 255, 0.03); margin-bottom: 16px; }

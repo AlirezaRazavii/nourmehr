@@ -389,6 +389,7 @@ const changeOrderStatus = async (newStatus) => {
             <div class="order-items-list">
               <div v-for="(item, idx) in selectedOrder.items" :key="idx" class="order-item-row">
                 <span class="item-name">{{ itemName(item.name) }}</span>
+                <span v-if="item.size" class="item-size-tag">سایز: {{ item.size }}</span>
                 <span class="item-qty">× {{ item.quantity }}</span>
                 <span class="item-price">{{ (item.price * item.quantity).toLocaleString('fa-IR') }} تومان</span>
               </div>
@@ -850,6 +851,16 @@ const changeOrderStatus = async (newStatus) => {
 }
 
 .item-name { flex: 1; }
+.item-size-tag {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: rgba(197,160,89,0.12);
+  border: 1px solid rgba(197,160,89,0.3);
+  color: #facc6b;
+  font-size: 0.75rem;
+  font-weight: 500;
+  flex-shrink: 0;
+}
 .item-qty { opacity: 0.6; }
 .item-price { color: #facc6b; font-weight: 600; white-space: nowrap; }
 
