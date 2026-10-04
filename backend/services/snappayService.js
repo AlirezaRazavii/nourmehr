@@ -120,6 +120,11 @@ const callApi = async (method, path, opts) => {
       }
       if (resp) {
         const e = (resp.data && resp.data.error) || {};
+        // ⭐ بدنه کامل خطا را لاگ می‌کنیم — اسنپ‌پی دلیل دقیق را می‌گوید
+        let rawBody = '';
+        try { rawBody = JSON.stringify(resp.data).slice(0, 600); }
+        catch { rawBody = String(resp.data).slice(0, 600); }
+        console.error('[snappay][api] HTTP ' + resp.status + ' | path: ' + path + ' | body: ' + rawBody);
         return {
           success: false,
           code: e.code || resp.status,
