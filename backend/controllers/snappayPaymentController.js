@@ -26,6 +26,14 @@ const extractName = (n) => {
   return (n && (n.fa || n.en)) || '';
 };
 
+// ⭐ اسنپ‌پی id های عددی می‌خواهد (در Postman بدون کوتیشن)
+// از ۱۲ کاراکتر اول ObjectId یک عدد یکتا می‌سازیم (در بازه Long جا می‌شود)
+const numericId = (objectId) => {
+  const hex = String(objectId || '').substring(0, 12);
+  const n = parseInt(hex, 16);
+  return Number.isFinite(n) && n > 0 ? n : Date.now();
+};
+
 // ساخت cartList مطابق مستندات اسنپ‌پی (واحد: ریال)
 const buildCartList = async (order) => {
   const productIds = order.items.map((i) => i.product);
@@ -37,16 +45,16 @@ const buildCartList = async (order) => {
   );
 
   const cartItems = order.items.map((item, idx) => ({
-    id: String(item.product),
+    id: numericId(item.product), // ⭐ عددی — اسنپ‌پی رشته قبول نمی‌کند
     name: extractName(item.name) || ('کالا ' + (idx + 1)),
     count: item.quantity,
     amount: toRial(item.price),
     category: categoryNames.get(String(item.product)) || 'عمومی',
-    commissionType: '0', // مطابق Postman اسنپ‌پی: رشته
+    commissionType: '0',
   }));
 
   return [{
-    cartId: String(order._id),
+    cartId: numericId(order._id), // ⭐ عددی
     totalAmount: toRial(order.subtotal),
     taxAmount: 0,
     shippingAmount: toRial(order.shippingCost), // پس‌کرایه = صفر (چون موقع تحویل پرداخت می‌شود)
