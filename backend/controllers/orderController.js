@@ -15,7 +15,7 @@ const generateOrderRef = () => 'NM-' + Date.now();
 const Setting = require('../models/Setting');
 
 // روش‌های پرداخت مجاز
-const ALLOWED_PAYMENT_METHODS = ['online', 'torobpay'];
+const ALLOWED_PAYMENT_METHODS = ['online', 'torobpay', 'snappay'];
 
 // نام فارسی محصول به‌صورت رشته ساده — برای ذخیره در سفارش
 const getLocalizedName = (name) => {
@@ -304,7 +304,7 @@ const createOrder = async (req, res) => {
       user: userId,
       amount: total,
       method: paymentMethod,
-      provider: paymentMethod === 'online' ? 'zarinpal' : 'torobpay',
+      provider: paymentMethod === 'online' ? 'zarinpal' : paymentMethod, // torobpay | snappay
       status: 'pending'
     });
     await payment.save();

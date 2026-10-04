@@ -147,7 +147,7 @@ const corsOptions = {
 // مسیر بازگشت از ترب‌پی یک form POST از دامنه torobpay.com است و CORS آن را رد می‌کند.
 // امنیت این مسیر با verify سمت سرور تأمین می‌شود، نه CORS.
 const corsMiddleware = cors(corsOptions);
-const CORS_EXEMPT_PATHS = new Set(['/api/payments/torobpay/callback']);
+const CORS_EXEMPT_PATHS = new Set(['/api/payments/torobpay/callback', '/api/payments/snappay/callback']);
 
 app.use((req, res, next) => {
   if (CORS_EXEMPT_PATHS.has(req.path)) return next();

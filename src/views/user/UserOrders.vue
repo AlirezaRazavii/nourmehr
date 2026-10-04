@@ -76,6 +76,8 @@ const resumePayment = async (order) => {
     // بر اساس روش پرداخت خود سفارش، درگاه درست را صدا بزن
     const res = order.paymentMethod === 'torobpay'
       ? await paymentApi.initiateTorobPayPayment(order._id)
+      : order.paymentMethod === 'snappay'
+      ? await paymentApi.initiateSnappPayPayment(order._id)
       : await paymentApi.initiatePayment(order._id)
 
     const url = res.paymentUrl || res.paymentPageUrl

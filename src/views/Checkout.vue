@@ -349,6 +349,7 @@ import { useOrders } from '../stores/orders'
 import { useAuth } from '../stores/auth'
 import { useAddresses } from '../stores/addresses'
 import torobpayLogo from '../assests/logo/torobpay.jpg'
+import snappayLogo from '../assests/logo/snappay.png'
 
 const { t, locale } = useI18n()
 
@@ -410,6 +411,19 @@ const TOROBPAY_METHOD = {
 let torobpayLastCheckedAmount = null
 let torobpayTimer = null
 
+/* ---------- اسنپ‌پی (خرید اقساطی) ---------- */
+const SNAPPAY_METHOD = {
+  id: 'snappay',
+  nameKey: 'checkout_payment_online_name',
+  descKey: 'checkout_payment_online_desc',
+  icon: '🛍️',
+  logo: snappayLogo,
+  title: 'پرداخت اقساطی با اسنپ‌پی',
+  description: 'خرید اقساطی با اسنپ‌پی',
+}
+let snappayLastCheckedAmount = null
+let snappayTimer = null
+
 // پرسش از سرور: آیا برای این مبلغ، گزینه اقساطی نمایش داده شود؟
 const checkTorobpayEligibility = async () => {
   const amount = Math.round(finalAmount.value)
@@ -444,6 +458,45 @@ const scheduleTorobpayCheck = () => {
   torobpayTimer = setTimeout(() => checkTorobpayEligibility(), 700)
 }
 
+// پرسش از سرور: آیا برای این مبلغ، گزینه اسنپ‌پی نمایش داده شود؟
+const checkSnappPayEligibility = async () => {
+  const amount = Math.round(finalAmount.value)
+  if (!Number.isFinite(amount) || amount <= 0) return
+
+  try {
+    const { paymentApi } = await import('../services/paymentApi')
+    const res = await paymentApi.checkSnappPayEligibility(amount)
+    const list = paymentMethods.value
+    const idx = list.findIndex((m) => m.id === 'snappay')
+
+    if (res && res.success && res.eligible) {
+      snappayLastCheckedAmount = amount
+      const method = { ...SNAPPAY_METHOD }
+      method.title = res.title || method.title
+      method.description = res.description || method.description
+      if (idx === -1) {
+        // بعد از ترب‌پی (اگر باشد) وگرنه بعد از «پرداخت اینترنتی»
+        const torobIdx = list.findIndex((m) => m.id === 'torobpay')
+        const insertAt = torobIdx !== -1 ? torobIdx + 1 : list.findIndex((m) => m.id === 'online') + 1
+        list.splice(insertAt, 0, method)
+      } else {
+        list.splice(idx, 1, method)
+      }
+    } else {
+      snappayLastCheckedAmount = null
+      if (idx !== -1) list.splice(idx, 1)
+      if (selectedPayment.value === 'snappay') selectedPayment.value = 'online'
+    }
+  } catch (e) {
+    // خطای بررسی اسنپ‌پی نباید فرآیند checkout را متوقف کند
+  }
+}
+
+const scheduleSnappayCheck = () => {
+  if (snappayTimer) clearTimeout(snappayTimer)
+  snappayTimer = setTimeout(() => checkSnappPayEligibility(), 700)
+}
+
 const selectedPaymentName = computed(() => {
   const method = paymentMethods.value.find(m => m.id === selectedPayment.value)
   if (!method) return ''
@@ -476,8 +529,8 @@ const discountAmount = computed(() => appliedDiscount.value?.amount || 0)
 const finalAmount = computed(() => totalPrice.value - discountAmount.value + shippingCost.value)
 const finalAmountFormatted = computed(() => formatPrice(finalAmount.value) + ' ' + t('products_currency'))
 
-// با تغییر مبلغ نهایی (اعمال/حذف تخفیف یا تغییر روش ارسال) صلاحیت ترب‌پی دوباره بررسی می‌شود
-watch(finalAmount, () => scheduleTorobpayCheck())
+// با تغییر مبلغ نهایی، صلاحیت ترب‌پی و اسنپ‌پی دوباره بررسی می‌شود
+watch(finalAmount, () => { scheduleTorobpayCheck(); scheduleSnappayCheck() })
 
 const fieldErrors = ref({ fullName: '', phone: '', province: '', city: '', address: '', postalCode: '' })
 const touchedFields = ref({ fullName: false, phone: false, province: false, city: false, address: false, postalCode: false })
@@ -621,12 +674,14 @@ const submitOrder = async () => {
     orderData.value = order
     orderNumber.value = order.orderRef || order._id || ('NM-' + Date.now())
 
-    // پرداخت آنلاین (زرین‌پال) یا پرداخت اقساطی (ترب‌پی)
-    if (selectedPayment.value === 'online' || selectedPayment.value === 'torobpay') {
+    // پرداخت آنلاین (زرین‌پال) یا اقساطی (ترب‌پی / اسنپ‌پی)
+    if (selectedPayment.value === 'online' || selectedPayment.value === 'torobpay' || selectedPayment.value === 'snappay') {
       try {
         const { paymentApi } = await import('../services/paymentApi')
         const paymentRes = selectedPayment.value === 'torobpay'
           ? await paymentApi.initiateTorobPayPayment(order._id)
+          : selectedPayment.value === 'snappay'
+          ? await paymentApi.initiateSnappPayPayment(order._id)
           : await paymentApi.initiatePayment(order._id)
 
         const gatewayUrl = paymentRes.paymentPageUrl || paymentRes.paymentUrl
@@ -760,8 +815,9 @@ onMounted(async () => {
   if (!shippingForm.value.phone) shippingForm.value.phone = user.value?.phone || ''
   if (!shippingForm.value.email) shippingForm.value.email = user.value?.email || ''
 
-  // بررسی صلاحیت ترب‌پی برای مبلغ فعلی سبد (پس از همگام‌سازی سبد با سرور)
+  // بررسی صلاحیت ترب‌پی و اسنپ‌پی برای مبلغ فعلی سبد (پس از همگام‌سازی سبد با سرور)
   scheduleTorobpayCheck()
+  scheduleSnappayCheck()
 })
 </script>
 

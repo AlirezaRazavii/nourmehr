@@ -6,6 +6,11 @@ const {
   initiateTorobPayPayment,
   torobPayCallback,
 } = require('../controllers/torobpayPaymentController');
+const {
+  getSnappPayEligibility,
+  initiateSnappPayPayment,
+  snappPayCallback,
+} = require('../controllers/snappayPaymentController');
 
 const router = express.Router();
 
@@ -19,5 +24,12 @@ router.get('/torobpay/eligible', protect, getTorobPayEligibility);
 router.post('/torobpay/initiate', protect, initiateTorobPayPayment);
 // بازگشت از ترب‌پی — عمومی (ترب‌پی نمی‌تواند توکن ما را امضا کند؛ صحت با verify سمت سرور چک می‌شود)
 router.post('/torobpay/callback', torobPayCallback);
+
+// اسنپ‌پی (خرید اقساطی)
+router.get('/snappay/eligible', protect, getSnappPayEligibility);
+router.post('/snappay/initiate', protect, initiateSnappPayPayment);
+// بازگشت از اسنپ‌پی — عمومی؛ POST و GET هر دو (تا فرمت callback هرچه بود کار کند)
+router.post('/snappay/callback', snappPayCallback);
+router.get('/snappay/callback', snappPayCallback);
 
 module.exports = router;

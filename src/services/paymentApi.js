@@ -31,4 +31,18 @@ export const paymentApi = {
     const res = await api.post('/payments/torobpay/initiate', { orderId })
     return res.data
   },
+
+  // ---------- اسنپ‌پی (خرید اقساطی) ----------
+
+  // بررسی صلاحیت نمایش گزینه اقساطی اسنپ‌پی — amount به «تومان»
+  async checkSnappPayEligibility(amount) {
+    const res = await api.get('/payments/snappay/eligible', { params: { amount } })
+    return res.data
+  },
+
+  // شروع پرداخت اقساطی اسنپ‌پی — خروجی: paymentPageUrl
+  async initiateSnappPayPayment(orderId) {
+    const res = await api.post('/payments/snappay/initiate', { orderId })
+    return res.data
+  },
 }
