@@ -54,6 +54,7 @@ const galleryInput = ref(null)
 
 /* ---- NEW: تایید بستن و پیش‌نویس ---- */
 const showCloseConfirm = ref(false)
+const showDraftRestore = ref(false)  
 const isDirty = ref(false)
 const initialFormData = ref(null)
 const DRAFT_KEY = 'nourmehr_product_draft'
@@ -180,6 +181,37 @@ const restoreDraft = () => {
     })
   } catch { clearDraft() }
 }
+
+
+const restoreDraftAndOpen = () => {
+  showDraftRestore.value = false
+  restoreDraft()
+  showModal.value = true
+  lockScroll(true)
+  fetchLookup()
+}
+
+const discardDraftAndOpen = () => {
+  showDraftRestore.value = false
+  clearDraft()
+  
+  editingProduct.value = null
+  form.value = blankForm()
+  slugTouched.value = false
+  formErrors.value = {}
+  sessionUploads.value = new Set()
+  originalImages.value = new Set()
+  relatedProductSearch.value = ''
+  showModal.value = true
+  lockScroll(true)
+  fetchLookup()
+  
+  nextTick(() => {
+    initialFormData.value = JSON.stringify(form.value)
+    isDirty.value = false
+  })
+}
+
 
 /* ---- NEW: تایید بستن ---- */
 const confirmClose = () => {
@@ -337,6 +369,12 @@ const removeSize = (i) => form.value.sizes.splice(i, 1)
 const lockScroll = (lock) => { document.body.style.overflow = lock ? 'hidden' : '' }
 
 const openCreate = () => {
+  /* اگر پیش‌نویس دارد، اول بپرس */
+  if (hasDraft.value) {
+    showDraftRestore.value = true
+    return
+  }
+  
   editingProduct.value = null
   form.value = blankForm()
   slugTouched.value = false
@@ -348,7 +386,6 @@ const openCreate = () => {
   lockScroll(true)
   fetchLookup()
   
-  /* NEW: ذخیره state اولیه */
   nextTick(() => {
     initialFormData.value = JSON.stringify(form.value)
     isDirty.value = false
@@ -1028,6 +1065,7 @@ onUnmounted(() => {
     </Transition>
 
     <!-- NEW: دیالوگ تایید بستن -->
+        <!-- NEW: دیالوگ تایید بستن -->
     <div v-if="showCloseConfirm" class="confirm-overlay" @click.self="cancelClose">
       <div class="confirm-box glass">
         <div class="confirm-icon">⚠️</div>
@@ -1040,8 +1078,36 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
+
+    <!-- NEW: دیالوگ بازیابی پیش‌نویس -->
+    <div v-if="showDraftRestore" class="confirm-overlay" @click.self="discardDraftAndOpen">
+      <div class="confirm-box glass">
+        <div class="confirm-icon draft-icon">📝</div>
+        <h3>پیش‌نویس ذخیره شده دارید!</h3>
+        <p>یک پیش‌نویس از کار قبلی شما باقی مانده است ({{ draftTime }}).</p>
+        <p class="draft-preview-text">آیا می‌خواهید آن را بازیابی کنید و ادامه دهید؟</p>
+        <div class="confirm-actions">
+          <button class="confirm-btn cancel" @click="discardDraftAndOpen">شروع تازه</button>
+          <button class="confirm-btn success" @click="restoreDraftAndOpen">بازیابی پیش‌نویس</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- NEW: نشانگر وجود پیش‌نویس در صفحه اصلی -->
+    <div v-if="hasDraft && !showModal" class="draft-banner glass">
+      <div class="draft-banner-icon">📝</div>
+      <div class="draft-banner-text">
+        <strong>پیش‌نویس ذخیره شده:</strong>
+        <span>یک پیش‌نویس نیمه‌تمام از {{ draftTime }} دارید</span>
+      </div>
+      <div class="draft-banner-actions">
+        <button class="draft-restore-btn" @click="restoreDraftAndOpen">بازیابی</button>
+        <button class="draft-discard-btn" @click="clearDraft(); notify('پیش‌نویس حذف شد', 'info')">حذف</button>
+      </div>
+    </div>
   </div>
 </template>
+
 
 <style scoped>
 .admin-products { display: flex; flex-direction: column; gap: 20px; }
@@ -1260,5 +1326,59 @@ onUnmounted(() => {
   background: linear-gradient(135deg, #ef4444, #dc2626); color: #fff;
 }
 .confirm-btn:hover { transform: translateY(-1px); }
+
+
+/* ---- NEW: دیالوگ بازیابی پیش‌نویس ---- */
+.draft-icon { font-size: 3rem; margin-bottom: 12px; }
+.draft-preview-text {
+  font-size: 0.85rem; color: rgba(255,255,255,0.5);
+  margin-top: 8px; font-style: italic;
+}
+.confirm-btn.success {
+  background: linear-gradient(135deg, #22c55e, #16a34a); color: #fff;
+}
+
+/* ---- NEW: بنر پیش‌نویس در صفحه اصلی ---- */
+.draft-banner {
+  display: flex; align-items: center; gap: 16px;
+  padding: 16px 20px; border-radius: 16px;
+  background: rgba(59,130,246,0.08) !important;
+  border: 1px solid rgba(59,130,246,0.3) !important;
+  margin-bottom: 8px;
+}
+.draft-banner-icon {
+  font-size: 1.8rem; flex-shrink: 0;
+}
+.draft-banner-text {
+  flex: 1; display: flex; flex-direction: column; gap: 2px;
+}
+.draft-banner-text strong {
+  color: #3b82f6; font-size: 0.95rem;
+}
+.draft-banner-text span {
+  color: rgba(255,255,255,0.6); font-size: 0.85rem;
+}
+.draft-banner-actions {
+  display: flex; gap: 8px; flex-shrink: 0;
+}
+.draft-restore-btn {
+  padding: 8px 18px; border-radius: 10px; border: none;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: #fff; font-size: 0.85rem; cursor: pointer;
+  font-family: inherit; transition: all 0.2s ease;
+}
+.draft-restore-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59,130,246,0.4);
+}
+.draft-discard-btn {
+  padding: 8px 18px; border-radius: 10px; border: none;
+  background: rgba(239,68,68,0.15); color: #ef4444;
+  font-size: 0.85rem; cursor: pointer;
+  font-family: inherit; transition: background 0.2s ease;
+}
+.draft-discard-btn:hover {
+  background: rgba(239,68,68,0.25);
+}
 
 </style>
