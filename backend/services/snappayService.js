@@ -118,15 +118,17 @@ const callApi = async (method, path, opts) => {
         }
         continue;
       }
-      if (resp) {
-        const e = (resp.data && resp.data.error) || {};
+            if (resp) {
+        // اسنپ‌پی: errorData.errorCode | ترب‌پی: error.code — هر دو پشتیبانی می‌شوند
+        const e = (resp.data && (resp.data.errorData || resp.data.error)) || {};
+        // ⭐ بدنه کامل خطا را لاگ می‌کنیم — اسنپ‌پی دلیل دقیق را می‌گوید
         let rawBody = '';
         try { rawBody = JSON.stringify(resp.data).slice(0, 600); }
         catch { rawBody = String(resp.data).slice(0, 600); }
         console.error('[snappay][api] HTTP ' + resp.status + ' | path: ' + path + ' | body: ' + rawBody);
         return {
           success: false,
-          code: e.code || resp.status,
+          code: e.errorCode || e.code || resp.status,
           message: e.message || e.user_message || 'خطای اسنپ‌پی (HTTP ' + resp.status + ')',
         };
       }

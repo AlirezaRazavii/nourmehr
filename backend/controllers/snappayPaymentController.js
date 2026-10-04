@@ -42,7 +42,7 @@ const buildCartList = async (order) => {
     count: item.quantity,
     amount: toRial(item.price),
     category: categoryNames.get(String(item.product)) || 'عمومی',
-    commissionType: 0,
+    commissionType: '0', // مطابق Postman اسنپ‌پی: رشته
   }));
 
   return [{
@@ -172,26 +172,25 @@ const initiateSnappPayPayment = async (req, res) => {
       });
     }
 
+    // ⚠️ ساختار دقیقاً مطابق Postman اسنپ‌پی — فیلد اضافه نفرست (deserializer سخت‌گیر است)
+    // فیلدهای آدرسِ ترب‌پی حذف شدند (علت خطای 1005)
     const payload = {
       amount: toRial(order.total),
+      cartList: await buildCartList(order),
       discountAmount: toRial(order.discountAmount),
       externalSourceAmount: 0,
       mobile: (order.shippingInfo && order.shippingInfo.phone) || (user && user.phone),
+      forcedPaymentMethodTypes: ['ONLINE_CREDIT'], // مانند paymentMethodTypeDto ترب‌پی
       returnURL: returnUrl,
       // ⭐ شناسه مشترک و یونیک ما با اسنپ‌پی (الزام ایمیل — قابل جستجو در ادمین)
       transactionId: String(payment._id),
-      cartList: await buildCartList(order),
-      address: order.shippingInfo && order.shippingInfo.address,
-      postalCode: order.shippingInfo && order.shippingInfo.postalCode,
-      customer_full_name: order.shippingInfo && order.shippingInfo.fullName,
-      city: order.shippingInfo && order.shippingInfo.city,
-      province: order.shippingInfo && order.shippingInfo.province,
-      registration_phone_number: (user && user.phone) || (order.shippingInfo && order.shippingInfo.phone),
     };
 
     const result = await createPurchaseToken(payload);
     if (!result.success) {
       console.error('[snappay][initiate] token error:', result.code, result.message);
+      // payload ارسالی را هم لاگ می‌کنیم تا در صورت خطا دقیق مقایسه شود
+      try { console.error('[snappay][initiate] payload:', JSON.stringify(payload).slice(0, 800)); } catch {}
       return res.status(502).json({ success: false, message: 'خطا در اتصال به درگاه اسنپ‌پی', detail: result.message });
     }
 
