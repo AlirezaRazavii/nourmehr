@@ -26,12 +26,23 @@ const extractName = (n) => {
   return (n && (n.fa || n.en)) || '';
 };
 
-// ⭐ اسنپ‌پی id های عددی می‌خواهد (در Postman بدون کوتیشن)
-// از ۱۲ کاراکتر اول ObjectId یک عدد یکتا می‌سازیم (در بازه Long جا می‌شود)
+// ⭐ مستند اسنپ‌پی: cartId و id باید «عدد» باشند (نمونه: "cartId": 0)
+// از ۱۲ کاراکتر اول ObjectId عدد یکتا می‌سازیم (در بازه Long جا می‌شود)
 const numericId = (objectId) => {
   const hex = String(objectId || '').substring(0, 12);
   const n = parseInt(hex, 16);
   return Number.isFinite(n) && n > 0 ? n : Date.now();
+};
+
+// ⭐ کد خطای 1005: موبایل باید الگوی +98XXXXXXXXXX داشته باشد
+// "09132249808" → "+989132249808"
+const toSnappMobile = (mobile) => {
+  const digits = String(mobile || '').replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('98') && digits.length === 12) return '+' + digits;
+  if (digits.startsWith('0') && digits.length === 11) return '+98' + digits.slice(1);
+  if (digits.length === 10) return '+98' + digits;
+  return '+' + digits;
 };
 
 // ساخت cartList مطابق مستندات اسنپ‌پی (واحد: ریال)
@@ -50,12 +61,12 @@ const buildCartList = async (order) => {
     count: item.quantity,
     amount: toRial(item.price),
     category: categoryNames.get(String(item.product)) || 'عمومی',
-    commissionType: '0',
+    commissionType: 100, // ⭐ پیش‌فرض رسمی مستند = 100 (عدد)
   }));
 
   return [{
     cartId: numericId(order._id), // ⭐ عددی
-    totalAmount: toRial(order.subtotal),
+    totalAmount: toRial(order.subtotal + order.shippingCost), // فرمول مستند: اقلام + ارسال + مالیات
     taxAmount: 0,
     shippingAmount: toRial(order.shippingCost), // پس‌کرایه = صفر (چون موقع تحویل پرداخت می‌شود)
     isTaxIncluded: false,
@@ -187,11 +198,13 @@ const initiateSnappPayPayment = async (req, res) => {
       cartList: await buildCartList(order),
       discountAmount: toRial(order.discountAmount),
       externalSourceAmount: 0,
-      mobile: (order.shippingInfo && order.shippingInfo.phone) || (user && user.phone),
-      forcedPaymentMethodTypes: ['ONLINE_CREDIT'], // مانند paymentMethodTypeDto ترب‌پی
+      // ⭐ کد خطای 1005: موبایل باید +98XXXXXXXXXX باشد
+      mobile: toSnappMobile((order.shippingInfo && order.shippingInfo.phone) || (user && user.phone)),
+      // ⚠️ forcedPaymentMethodTypes حذف شد — طبق مستند اختیاری است + نیاز به فعالسازی تیم دارد
+      // (مقدار ONLINE_CREDIT مال ترب‌پی بود! معتبر در اسنپ‌پی: POSTPAID / INSTALLMENT / FINANCING)
       returnURL: returnUrl,
-      // ⭐ شناسه مشترک و یونیک ما با اسنپ‌پی (الزام ایمیل — قابل جستجو در ادمین)
-      transactionId: String(payment._id),
+      // ⭐ الزام مستند: ۵-۱۰ رقم؛ اگر بلندتر با حرف شروع شود (پیشوند NM)
+      transactionId: 'NM' + String(payment._id),
     };
 
     const result = await createPurchaseToken(payload);
@@ -252,8 +265,10 @@ const snappPayCallback = async (req, res) => {
       (req.body && req.body.state) || req.query.state || ''
     ).trim().toUpperCase();
 
-    if (!transactionId || !mongoose.isValidObjectId(transactionId)) return fail('InvalidCallback');
-    const payment = await Payment.findById(transactionId);
+    // پیشوند NM را جدا کن تا payment._id خالص بماند
+    const paymentId = transactionId.startsWith('NM') ? transactionId.slice(2) : transactionId;
+    if (!paymentId || !mongoose.isValidObjectId(paymentId)) return fail('InvalidCallback');
+    const payment = await Payment.findById(paymentId);
     if (!payment || payment.provider !== 'snappay') return fail('PaymentNotFound');
 
     const order = await Order.findById(payment.order);
