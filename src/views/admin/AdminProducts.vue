@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { adminApi } from '../../services/adminApi'
 import { getImageUrl } from '../../utils/imageUrl'
 import SeoPanel from './SeoPanel.vue'
+import ConfirmDialog from './ConfirmDialog.vue'
 
 
 const route = useRoute()
@@ -52,6 +53,15 @@ const formErrors = ref({})
 const fileInput = ref(null)
 const galleryInput = ref(null)
 
+/* ---- NEW: تایید بستن و پیش‌نویس ---- */
+const showCloseConfirm = ref(false)
+const isDirty = ref(false)
+const initialFormData = ref(null)
+const DRAFT_KEY = 'nourmehr_product_draft'
+const hasDraft = ref(false)
+const draftTime = ref(null)
+let draftSaveTimer = null
+
 /* تصاویری که در این جلسه آپلود شده‌اند و هنوز ذخیره نشده‌اند */
 const sessionUploads = ref(new Set())
 /* تصاویر اصلی محصول هنگام باز شدن مودال (برای تشخیص فایل ذخیره‌شده از موقت) */
@@ -73,6 +83,18 @@ const blankForm = () => ({
   }
 })
 const form = ref(blankForm())
+
+/* ---- NEW: ردیابی تغییرات ---- */
+watch(() => form.value, (newVal) => {
+  if (!showModal.value || initialFormData.value === null) return
+  isDirty.value = JSON.stringify(newVal) !== initialFormData.value
+  
+  /* ذخیره خودکار هر 5 ثانیه */
+  if (isDirty.value) {
+    clearTimeout(draftSaveTimer)
+    draftSaveTimer = setTimeout(() => saveDraftSilently(), 5000)
+  }
+}, { deep: true })
 
 
 /* -------------------------------- Slug -------------------------------- */
@@ -102,6 +124,86 @@ const onSlugInput = () => { slugTouched.value = true }
 const regenerateSlug = () => {
   slugTouched.value = false
   form.value.slug = slugify(form.value.name.fa)
+}
+
+/* ---- NEW: توابع پیش‌نویس ---- */
+const saveDraftSilently = () => {
+  if (!isDirty.value || !showModal.value) return
+  try {
+    const draftData = {
+      ...form.value,
+      _draftMeta: {
+        savedAt: new Date().toISOString(),
+        isEditing: !!editingProduct.value,
+        editingId: editingProduct.value?._id || editingProduct.value?.id || null
+      }
+    }
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draftData))
+  } catch (e) {
+    console.warn('Draft save error:', e)
+  }
+}
+
+const checkForDraft = () => {
+  try {
+    const saved = localStorage.getItem(DRAFT_KEY)
+    if (!saved) { hasDraft.value = false; return }
+    const draft = JSON.parse(saved)
+    const age = Date.now() - new Date(draft._draftMeta.savedAt).getTime()
+    if (age > 24 * 60 * 60 * 1000) {
+      localStorage.removeItem(DRAFT_KEY)
+      hasDraft.value = false
+      return
+    }
+    hasDraft.value = true
+    draftTime.value = new Date(draft._draftMeta.savedAt).toLocaleString('fa-IR')
+  } catch { hasDraft.value = false }
+}
+
+const clearDraft = () => {
+  localStorage.removeItem(DRAFT_KEY)
+  hasDraft.value = false
+  draftTime.value = null
+}
+
+const restoreDraft = () => {
+  const saved = localStorage.getItem(DRAFT_KEY)
+  if (!saved) return
+  try {
+    const draft = JSON.parse(saved)
+    form.value = { ...draft }
+    delete form.value._draftMeta
+    clearDraft()
+    notify('پیش‌نویس بازیابی شد', 'success')
+    nextTick(() => {
+      initialFormData.value = JSON.stringify(form.value)
+      isDirty.value = false
+    })
+  } catch { clearDraft() }
+}
+
+/* ---- NEW: تایید بستن ---- */
+const confirmClose = () => {
+  showCloseConfirm.value = false
+  clearDraft()
+  closeModal({ force: true })
+}
+
+const saveAsDraftAndClose = () => {
+  showCloseConfirm.value = false
+  saveDraftSilently()
+  notify('پیش‌نویس ذخیره شد', 'success')
+  showModal.value = false
+  lockScroll(false)
+  isDirty.value = false
+  initialFormData.value = null
+  clearTimeout(draftSaveTimer)
+  editingProduct.value = null
+  checkForDraft()
+}
+
+const cancelClose = () => {
+  showCloseConfirm.value = false
 }
 
 /* ------------------------------ Data fetch ------------------------------ */
@@ -246,6 +348,12 @@ const openCreate = () => {
   showModal.value = true
   lockScroll(true)
   fetchLookup()
+  
+  /* NEW: ذخیره state اولیه */
+  nextTick(() => {
+    initialFormData.value = JSON.stringify(form.value)
+    isDirty.value = false
+  })
 }
 
 const openEdit = (product) => {
@@ -259,8 +367,14 @@ const openEdit = (product) => {
     category: product.category?._id || (typeof product.category === 'string' ? product.category : ''),
     price: product.price ?? '',
     stock: product.stock ?? '',
-    shortDesc: { fa: product.shortDesc?.fa || '', en: product.shortDesc?.en || '' },
-    description: { fa: product.description?.fa || '', en: product.description?.en || '' },
+    shortDesc: { 
+      fa: product.shortDesc?.fa || product.shortDesc || '', 
+      en: product.shortDesc?.en || '' 
+    },
+    description: { 
+      fa: product.description?.fa || product.description || '', 
+      en: product.description?.en || '' 
+    },
     image: product.mainImage || '',
     gallery,
     status: product.status || 'active',
@@ -302,12 +416,27 @@ const openEdit = (product) => {
   showModal.value = true
   lockScroll(true)
   fetchLookup()
+  
+  /* NEW: ذخیره state اولیه */
+  nextTick(() => {
+    initialFormData.value = JSON.stringify(form.value)
+    isDirty.value = false
+  })
 }
 
-/** بستن مودال: فایل‌های آپلودشده‌ی ذخیره‌نشده را پاک می‌کنیم تا فایل یتیم نماند */
-const closeModal = async ({ discardUploads = true } = {}) => {
+/** بستن مودال: اگر تغییرات ذخیره‌نشده باشد تایید می‌خواهد */
+const closeModal = async ({ discardUploads = true, force = false } = {}) => {
+  /* NEW: اگر تغییرات دارد و force نیست، تایید بخواه */
+  if (isDirty.value && !force) {
+    showCloseConfirm.value = true
+    return
+  }
+  
   showModal.value = false
   lockScroll(false)
+  isDirty.value = false
+  initialFormData.value = null
+  clearTimeout(draftSaveTimer)
 
   if (discardUploads && sessionUploads.value.size) {
     const orphans = [...sessionUploads.value]
@@ -516,7 +645,15 @@ const removeProduct = async (product) => {
 }
 
 /* ------------------------------- Lifecycle ------------------------------- */
-const onKeydown = (e) => { if (e.key === 'Escape' && showModal.value) closeModal() }
+const onKeydown = (e) => {
+  if (e.key === 'Escape' && showModal.value && !showCloseConfirm.value) {
+    if (isDirty.value) {
+      showCloseConfirm.value = true
+    } else {
+      closeModal({ force: true })
+    }
+  }
+}
 
 const fmt = (n) => (Number(n) || 0).toLocaleString('fa-IR')
 
@@ -524,6 +661,7 @@ onMounted(() => {
   syncStatusFromRoute()
   fetchProducts()
   fetchCategories()
+  checkForDraft()  /* NEW */
   window.addEventListener('keydown', onKeydown)
 })
 
@@ -637,6 +775,7 @@ onUnmounted(() => {
         <div class="modal-content glass" role="dialog" aria-modal="true">
           <div class="modal-header">
             <h2>{{ editingProduct ? 'ویرایش محصول' : 'محصول جدید' }}</h2>
+<span v-if="isDirty" class="dirty-badge">● ذخیره نشده</span>
             <button class="modal-close" type="button" aria-label="بستن" @click="closeModal()">
               <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
             </button>
@@ -871,6 +1010,15 @@ onUnmounted(() => {
 
             <div class="modal-actions">
               <button class="cancel-btn" type="button" :disabled="saving" @click="closeModal()">انصراف</button>
+<button 
+  v-if="isDirty" 
+  class="draft-btn" 
+  type="button" 
+  :disabled="saving"
+  @click="saveAsDraftAndClose"
+>
+  📝 ذخیره پیش‌نویس
+</button>
               <button class="submit-btn" type="button" :disabled="saving || uploadingMain || uploadingGallery" @click="saveProduct">
                 {{ saving ? 'در حال ذخیره...' : 'ذخیره' }}
               </button>
@@ -879,6 +1027,20 @@ onUnmounted(() => {
         </div>
       </div>
     </Transition>
+
+    <!-- NEW: دیالوگ تایید بستن -->
+    <div v-if="showCloseConfirm" class="confirm-overlay" @click.self="cancelClose">
+      <div class="confirm-box glass">
+        <div class="confirm-icon">⚠️</div>
+        <h3>تغییرات ذخیره نشده!</h3>
+        <p>شما تغییراتی دارید که ذخیره نشده‌اند. چه کاری می‌خواهید انجام دهید؟</p>
+        <div class="confirm-actions">
+          <button class="confirm-btn cancel" @click="cancelClose">ادامه ویرایش</button>
+          <button class="confirm-btn draft" @click="saveAsDraftAndClose">ذخیره پیش‌نویس</button>
+          <button class="confirm-btn danger" @click="confirmClose">بدون ذخیره ببند</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -1031,4 +1193,73 @@ onUnmounted(() => {
   .dynamic-row { flex-wrap: wrap; }
   .w-120, .w-100 { width: 100%; }
 }
+
+/* ---- NEW: نشانگر تغییرات ---- */
+.dirty-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 10px; border-radius: 999px;
+  background: rgba(245,158,11,0.15); color: #f59e0b;
+  font-size: 0.72rem; font-weight: 500;
+  margin-right: 8px;
+  animation: pulse-dot 2s infinite;
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* ---- NEW: دکمه پیش‌نویس ---- */
+.draft-btn {
+  padding: 10px 18px; border-radius: 10px;
+  border: 1px dashed rgba(59,130,246,0.5);
+  background: rgba(59,130,246,0.08);
+  color: #3b82f6; font-size: 0.85rem;
+  cursor: pointer; font-family: inherit;
+  white-space: nowrap;
+}
+.draft-btn:hover {
+  background: rgba(59,130,246,0.15);
+}
+
+/* ---- NEW: دیالوگ تایید ---- */
+.confirm-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 4000; padding: 20px; backdrop-filter: blur(4px);
+}
+.confirm-box {
+  width: 100%; max-width: 440px; border-radius: 20px;
+  padding: 32px 28px; text-align: center;
+  background: rgba(5,8,20,0.98) !important;
+  border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.confirm-icon { font-size: 3rem; margin-bottom: 12px; }
+.confirm-box h3 {
+  font-size: 1.3rem; font-weight: 700; margin: 0 0 12px; color: #fff;
+}
+.confirm-box p {
+  font-size: 0.95rem; color: rgba(255,255,255,0.6);
+  line-height: 1.7; margin: 0 0 24px;
+}
+.confirm-actions {
+  display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;
+}
+.confirm-btn {
+  padding: 10px 20px; border-radius: 10px; border: none;
+  font-size: 0.85rem; font-weight: 600; cursor: pointer;
+  font-family: inherit; min-width: 110px; transition: all 0.2s ease;
+}
+.confirm-btn.cancel {
+  background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.7);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.confirm-btn.draft {
+  background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff;
+}
+.confirm-btn.danger {
+  background: linear-gradient(135deg, #ef4444, #dc2626); color: #fff;
+}
+.confirm-btn:hover { transform: translateY(-1px); }
+
 </style>
