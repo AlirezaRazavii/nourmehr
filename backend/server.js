@@ -258,6 +258,7 @@ if (fs.existsSync(DIST_DIR)) {
   app.get('/:lang/product/:slug', seoController.productBotRenderer, seoController.productSlugRedirect);
   app.get('/:lang/collection/:slug', seoController.collectionBotRenderer);
   app.get('/:lang/collections/:slug', seoController.collectionBotRenderer);
+  app.get('/:lang', seoController.homeBotRenderer);
 
   // فایل‌های استاتیک بیلد فرانت
   app.use(

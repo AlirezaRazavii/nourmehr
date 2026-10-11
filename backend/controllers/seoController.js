@@ -21,7 +21,7 @@ const publishedFilter = () => ({
 });
 
 // تشخیص ربات‌های موتورهای جستجو و شبکه‌های اجتماعی از روی User-Agent
-const BOT_UA = /Googlebot|Googlebot-Image|Bingbot|DuckDuckBot|YandexBot|Baiduspider|Slurp|Twitterbot|facebookexternalhit|LinkedInBot|WhatsApp|TelegramBot|Applebot|SemrushBot|AhrefsBot/i;
+const BOT_UA = /Googlebot|Google-InspectionTool|Storebot-Google|Googlebot-Image|Bingbot|DuckDuckBot|YandexBot|Baiduspider|Slurp|Twitterbot|facebookexternalhit|LinkedInBot|WhatsApp|TelegramBot|Applebot|SemrushBot|AhrefsBot/i;
 const isBot = (ua = '') => BOT_UA.test(String(ua));
 
 /* ------------------------------ کمکی‌های HTML ------------------------------ */
@@ -844,6 +844,210 @@ exports.collectionBotRenderer = async (req, res, next) => {
     next();
   }
 };
+
+
+/* ======================= رندر داینامیک صفحه اصلی ======================= */
+
+// پروفایل‌های رسمی نورمهر برای sameAs اسکیمای Organization.
+// این سیگنال‌ها برای برند «نورمهر» اهمیت زیادی دارند؛
+// هرکدام را داشتی از کامنت خارج کن (بعداً لینک‌ها را برایم بفرست).
+const SOCIAL_PROFILES = [
+  // 'https://www.instagram.com/nourmehr',
+  // 'https://t.me/nourmehr',
+  // 'https://www.pinterest.com/nourmehr',
+];
+
+const HOME_TEXT = {
+  fa: {
+    h1: 'صنایع دستی نورمهر',
+    title: 'صنایع دستی نورمهر | خرید آنلاین صنایع دستی لوکس ایرانی با ضمانت اصالت',
+    description: 'صنایع دستی نورمهر، خانه هنرهای لوکس ایرانی. خرید آنلاین صنایع دستی اصل ایرانی مانند فیروزه‌کوبی، خاتم و الماس‌تراش (شکلات‌خوری، گلدان و…) با ضمانت اصالت و ارسال سراسری.',
+    intro: 'صنایع دستی نورمهر، خانه هنرهای لوکس ایرانی است؛ مجموعه‌ای از اصیل‌ترین هنرهای دست ایران، از فیروزه‌کوبی و خاتم تا هنر الماس‌تراشی. هر اثر در نورمهر پیش از ارسال بررسی می‌شود و با ضمانت اصالت، پرداخت امن و ارسال سراسری به دست شما می‌رسد.',
+    categories: 'دسته‌بندی‌های صنایع دستی',
+    products: 'محصولات نورمهر',
+    collections: 'مجموعه‌های ویژه',
+    news: 'آخرین مقالات و اخبار',
+    viewAll: 'مشاهده همه محصولات',
+    currency: 'تومان',
+    priceLabel: 'قیمت',
+  },
+  en: {
+    h1: 'Nourmehr Handicrafts',
+    title: 'Nourmehr Handicrafts | Buy Authentic Luxury Persian Handicrafts Online',
+    description: 'Nourmehr — home of luxury Persian art. Buy authentic Iranian handicrafts online: turquoise inlay, khatam and gem-cut crystal with authenticity guarantee.',
+    intro: 'Nourmehr is the home of luxury Persian handicrafts — a curated collection of Iran’s finest traditional arts.',
+    categories: 'Categories',
+    products: 'Nourmehr Products',
+    collections: 'Featured Collections',
+    news: 'Latest Articles',
+    viewAll: 'View all products',
+    currency: 'IRR',
+    priceLabel: 'Price',
+  },
+};
+
+const buildHomeHtml = async (lang) => {
+  const t = HOME_TEXT[lang];
+
+  const [products, categories, collections, blogs] = await Promise.all([
+    Product.find({
+      status: { $in: PUBLIC_PRODUCT_STATUSES },
+      'seo.fa.noIndex': { $ne: true },
+      'seo.sitemap.include': { $ne: false },
+    })
+      .select('name slug mainImage price discountPercent')
+      .sort({ createdAt: -1 })
+      .limit(12)
+      .lean(),
+    Category.find({ status: 'active' }).select('name slug').lean(),
+    Collection.find({ status: 'active' }).select('name slug').lean(),
+    Blog.find(publishedFilter()).select('title slug').sort({ publishedAt: -1 }).limit(6).lean(),
+  ]);
+
+  const canonical = absoluteUrl(`/${lang}`);
+  const alternates = [
+    { lang: 'fa', url: absoluteUrl('/fa') },
+    { lang: 'en', url: absoluteUrl('/en') },
+  ];
+
+  const head = metaTags({
+    title: t.title,
+    description: t.description,
+    canonical,
+    lang,
+    alternates,
+  });
+
+  const num = (n) => Number(n).toLocaleString(lang === 'fa' ? 'fa-IR' : 'en-US');
+  const finalPrice = (p) => {
+    const base = Number(p.price) || 0;
+    const d = Number(p.discountPercent) || 0;
+    return d > 0 && d < 100 ? Math.round(base * (1 - d / 100)) : base;
+  };
+
+  const catItems = categories.map((c) =>
+    `<li><a href="/${lang}/products?category=${escapeHtml(c.slug)}">${escapeHtml(pick(c.name, lang))}</a></li>`
+  ).join('\n      ');
+
+  const productItems = products.map((p) => {
+    const name = pick(p.name, lang);
+    const slug = p.slug || p._id;
+    const price = finalPrice(p);
+    const img = p.mainImage
+      ? `\n        <img src="${escapeHtml(absoluteUrl(p.mainImage))}" alt="${escapeHtml(name)}" width="300" />`
+      : '';
+    return `      <li>${img}
+        <a href="/${lang}/product/${escapeHtml(String(slug))}">${escapeHtml(name)}</a>${price > 0 ? ` <span>— ${t.priceLabel}: ${num(price)} ${t.currency}</span>` : ''}
+      </li>`;
+  }).join('\n');
+
+  const collectionItems = collections.map((c) =>
+    `      <li><a href="/${lang}/collection/${escapeHtml(c.slug)}">${escapeHtml(pick(c.name, lang))}</a></li>`
+  ).join('\n');
+
+  const newsItems = blogs.map((b) =>
+    `      <li><a href="/${lang}/news/${escapeHtml(b.slug)}">${escapeHtml(pick(b.title, lang))}</a></li>`
+  ).join('\n');
+
+  /* ---- JSON-LD: Organization (هویت برند) ---- */
+  const orgLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    '@id': `${SITE_URL}/#organization`,
+    name: 'صنایع دستی نورمهر',
+    alternateName: ['نورمهر', 'Nourmehr'],
+    url: `${SITE_URL}/fa`,
+    logo: `${SITE_URL}/apple-touch-icon.png`,
+    ...(SOCIAL_PROFILES.length ? { sameAs: SOCIAL_PROFILES } : {}),
+  };
+
+  /* ---- JSON-LD: WebSite + جعبه جستجوی گوگل ---- */
+  const siteLd = {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    '@id': `${SITE_URL}/#website`,
+    name: 'صنایع دستی نورمهر',
+    alternateName: 'نورمهر',
+    url: `${SITE_URL}/fa`,
+    inLanguage: 'fa-IR',
+    publisher: { '@id': `${SITE_URL}/#organization` },
+    potentialAction: {
+      '@type': 'SearchAction',
+      target: { '@type': 'EntryPoint', urlTemplate: `${SITE_URL}/fa/search?q={search_term_string}` },
+      'query-input': 'required name=search_term_string',
+    },
+  };
+
+  /* ---- JSON-LD: فهرست محصولات ---- */
+  const listLd = {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    itemListElement: products.map((p, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      url: absoluteUrl(`/${lang}/product/${p.slug || p._id}`),
+      name: pick(p.name, lang),
+    })),
+  };
+
+  const body = `
+  <header>
+    <nav>
+      <a href="/${lang}">${lang === 'fa' ? 'خانه' : 'Home'}</a> |
+      <a href="/${lang}/products">${lang === 'fa' ? 'محصولات' : 'Products'}</a> |
+      <a href="/${lang}/news">${lang === 'fa' ? 'اخبار و مقالات' : 'News'}</a> |
+      <a href="/${lang}/about">${lang === 'fa' ? 'درباره نورمهر' : 'About'}</a> |
+      <a href="/${lang}/contact">${lang === 'fa' ? 'تماس با ما' : 'Contact'}</a>
+    </nav>
+  </header>
+  <main>
+    <h1>${escapeHtml(t.h1)}</h1>
+    <p>${escapeHtml(t.intro)}</p>
+ ${catItems ? `
+    <h2>${escapeHtml(t.categories)}</h2>
+    <ul>
+ ${catItems}
+    </ul>` : ''}
+ ${productItems ? `
+    <h2>${escapeHtml(t.products)}</h2>
+    <ul>
+ ${productItems}
+    </ul>
+    <p><a href="/${lang}/products">${escapeHtml(t.viewAll)}</a></p>` : ''}
+ ${collectionItems ? `
+    <h2>${escapeHtml(t.collections)}</h2>
+    <ul>
+ ${collectionItems}
+    </ul>` : ''}
+ ${newsItems ? `
+    <h2>${escapeHtml(t.news)}</h2>
+    <ul>
+ ${newsItems}
+    </ul>` : ''}
+  </main>
+  <script type="application/ld+json">${JSON.stringify(orgLd)}</script>
+  <script type="application/ld+json">${JSON.stringify(siteLd)}</script>
+  <script type="application/ld+json">${JSON.stringify(listLd)}</script>`;
+
+  return pageShell(lang, head, body);
+};
+
+// GET /:lang — ربات‌ها HTML کامل می‌گیرند؛ کاربران عادی به SPA می‌روند
+exports.homeBotRenderer = async (req, res, next) => {
+  if (!isBot(req.headers['user-agent'])) return next();
+  const lang = req.params.lang;
+  if (lang !== 'fa' && lang !== 'en') return next();
+  try {
+    const html = await getOrSet(`seo:home:${lang}`, 300, () => buildHomeHtml(lang));
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self' data: https:; style-src 'unsafe-inline'");
+    return res.send(html);
+  } catch (err) {
+    console.error('Home bot renderer error:', err);
+    next();
+  }
+};
+
 
 module.exports.SITE_URL = SITE_URL;
 module.exports.isBot = isBot;
