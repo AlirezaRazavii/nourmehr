@@ -204,7 +204,7 @@ const getProducts = async (req, res) => {
 
     const [products, total] = await Promise.all([
       Product.find(filter)
-        .select('-description -features -relatedProducts -imageAlts -oldSlugs')
+        .select('name slug mainImage price oldPrice discountPercent stock status category shortDesc sku createdAt')
         .populate('category', 'name slug')
         .sort(sortOption)
         .skip(skip)

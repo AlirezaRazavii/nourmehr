@@ -84,9 +84,11 @@ const blankForm = () => ({
 })
 const form = ref(blankForm())
 
-/* ---- NEW: ردیابی تغییرات ---- */
+/* ---- NEW: ردیابی تغییرات (بهینه‌شده) ---- */
+let isUpdatingForm = false
+
 watch(() => form.value, (newVal) => {
-  if (!showModal.value || initialFormData.value === null) return
+  if (!showModal.value || initialFormData.value === null || isUpdatingForm) return
   isDirty.value = JSON.stringify(newVal) !== initialFormData.value
   
   /* ذخیره خودکار هر 5 ثانیه */
@@ -175,9 +177,11 @@ const restoreDraft = () => {
     delete form.value._draftMeta
     clearDraft()
     notify('پیش‌نویس بازیابی شد', 'success')
-    nextTick(() => {
+        nextTick(() => {
+      isUpdatingForm = true
       initialFormData.value = JSON.stringify(form.value)
       isDirty.value = false
+      nextTick(() => { isUpdatingForm = false })
     })
   } catch { clearDraft() }
 }
@@ -207,8 +211,10 @@ const discardDraftAndOpen = () => {
   fetchLookup()
   
   nextTick(() => {
+    isUpdatingForm = true
     initialFormData.value = JSON.stringify(form.value)
     isDirty.value = false
+    nextTick(() => { isUpdatingForm = false })
   })
 }
 
@@ -392,72 +398,85 @@ const openCreate = () => {
   })
 }
 
-const openEdit = (product) => {
-  editingProduct.value = product
-  slugTouched.value = true
-  const gallery = Array.isArray(product.images) ? [...product.images] : []
-
-  form.value = {
-    slug: product.slug || '',
-    name: { fa: product.name?.fa || '', en: product.name?.en || '' },
-    category: product.category?._id || (typeof product.category === 'string' ? product.category : ''),
-    price: product.price ?? '',
-    stock: product.stock ?? '',
-    shortDesc: { 
-      fa: product.shortDesc?.fa || product.shortDesc || '', 
-      en: product.shortDesc?.en || '' 
-    },
-    description: { 
-      fa: product.description?.fa || product.description || '', 
-      en: product.description?.en || '' 
-    },
-    image: product.mainImage || '',
-    gallery,
-    status: product.status || 'active',
-    weight: product.weight || '',
-    dimensions: product.dimensions || '',
-    material: { fa: product.material?.fa || '', en: product.material?.en || '' },
-    craftsman: { fa: product.craftsman?.fa || '', en: product.craftsman?.en || '' },
-    warranty: { fa: product.warranty?.fa || '', en: product.warranty?.en || '' },
-    sku: product.sku || '',
-    featuresText: {
-      fa: Array.isArray(product.features) ? product.features.map(f => f?.fa || '').join('\n') : '',
-      en: Array.isArray(product.features) ? product.features.map(f => f?.en || '').join('\n') : ''
-    },
-    sizes: Array.isArray(product.sizes)
-      ? product.sizes.map(s => ({
-          name: { fa: s.name?.fa || '', en: s.name?.en || '' },
-          price: s.price ?? '', discountPercent: s.discountPercent ?? ''
-        }))
-      : [],
-    colors: Array.isArray(product.colors)
-      ? product.colors.map(c => ({ name: { fa: c.name?.fa || '', en: c.name?.en || '' }, value: c.value || '#c5a059' }))
-      : [],
-    relatedProducts: Array.isArray(product.relatedProducts)
-      ? product.relatedProducts.map(rp => (typeof rp === 'object' ? (rp._id || rp.id) : rp)).filter(Boolean)
-      : [],
-
-    seo: {
-      fa: { title: '', description: '', focusKeyword: '', canonicalUrl: '', ogImage: '', ogTitle: '', ogDescription: '', noIndex: false, ...(product.seo?.fa || {}) },
-      en: { title: '', description: '', focusKeyword: '', canonicalUrl: '', ogImage: '', ogTitle: '', ogDescription: '', noIndex: false, ...(product.seo?.en || {}) },
-      sitemap: { include: true, priority: 0.9, changefreq: 'weekly', ...(product.seo?.sitemap || {}) }
-    }
-  }
-
-  // تصاویری که واقعاً در دیتابیس ذخیره شده‌اند
-  originalImages.value = new Set([product.mainImage, ...gallery].filter(Boolean))
-  sessionUploads.value = new Set()
-  formErrors.value = {}
-  relatedProductSearch.value = ''
-  showModal.value = true
-  lockScroll(true)
-  fetchLookup()
+const openEdit = async (product) => {
+  const id = product._id || product.id
   
-  /* NEW: ذخیره state اولیه */
-  nextTick(() => {
-    initialFormData.value = JSON.stringify(form.value)
-    isDirty.value = false
-  })
+  try {
+    /* محصول کامل را از سرور بگیر (شامل description, features و...) */
+    const res = await adminApi.getProductById(id)
+    if (!res?.success || !res.data) {
+      throw new Error(res?.message || 'دریافت اطلاعات محصول ناموفق بود')
+    }
+    const p = res.data  /* ← محصول کامل */
+    
+    editingProduct.value = p
+    slugTouched.value = true
+    const gallery = Array.isArray(p.images) ? [...p.images] : []
+
+    form.value = {
+      slug: p.slug || '',
+      name: { fa: p.name?.fa || '', en: p.name?.en || '' },
+      category: p.category?._id || (typeof p.category === 'string' ? p.category : ''),
+      price: p.price ?? '',
+      stock: p.stock ?? '',
+      shortDesc: { 
+        fa: p.shortDesc?.fa || '', 
+        en: p.shortDesc?.en || '' 
+      },
+      description: { 
+        fa: p.description?.fa || '', 
+        en: p.description?.en || '' 
+      },
+      image: p.mainImage || '',
+      gallery,
+      status: p.status || 'active',
+      weight: p.weight || '',
+      dimensions: p.dimensions || '',
+      material: { fa: p.material?.fa || '', en: p.material?.en || '' },
+      craftsman: { fa: p.craftsman?.fa || '', en: p.craftsman?.en || '' },
+      warranty: { fa: p.warranty?.fa || '', en: p.warranty?.en || '' },
+      sku: p.sku || '',
+      featuresText: {
+        fa: Array.isArray(p.features) ? p.features.map(f => f?.fa || '').join('\n') : '',
+        en: Array.isArray(p.features) ? p.features.map(f => f?.en || '').join('\n') : ''
+      },
+      sizes: Array.isArray(p.sizes)
+        ? p.sizes.map(s => ({
+            name: { fa: s.name?.fa || '', en: s.name?.en || '' },
+            price: s.price ?? '', discountPercent: s.discountPercent ?? ''
+          }))
+        : [],
+      colors: Array.isArray(p.colors)
+        ? p.colors.map(c => ({ name: { fa: c.name?.fa || '', en: c.name?.en || '' }, value: c.value || '#c5a059' }))
+        : [],
+      relatedProducts: Array.isArray(p.relatedProducts)
+        ? p.relatedProducts.map(rp => (typeof rp === 'object' ? (rp._id || rp.id) : rp)).filter(Boolean)
+        : [],
+
+      seo: {
+        fa: { title: '', description: '', focusKeyword: '', canonicalUrl: '', ogImage: '', ogTitle: '', ogDescription: '', noIndex: false, ...(p.seo?.fa || {}) },
+        en: { title: '', description: '', focusKeyword: '', canonicalUrl: '', ogImage: '', ogTitle: '', ogDescription: '', noIndex: false, ...(p.seo?.en || {}) },
+        sitemap: { include: true, priority: 0.9, changefreq: 'weekly', ...(p.seo?.sitemap || {}) }
+      }
+    }
+
+    originalImages.value = new Set([p.mainImage, ...gallery].filter(Boolean))
+    sessionUploads.value = new Set()
+    formErrors.value = {}
+    relatedProductSearch.value = ''
+    showModal.value = true
+    lockScroll(true)
+    fetchLookup()
+    
+        nextTick(() => {
+      isUpdatingForm = true
+      initialFormData.value = JSON.stringify(form.value)
+      isDirty.value = false
+      nextTick(() => { isUpdatingForm = false })
+    })
+  } catch (err) {
+    notify(err.message || 'خطا در دریافت اطلاعات محصول', 'error')
+  }
 }
 
 /** بستن مودال: اگر تغییرات ذخیره‌نشده باشد تایید می‌خواهد */
@@ -646,8 +665,14 @@ const saveProduct = async () => {
     if (!res?.success) throw new Error(res?.message || 'عملیات ناموفق بود')
 
     sessionUploads.value = new Set() // ذخیره شد، دیگر یتیم نیست
+    
+    /* FIX: اول isDirty را false کن، بعد ببند */
+    isDirty.value = false
+    clearTimeout(draftSaveTimer)
+    clearDraft()
+    
     notify(id ? 'محصول با موفقیت ویرایش شد' : 'محصول با موفقیت ایجاد شد', 'success')
-    await closeModal({ discardUploads: false })
+    await closeModal({ discardUploads: false, force: true })
     await fetchProducts()
     lookupLoaded.value = false
   } catch (err) {
