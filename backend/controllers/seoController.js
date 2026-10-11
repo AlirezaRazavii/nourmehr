@@ -852,17 +852,16 @@ exports.collectionBotRenderer = async (req, res, next) => {
 // این سیگنال‌ها برای برند «نورمهر» اهمیت زیادی دارند؛
 // هرکدام را داشتی از کامنت خارج کن (بعداً لینک‌ها را برایم بفرست).
 const SOCIAL_PROFILES = [
-  // 'https://www.instagram.com/nourmehr',
-  // 'https://t.me/nourmehr',
-  // 'https://www.pinterest.com/nourmehr',
+  'https://www.instagram.com/nourmehr_handicrafts',
+  'https://wa.me/989132256121',
 ];
 
 const HOME_TEXT = {
   fa: {
     h1: 'صنایع دستی نورمهر',
     title: 'صنایع دستی نورمهر | خرید آنلاین صنایع دستی لوکس ایرانی با ضمانت اصالت',
-    description: 'صنایع دستی نورمهر، خانه هنرهای لوکس ایرانی. خرید آنلاین صنایع دستی اصل ایرانی مانند فیروزه‌کوبی، خاتم و الماس‌تراش (شکلات‌خوری، گلدان و…) با ضمانت اصالت و ارسال سراسری.',
-    intro: 'صنایع دستی نورمهر، خانه هنرهای لوکس ایرانی است؛ مجموعه‌ای از اصیل‌ترین هنرهای دست ایران، از فیروزه‌کوبی و خاتم تا هنر الماس‌تراشی. هر اثر در نورمهر پیش از ارسال بررسی می‌شود و با ضمانت اصالت، پرداخت امن و ارسال سراسری به دست شما می‌رسد.',
+    description: 'صنایع دستی نورمهر، خانه هنرهای لوکس ایرانی در اصفهان. خرید آنلاین صنایع دستی اصل ایرانی مانند فیروزه‌کوبی، خاتم و الماس‌تراش (شکلات‌خوری، گلدان و…) با ضمانت اصالت و ارسال سراسری.',
+    intro: 'صنایع دستی نورمهر، خانه هنرهای لوکس ایرانی است؛ مجموعه‌ای از اصیل‌ترین هنرهای دست ایران، از فیروزه‌کوبی و خاتم تا هنر الماس‌تراشی. هر اثر در نورمهر پیش از ارسال بررسی می‌شود و با ضمانت اصالت، پرداخت امن و ارسال سراسری به دست شما می‌رسد. نمایشگاه حضوری نورمهر در بازار شیخ لطف الله، میدان نقش جهان اصفهان میزبانی شما است.',
     categories: 'دسته‌بندی‌های صنایع دستی',
     products: 'محصولات نورمهر',
     collections: 'مجموعه‌های ویژه',
@@ -949,19 +948,36 @@ const buildHomeHtml = async (lang) => {
     `      <li><a href="/${lang}/news/${escapeHtml(b.slug)}">${escapeHtml(pick(b.title, lang))}</a></li>`
   ).join('\n');
 
-  /* ---- JSON-LD: Organization (هویت برند) ---- */
+  /* ---- JSON-LD: فروشگاه (هویت برند + سئوی محلی اصفهان) ---- */
   const orgLd = {
     '@context': 'https://schema.org',
-    '@type': 'Organization',
-    '@id': `${SITE_URL}/#organization`,
+    '@type': 'Store',
+    '@id': `${SITE_URL}/#store`,
     name: 'صنایع دستی نورمهر',
-    alternateName: ['نورمهر', 'Nourmehr'],
+    alternateName: ['نورمهر', 'نور مهر', 'صنایع دستی نور مهر', 'Nourmehr'],
     url: `${SITE_URL}/fa`,
     logo: `${SITE_URL}/apple-touch-icon.png`,
-    ...(SOCIAL_PROFILES.length ? { sameAs: SOCIAL_PROFILES } : {}),
+    image: `${SITE_URL}/og-cover.jpg`,
+    telephone: '+989132256121',
+    address: {
+      '@type': 'PostalAddress',
+      streetAddress: 'بازار شیخ لطف الله، میدان نقش جهان',
+      addressLocality: 'اصفهان',
+      addressRegion: 'اصفهان',
+      addressCountry: 'IR',
+    },
+    geo: { '@type': 'GeoCoordinates', latitude: 32.6573, longitude: 51.6776 },
+    areaServed: { '@type': 'Country', name: 'IR' },
+    contactPoint: {
+      '@type': 'ContactPoint',
+      telephone: '+989132256121',
+      contactType: 'customer service',
+      availableLanguage: ['fa', 'en'],
+    },
+    sameAs: SOCIAL_PROFILES,
   };
 
-  /* ---- JSON-LD: WebSite + جعبه جستجوی گوگل ---- */
+  /* ---- JSON-LD: WebSite (پارامتر جستجو طبق URL واقعی سایت: search) ---- */
   const siteLd = {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
@@ -970,10 +986,10 @@ const buildHomeHtml = async (lang) => {
     alternateName: 'نورمهر',
     url: `${SITE_URL}/fa`,
     inLanguage: 'fa-IR',
-    publisher: { '@id': `${SITE_URL}/#organization` },
+    publisher: { '@id': `${SITE_URL}/#store` },
     potentialAction: {
       '@type': 'SearchAction',
-      target: { '@type': 'EntryPoint', urlTemplate: `${SITE_URL}/fa/search?q={search_term_string}` },
+      target: { '@type': 'EntryPoint', urlTemplate: `${SITE_URL}/fa/products?search={search_term_string}` },
       'query-input': 'required name=search_term_string',
     },
   };
