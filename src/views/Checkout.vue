@@ -974,9 +974,17 @@ onMounted(async () => {
   background: rgba(197,160,89,0.15);
   border: 1px solid rgba(197,160,89,0.4);
   color: #facc6b;
-  padding: 4px 12px;
+  padding: 4px 14px;
   border-radius: 999px;
   font-size: .82rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: auto !important;
+  min-width: fit-content;
+  align-self: center;
+  white-space: nowrap;
 }
 .check-mark {
   width: 22px; height: 22px; border-radius: 50%; border: 1px solid rgba(255,255,255,.2);
@@ -1111,4 +1119,25 @@ onMounted(async () => {
   .back-btn { width: 100%; justify-content: center; }
   .form-actions { flex-direction: column-reverse; }
 }
+
+/* ---- FIX: بج پس‌کرایه در موبایل نباید کشیده شود ---- */
+@media (max-width: 768px) {
+  .method-price.postpaid {
+    width: auto !important;
+    flex: 0 0 auto !important;
+    align-self: flex-start !important;
+    margin-top: 8px;
+  }
+  
+  .method-card {
+    flex-wrap: wrap;
+    gap: 10px 12px;
+  }
+  
+  .method-info {
+    flex: 1 1 calc(100% - 130px);
+    min-width: 0;
+  }
+}
+
 </style>
