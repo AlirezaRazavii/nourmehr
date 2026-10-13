@@ -22,7 +22,7 @@ const isWithinWorkingHours = () => {
     if (offDays.includes(iran.getDay())) return false
     const h = iran.getHours()
     return h >= startHour && h < endHour
-  } catch { return true /* در صورت خطا هشدار نشان نده */ }
+  } catch { return true }
 }
 
 const isWorkingNow = ref(isWithinWorkingHours())
@@ -50,7 +50,7 @@ const closePanel = () => { isOpen.value = false }
 
 const dismissHint = () => {
   showFirstHint.value = false
-  try { localStorage.setItem(HINT_SEEN_KEY, '1') } catch { /* حالت خصوصی */ }
+  try { localStorage.setItem(HINT_SEEN_KEY, '1') } catch { /* ignore */ }
 }
 
 const onClickOutside = (e) => {
@@ -64,15 +64,13 @@ const onKeydown = (e) => {
 }
 
 onMounted(() => {
-  /* راهنمای اولین بازدید: فقط بار اول نمایش داده می‌شود */
   try {
     if (!localStorage.getItem(HINT_SEEN_KEY)) {
-      setTimeout(() => { showFirstHint.value = true }, 1200)
-      setTimeout(() => { showFirstHint.value = false }, 11200)
+      setTimeout(() => { showFirstHint.value = true }, 1500)
+      setTimeout(() => { showFirstHint.value = false }, 11000)
     }
   } catch { /* ignore */ }
 
-  /* بروزرسانی وضعیت ساعات کاری هر دقیقه */
   hoursTimer = setInterval(() => { isWorkingNow.value = isWithinWorkingHours() }, 60000)
 
   setTimeout(() => document.addEventListener('click', onClickOutside), 0)
@@ -87,356 +85,412 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div ref="rootRef" class="support-fab-wrap">
+  <div ref="rootRef" class="support-widget">
 
-    <!-- پنل پشتیبانی -->
-    <Transition name="support-panel">
-      <div v-if="isOpen" class="support-panel" role="dialog" aria-modal="false">
+    <!-- ======================= پنل ======================= -->
+    <Transition name="panel">
+      <div v-if="isOpen" class="support-panel">
 
-        <div class="sp-header">
-          <h3>{{ t('support_widget_title') }}</h3>
-          <button class="sp-close" type="button" :aria-label="t('support_widget_close')" @click="closePanel">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5">
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          </button>
+        <!-- هدر -->
+        <div class="panel-header">
+          <div class="panel-title-box">
+            <span class="panel-title-icon">💬</span>
+            <span class="panel-title-text">{{ t('support_widget_title') }}</span>
+          </div>
+          <button class="panel-close-btn" type="button" @click="closePanel">✕</button>
         </div>
 
         <!-- هشدار خارج از ساعات کاری -->
-        <div v-if="!isWorkingNow" class="sp-offline">
-          <span class="sp-offline-icon">⚠️</span>
-          <div class="sp-offline-text">
+        <div v-if="!isWorkingNow" class="offline-warning">
+          <span class="offline-icon">⚠️</span>
+          <div class="offline-text">
             <strong>{{ t('support_widget_offline_title') }}</strong>
             <p>{{ t('support_widget_offline_desc') }}</p>
           </div>
         </div>
 
         <!-- گزینه‌های ارتباط -->
-        <div class="sp-options">
+        <div class="panel-options">
 
-          <a :href="phoneLink" class="sp-option" @click="closePanel">
-            <span class="sp-icon sp-icon-phone">
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
-              </svg>
+          <!-- تماس -->
+          <a :href="phoneLink" class="option-row" @click="closePanel">
+            <span class="option-icon" style="background: rgba(197,160,89,0.15); color: #facc6b;">📞</span>
+            <span class="option-info">
+              <span class="option-name">{{ t('support_widget_phone') }}</span>
+              <span class="option-detail" dir="ltr">{{ phoneDisplay }}</span>
             </span>
-            <span class="sp-text">
-              <span class="sp-name">{{ t('support_widget_phone') }}</span>
-              <span class="sp-desc" dir="ltr">{{ phoneDisplay }}</span>
-            </span>
-            <span class="sp-arrow">↗</span>
+            <span class="option-go">›</span>
           </a>
 
-          <a :href="whatsappLink" target="_blank" rel="noopener noreferrer" class="sp-option" @click="closePanel">
-            <span class="sp-icon sp-icon-whatsapp">
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/>
-              </svg>
+          <!-- واتساپ -->
+          <a :href="whatsappLink" target="_blank" rel="noopener noreferrer" class="option-row" @click="closePanel">
+            <span class="option-icon" style="background: rgba(37,211,102,0.15); color: #25D366;">🟢</span>
+            <span class="option-info">
+              <span class="option-name">{{ t('support_widget_whatsapp') }}</span>
+              <span class="option-detail">{{ t('support_widget_whatsapp_desc') }}</span>
             </span>
-            <span class="sp-text">
-              <span class="sp-name">{{ t('support_widget_whatsapp') }}</span>
-              <span class="sp-desc">{{ t('support_widget_whatsapp_desc') }}</span>
-            </span>
-            <span class="sp-arrow">↗</span>
+            <span class="option-go">›</span>
           </a>
 
-          <a :href="instagramLink" target="_blank" rel="noopener noreferrer" class="sp-option" @click="closePanel">
-            <span class="sp-icon sp-icon-instagram">
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
-                <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
-                <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>
-              </svg>
+          <!-- اینستاگرام -->
+          <a :href="instagramLink" target="_blank" rel="noopener noreferrer" class="option-row" @click="closePanel">
+            <span class="option-icon" style="background: linear-gradient(135deg, rgba(240,148,51,0.18), rgba(220,39,67,0.18), rgba(129,52,175,0.18)); color: #e1306c;">📷</span>
+            <span class="option-info">
+              <span class="option-name">{{ t('support_widget_instagram') }}</span>
+              <span class="option-detail" dir="ltr">{{ instagramHandle }}</span>
             </span>
-            <span class="sp-text">
-              <span class="sp-name">{{ t('support_widget_instagram') }}</span>
-              <span class="sp-desc" dir="ltr">{{ instagramHandle }}</span>
-            </span>
-            <span class="sp-arrow">↗</span>
+            <span class="option-go">›</span>
           </a>
 
-          <a :href="emailLink" class="sp-option" @click="closePanel">
-            <span class="sp-icon sp-icon-email">
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                <polyline points="22,6 12,13 2,6"/>
-              </svg>
+          <!-- ایمیل -->
+          <a :href="emailLink" class="option-row" @click="closePanel">
+            <span class="option-icon" style="background: rgba(59,130,246,0.15); color: #60a5fa;">✉️</span>
+            <span class="option-info">
+              <span class="option-name">{{ t('support_widget_email') }}</span>
+              <span class="option-detail" dir="ltr">{{ emailDisplay }}</span>
             </span>
-            <span class="sp-text">
-              <span class="sp-name">{{ t('support_widget_email') }}</span>
-              <span class="sp-desc" dir="ltr">{{ emailDisplay }}</span>
-            </span>
-            <span class="sp-arrow">↗</span>
+            <span class="option-go">›</span>
           </a>
         </div>
 
         <!-- ساعات کاری -->
-        <div class="sp-hours">
-          <span class="sp-hours-icon">🕐</span>
-          <div class="sp-hours-text">
-            <span class="sp-hours-label">{{ t('support_widget_hours') }}:</span>
-            <span class="sp-hours-value">{{ t('support_widget_hours_value') }}</span>
+        <div class="panel-footer">
+          <span class="footer-icon">🕐</span>
+          <div class="footer-text">
+            <span class="footer-label">{{ t('support_widget_hours') }}:</span>
+            <span class="footer-value">{{ t('support_widget_hours_value') }}</span>
           </div>
         </div>
       </div>
     </Transition>
 
-    <!-- راهنمای اولین بازدید -->
-    <Transition name="support-hint">
+    <!-- ======================= راهنمای اولین بازدید ======================= -->
+    <Transition name="hint">
       <div v-if="showFirstHint && !isOpen" class="first-hint">
         {{ t('support_widget_hint') }}
       </div>
     </Transition>
 
-    <!-- دکمه شناور -->
-    <button
-      class="support-fab"
-      :class="{ active: isOpen }"
-      type="button"
-      :aria-label="t('support_widget_title')"
-      @click="togglePanel"
-    >
-      <!-- آیکون هدست (حالت بسته) -->
-      <svg v-if="!isOpen" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
-        <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
-      </svg>
-      <!-- آیکون بستن (حالت باز) -->
-      <svg v-else viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.5">
-        <path d="M18 6L6 18M6 6l12 12"/>
-      </svg>
+    <!-- ======================= دکمه شناور ======================= -->
+    <button class="fab-btn" type="button" :aria-label="t('support_widget_title')" @click="togglePanel">
+      <span v-if="!isOpen" class="fab-icon">💬</span>
+      <span v-else class="fab-icon">✕</span>
     </button>
   </div>
 </template>
 
 <style scoped>
-/* 🔧 برای جابه‌جایی دکمه فقط این ۴ مقدار را تغییر بده */
-.support-fab-wrap {
-  --fab-size: 58px;
-  --fab-bottom: 24px;
-  --fab-right: 24px;
+/* ================================================================
+   🔧 تنظیمات موقعیت — فقط این بخش را تغییر بده
+================================================================ */
+.support-widget {
+  --fab-size: 56px;      /* اندازه دکمه */
+  --fab-bottom: 24px;    /* فاصله از پایین */
+  --fab-right: 24px;     /* فاصله از راست */
 
   position: fixed;
   bottom: var(--fab-bottom);
   right: var(--fab-right);
-  z-index: 1400; /* بالای محتوا، پایین‌تر از مودال‌ها (2000+) */
+  z-index: 1400;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 14px;
+  gap: 12px;
   direction: rtl;
+  /* این مهم است: باعث می‌شود دکمه ثابت بماند و پرش نداشته باشد */
+  pointer-events: auto;
 }
 
-/* ---------- دکمه شناور ---------- */
-.support-fab {
+/* ================================================================
+   دکمه شناور (FAB)
+================================================================ */
+.fab-btn {
   width: var(--fab-size);
   height: var(--fab-size);
+  min-width: var(--fab-size);
+  min-height: var(--fab-size);
   border-radius: 50%;
   border: none;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+
   color: #1a1206;
   background: linear-gradient(135deg, #facc6b, #c5a059);
-  box-shadow: 0 8px 24px rgba(197, 160, 89, 0.45);
-  transition: transform 0.25s ease, box-shadow 0.25s ease;
-  animation: fab-pulse 2.6s infinite;
-  flex-shrink: 0;
-}
-.support-fab:hover { transform: scale(1.08); }
-.support-fab.active {
-  animation: none;
-  background: rgba(15, 18, 32, 0.95);
-  color: #facc6b;
-  border: 1px solid rgba(197, 160, 89, 0.5);
+  box-shadow: 0 6px 20px rgba(197, 160, 89, 0.4);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-@keyframes fab-pulse {
-  0%   { box-shadow: 0 8px 24px rgba(197,160,89,0.45), 0 0 0 0 rgba(197,160,89,0.45); }
-  70%  { box-shadow: 0 8px 24px rgba(197,160,89,0.45), 0 0 0 16px rgba(197,160,89,0); }
-  100% { box-shadow: 0 8px 24px rgba(197,160,89,0.45), 0 0 0 0 rgba(197,160,89,0); }
+.fab-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 8px 28px rgba(197, 160, 89, 0.55);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .support-fab { animation: none; }
+.fab-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+  display: block;
 }
 
-/* ---------- راهنمای اولین بازدید ---------- */
+/* ================================================================
+   راهنمای اولین بازدید
+================================================================ */
 .first-hint {
-  background: rgba(15, 18, 32, 0.95);
+  background: rgba(12, 15, 28, 0.96);
   border: 1px solid rgba(197, 160, 89, 0.4);
   color: #facc6b;
   font-size: 0.82rem;
   font-weight: 600;
-  padding: 8px 16px;
+  padding: 8px 14px;
   border-radius: 12px;
   white-space: nowrap;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
-  position: relative;
-}
-.first-hint::after {
-  content: '';
-  position: absolute;
-  bottom: -6px;
-  right: 22px;
-  width: 12px;
-  height: 12px;
-  background: rgba(15, 18, 32, 0.95);
-  border-right: 1px solid rgba(197, 160, 89, 0.4);
-  border-bottom: 1px solid rgba(197, 160, 89, 0.4);
-  transform: rotate(45deg);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
 }
 
-/* ---------- پنل ---------- */
+/* ================================================================
+   پنل پشتیبانی
+================================================================ */
 .support-panel {
-  width: 310px;
+  width: 300px;
   max-width: calc(100vw - 32px);
-  background: rgba(12, 15, 28, 0.97);
-  backdrop-filter: blur(20px);
+  background: #0f1220;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 20px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+  border-radius: 18px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
   overflow: hidden;
 }
 
-.sp-header {
+/* ---------- هدر پنل ---------- */
+.panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 18px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, rgba(197, 160, 89, 0.15), transparent);
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-  background: linear-gradient(135deg, rgba(197,160,89,0.12), transparent);
 }
-.sp-header h3 {
-  margin: 0;
-  font-size: 0.98rem;
+
+.panel-title-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-title-icon {
+  font-size: 1.1rem;
+}
+
+.panel-title-text {
+  font-size: 0.95rem;
   font-weight: 700;
   color: #facc6b;
 }
-.sp-close {
-  width: 30px;
-  height: 30px;
+
+/* دکمه بستن — مشکل قبلی حل شد: متن ساده ✕ */
+.panel-close-btn {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
   border-radius: 50%;
-  border: none;
+  border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.85rem;
+  line-height: 1;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
   transition: background 0.2s;
 }
-.sp-close:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
 
-/* هشدار خارج از ساعات کاری */
-.sp-offline {
+.panel-close-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+/* ---------- هشدار خارج از ساعات کاری ---------- */
+.offline-warning {
   display: flex;
   gap: 10px;
   align-items: flex-start;
   margin: 12px 14px 0;
   padding: 10px 12px;
-  border-radius: 12px;
+  border-radius: 10px;
   background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.3);
+  border: 1px solid rgba(245, 158, 11, 0.25);
 }
-.sp-offline-icon { font-size: 1.1rem; line-height: 1; }
-.sp-offline-text strong {
+
+.offline-icon {
+  font-size: 1rem;
+  line-height: 1.3;
+}
+
+.offline-text strong {
   display: block;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   color: #fbbf24;
   margin-bottom: 3px;
 }
-.sp-offline-text p {
+
+.offline-text p {
   margin: 0;
-  font-size: 0.74rem;
+  font-size: 0.72rem;
   line-height: 1.6;
-  color: rgba(255, 255, 255, 0.55);
+  color: rgba(255, 255, 255, 0.5);
 }
 
-/* گزینه‌ها */
-.sp-options { padding: 12px 10px 8px; display: flex; flex-direction: column; gap: 4px; }
+/* ---------- گزینه‌های ارتباط ---------- */
+.panel-options {
+  padding: 10px 10px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
 
-.sp-option {
+.option-row {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 11px 10px;
-  border-radius: 14px;
+  padding: 10px;
+  border-radius: 12px;
   text-decoration: none;
   transition: background 0.2s;
 }
-.sp-option:hover { background: rgba(255, 255, 255, 0.05); }
 
-.sp-icon {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
+.option-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.option-icon {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 1.2rem;
   flex-shrink: 0;
 }
-.sp-icon-phone    { background: rgba(197,160,89,0.15); color: #facc6b; }
-.sp-icon-whatsapp { background: rgba(37,211,102,0.15); color: #25D366; }
-.sp-icon-instagram{
-  background: linear-gradient(135deg, rgba(240,148,51,0.18), rgba(220,39,67,0.18), rgba(129,52,175,0.18));
-  color: #e1306c;
-}
-.sp-icon-email    { background: rgba(59,130,246,0.15); color: #60a5fa; }
 
-.sp-text { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.sp-name { font-size: 0.9rem; font-weight: 600; color: #fff; }
-.sp-desc {
-  font-size: 0.76rem;
+.option-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.option-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.option-detail {
+  font-size: 0.75rem;
   color: rgba(255, 255, 255, 0.45);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.sp-arrow {
-  color: rgba(255, 255, 255, 0.25);
-  font-size: 0.9rem;
+
+.option-go {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 1.2rem;
+  font-weight: 300;
   flex-shrink: 0;
 }
-.sp-option:hover .sp-arrow { color: #facc6b; }
 
-/* ساعات کاری */
-.sp-hours {
+.option-row:hover .option-go {
+  color: #facc6b;
+}
+
+/* ---------- ساعات کاری (فوتر پنل) ---------- */
+.panel-footer {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 18px 14px;
+  padding: 10px 16px 12px;
   border-top: 1px solid rgba(255, 255, 255, 0.07);
   background: rgba(255, 255, 255, 0.02);
 }
-.sp-hours-icon { font-size: 1rem; }
-.sp-hours-text { display: flex; flex-direction: column; gap: 1px; }
-.sp-hours-label { font-size: 0.72rem; color: rgba(255, 255, 255, 0.4); }
-.sp-hours-value { font-size: 0.8rem; color: rgba(255, 255, 255, 0.75); }
 
-/* ---------- انیمیشن‌ها ---------- */
-.support-panel-enter-active { transition: all 0.28s cubic-bezier(0.34, 1.4, 0.5, 1); }
-.support-panel-leave-active { transition: all 0.18s ease; }
-.support-panel-enter-from,
-.support-panel-leave-to { opacity: 0; transform: translateY(14px) scale(0.92); }
+.footer-icon {
+  font-size: 0.95rem;
+}
 
-.support-hint-enter-active,
-.support-hint-leave-active { transition: all 0.3s ease; }
-.support-hint-enter-from,
-.support-hint-leave-to { opacity: 0; transform: translateX(12px); }
+.footer-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
 
-/* ---------- موبایل ---------- */
+.footer-label {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.footer-value {
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* ================================================================
+   انیمیشن‌ها
+================================================================ */
+.panel-enter-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.panel-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.panel-enter-from,
+.panel-leave-to {
+  opacity: 0;
+  transform: translateY(10px) scale(0.95);
+}
+
+.hint-enter-active,
+.hint-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.hint-enter-from,
+.hint-leave-to {
+  opacity: 0;
+  transform: translateX(10px);
+}
+
+/* ================================================================
+   موبایل
+================================================================ */
 @media (max-width: 768px) {
-  .support-fab-wrap {
-    /* 🔧 اگر با نوار خرید پایین صفحه تداخل داشت فقط این عدد را زیاد کن */
-    --fab-size: 50px;
-    --fab-bottom: 96px;
-    --fab-right: 16px;
+  .support-widget {
+    /* 🔧 اگر با نوار خرید تداخل داشت فقط --fab-bottom را زیاد کن */
+    --fab-size: 48px;
+    --fab-bottom: 92px;
+    --fab-right: 14px;
     gap: 10px;
   }
-  .support-fab svg { width: 22px; height: 22px; }
-  .support-panel { width: 290px; }
-  .first-hint::after { right: 18px; }
+
+  .fab-icon {
+    font-size: 1.25rem;
+  }
+
+  .support-panel {
+    width: 280px;
+  }
+
+  .first-hint {
+    font-size: 0.78rem;
+    padding: 7px 12px;
+  }
 }
 </style>
