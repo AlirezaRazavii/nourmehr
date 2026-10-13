@@ -2,6 +2,7 @@
 import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import Navbar from './components/Navbar.vue'
+import SupportButton from './components/SupportButton.vue'
 
 const Footer = defineAsyncComponent(() => import('./components/Footer.vue'))
 
@@ -11,6 +12,9 @@ const isAdminRoute = computed(() => /(^|\/)admin(\/|$)/.test(route.path))
 const isUserRoute = computed(() => /(^|\/)user(\/|$)/.test(route.path))
 
 const showLayout = computed(() => !isAdminRoute.value && !isUserRoute.value)
+
+/* دکمه پشتیبانی: همه صفحات به‌جز پنل ادمین (صفحات کاربری هم شامل می‌شود) */
+const showSupportWidget = computed(() => !isAdminRoute.value)
 
 const footerReady = ref(false)
 
@@ -41,6 +45,9 @@ const viewKey = computed(() =>
     </main>
 
     <Footer v-if="showLayout && footerReady" />
+
+    <!-- دکمه شناور پشتیبانی -->
+    <SupportButton v-if="showSupportWidget" />
   </div>
 </template>
 
