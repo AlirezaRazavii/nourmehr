@@ -132,6 +132,23 @@ const productSchema = new mongoose.Schema(
         message: 'حداکثر ۱۲ محصول مرتبط مجاز است',
       },
     },
+        // ---------- نوت سفارشی محصول (اختیاری) ----------
+    productNotice: {
+      enabled: { type: Boolean, default: false },
+      type: {
+        type: String,
+        enum: {
+          values: ['info', 'warning', 'success', 'danger'],
+          message: 'نوع نوت نامعتبر است',
+        },
+        default: 'info',
+      },
+      message: {
+        fa: { type: String, trim: true, maxlength: 300, default: '' },
+        en: { type: String, trim: true, maxlength: 300, default: '' },
+      },
+    },
+
         // ---------- سئو ----------
     seo: seoSchema({ priority: 0.9, changefreq: 'weekly' }),
 

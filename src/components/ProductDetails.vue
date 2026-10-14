@@ -105,6 +105,16 @@ const product = computed(() =>
   null
 )
 
+
+/* نوت سفارشی محصول */
+const productNotice = computed(() => {
+  const n = product.value?.productNotice
+  if (!n?.enabled) return null
+  const msg = n.message?.[locale.value] || n.message?.fa || n.message?.en
+  if (!msg?.trim()) return null
+  return { type: n.type || 'info', message: msg }
+})
+
 const inStock = computed(() => (product.value?.stock ?? 0) > 0)
 const maxQty = computed(() => product.value?.stock || 10)
 
@@ -542,6 +552,19 @@ watch(locale, () => setProductSeo(product.value, locale.value))
             </div>
           </div>
 
+                    <!-- نوت سفارشی محصول -->
+          <Transition name="notice-fade">
+            <div v-if="productNotice" class="product-notice" :class="`notice-${productNotice.type}`" role="note">
+              <span class="notice-badge-icon">
+                <svg v-if="productNotice.type === 'info'" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                <svg v-else-if="productNotice.type === 'warning'" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                <svg v-else-if="productNotice.type === 'success'" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                <svg v-else viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              </span>
+              <p class="notice-message">{{ productNotice.message }}</p>
+            </div>
+          </Transition>
+
           <div class="purchase-section">
             <div class="quantity-selector">
               <label>{{ $t('product_quantity') }}</label>
@@ -893,7 +916,24 @@ watch(locale, () => setProductSeo(product.value, locale.value))
 .sizes-list button.active { border: 2px solid #c5a059 !important; background: rgba(197,160,89,0.15) !important; color: #facc6b !important; }
 .size-price { opacity: 0.7; font-size: 0.8rem; }
 .size-discount-tag { display: inline-block; margin-inline-start: 6px; padding: 2px 8px; border-radius: 999px; background: rgba(239,68,68,0.15); color: #fca5a5; font-size: 0.7rem; font-weight: 600; }
+/* ---- نوت سفارشی محصول ---- */
+.product-notice { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border-radius: 14px; animation: noticeIn 0.5s cubic-bezier(0.16,1,0.3,1) both; }
+@keyframes noticeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.notice-badge-icon { flex-shrink: 0; margin-top: 1px; display: flex; }
+.notice-message { margin: 0; font-size: 0.88rem; font-weight: 500; line-height: 1.8; }
 
+.product-notice.notice-info    { background: rgba(59,130,246,0.1);  border: 1px solid rgba(59,130,246,0.4);  border-inline-start: 4px solid #3b82f6; color: #bfdbfe; }
+.product-notice.notice-warning { background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.4); border-inline-start: 4px solid #f59e0b; color: #fde68a; }
+.product-notice.notice-success { background: rgba(34,197,94,0.1);   border: 1px solid rgba(34,197,94,0.4);   border-inline-start: 4px solid #22c55e; color: #bbf7d0; }
+.product-notice.notice-danger  { background: rgba(239,68,68,0.12);  border: 1px solid rgba(239,68,68,0.4);  border-inline-start: 4px solid #ef4444; color: #fecaca; }
+
+.notice-fade-enter-active { transition: opacity 0.4s ease, transform 0.4s ease; }
+.notice-fade-leave-to { opacity: 0; }
+
+@media (max-width: 768px) {
+  .product-notice { padding: 12px 14px; }
+  .notice-message { font-size: 0.82rem; }
+}
 .purchase-section { display: flex; gap: 16px; align-items: flex-end; margin-top: 10px; }
 .quantity-selector { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
 .quantity-selector label { font-size: 0.9rem; opacity: 0.9; }

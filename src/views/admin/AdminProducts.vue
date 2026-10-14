@@ -76,6 +76,7 @@ const blankForm = () => ({
   weight: '', dimensions: '',
   material: { fa: '', en: '' }, craftsman: { fa: '', en: '' }, warranty: { fa: '', en: '' },
   sku: '', featuresText: { fa: '', en: '' }, sizes: [], colors: [], relatedProducts: [],
+  productNotice: { enabled: false, type: 'info', message: { fa: '', en: '' } },
   seo: {
     fa: { title: '', description: '', focusKeyword: '', canonicalUrl: '', ogImage: '', ogTitle: '', ogDescription: '', noIndex: false },
     en: { title: '', description: '', focusKeyword: '', canonicalUrl: '', ogImage: '', ogTitle: '', ogDescription: '', noIndex: false },
@@ -453,6 +454,12 @@ const openEdit = async (product) => {
         ? p.relatedProducts.map(rp => (typeof rp === 'object' ? (rp._id || rp.id) : rp)).filter(Boolean)
         : [],
 
+              productNotice: {
+        enabled: p.productNotice?.enabled || false,
+        type: p.productNotice?.type || 'info',
+        message: { fa: p.productNotice?.message?.fa || '', en: p.productNotice?.message?.en || '' }
+      },
+
       seo: {
         fa: { title: '', description: '', focusKeyword: '', canonicalUrl: '', ogImage: '', ogTitle: '', ogDescription: '', noIndex: false, ...(p.seo?.fa || {}) },
         en: { title: '', description: '', focusKeyword: '', canonicalUrl: '', ogImage: '', ogTitle: '', ogDescription: '', noIndex: false, ...(p.seo?.en || {}) },
@@ -641,6 +648,17 @@ const buildPayload = () => {
   // (ساخت: بک‌اند خودش از نام می‌سازد / ویرایش: اسلاگ قبلی دست‌نخورده می‌ماند)
   payload.slug = form.value.slug.trim() ? slugify(form.value.slug) : ''
   if (!payload.slug) delete payload.slug
+
+    // نوت سفارشی محصول
+  const pn = form.value.productNotice
+  payload.productNotice = {
+    enabled: !!(pn?.enabled && (String(pn.message?.fa || '').trim() || String(pn.message?.en || '').trim())),
+    type: ['info', 'warning', 'success', 'danger'].includes(pn?.type) ? pn.type : 'info',
+    message: {
+      fa: String(pn?.message?.fa || '').trim().slice(0, 300),
+      en: String(pn?.message?.en || '').trim().slice(0, 300),
+    },
+  }
 
   // سئو — همان آبجکت فرم (بک‌اند خودش پاکسازی می‌کند)
   payload.seo = form.value.seo
@@ -993,6 +1011,69 @@ onUnmounted(() => {
                   <input v-model="form.warranty.fa" type="text" class="form-input" placeholder="ضمانت به فارسی" />
                   <input v-model="form.warranty.en" type="text" class="form-input" placeholder="Warranty in English" dir="ltr" />
                 </div>
+              </div>
+
+                            <!-- نوت سفارشی محصول -->
+              <div class="form-group full">
+                <div class="notice-editor-head">
+                  <label class="form-label">📢 نوت سفارشی محصول</label>
+                  <label class="notice-toggle">
+                    <input type="checkbox" v-model="form.productNotice.enabled" />
+                    <span class="notice-toggle-track"><span class="notice-toggle-thumb"></span></span>
+                    <span class="notice-toggle-text">{{ form.productNotice.enabled ? 'فعال' : 'غیرفعال' }}</span>
+                  </label>
+                </div>
+
+                <div v-if="form.productNotice.enabled" class="notice-editor-body">
+                  <div class="notice-type-row">
+                    <button
+                      v-for="nt in [
+                        { v: 'info',    label: 'اطلاع‌رسانی', icon: 'ℹ️' },
+                        { v: 'warning', label: 'هشدار',      icon: '⚠️' },
+                        { v: 'success', label: 'خبر خوب',    icon: '✅' },
+                        { v: 'danger',  label: 'مهم/فوری',   icon: '🚨' }
+                      ]"
+                      :key="nt.v"
+                      type="button"
+                      class="notice-type-btn"
+                      :class="[`nt-${nt.v}`, { active: form.productNotice.type === nt.v }]"
+                      @click="form.productNotice.type = nt.v"
+                    >
+                      <span>{{ nt.icon }}</span>
+                      <span>{{ nt.label }}</span>
+                    </button>
+                  </div>
+
+                  <div class="lang-inputs column">
+                    <textarea
+                      v-model="form.productNotice.message.fa"
+                      class="form-input form-textarea"
+                      rows="2"
+                      maxlength="300"
+                      placeholder="متن نوت به فارسی... (مثال: قبل از خرید حتما از موجود بودن محصول از طریق پشتیبانی مطمئن شوید)"
+                    ></textarea>
+                    <textarea
+                      v-model="form.productNotice.message.en"
+                      class="form-input form-textarea"
+                      rows="2"
+                      maxlength="300"
+                      placeholder="Notice text in English..."
+                      dir="ltr"
+                    ></textarea>
+                  </div>
+
+                  <!-- پیش‌نمایش زنده -->
+                  <div v-if="form.productNotice.message.fa || form.productNotice.message.en" class="notice-preview-label">پیش‌نمایش:</div>
+                  <div
+                    v-if="form.productNotice.message.fa || form.productNotice.message.en"
+                    class="pn-preview"
+                    :class="`pn-${form.productNotice.type}`"
+                  >
+                    <span class="pn-preview-icon">{{ { info: 'ℹ️', warning: '⚠️', success: '✅', danger: '🚨' }[form.productNotice.type] }}</span>
+                    <span class="pn-preview-text">{{ form.productNotice.message.fa || form.productNotice.message.en }}</span>
+                  </div>
+                </div>
+                <span class="hint-text">اگر فعال باشد، در صفحه محصول بین قیمت و دکمه خرید نمایش داده می‌شود.</span>
               </div>
 
               <div class="form-group full">
@@ -1405,5 +1486,33 @@ onUnmounted(() => {
 .draft-discard-btn:hover {
   background: rgba(239,68,68,0.25);
 }
+
+
+/* ---- نوت سفارشی محصول ---- */
+.notice-editor-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.notice-toggle { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+.notice-toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+.notice-toggle-track { width: 40px; height: 22px; border-radius: 999px; background: rgba(255,255,255,0.12); position: relative; transition: background 0.25s; flex-shrink: 0; }
+.notice-toggle-thumb { position: absolute; top: 3px; right: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 0.25s; }
+.notice-toggle input:checked + .notice-toggle-track { background: #c5a059; }
+.notice-toggle input:checked + .notice-toggle-track .notice-toggle-thumb { transform: translateX(-18px); }
+.notice-toggle-text { font-size: 0.78rem; color: rgba(255,255,255,0.6); }
+
+.notice-editor-body { display: flex; flex-direction: column; gap: 12px; margin-top: 4px; }
+.notice-type-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.notice-type-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.65); font-family: inherit; font-size: 0.8rem; cursor: pointer; transition: all 0.2s; }
+.notice-type-btn:hover { border-color: rgba(255,255,255,0.25); }
+.notice-type-btn.active.nt-info    { background: rgba(59,130,246,0.18); border-color: rgba(59,130,246,0.5); color: #60a5fa; }
+.notice-type-btn.active.nt-warning { background: rgba(245,158,11,0.18); border-color: rgba(245,158,11,0.5); color: #fbbf24; }
+.notice-type-btn.active.nt-success { background: rgba(34,197,94,0.18);  border-color: rgba(34,197,94,0.5);  color: #4ade80; }
+.notice-type-btn.active.nt-danger  { background: rgba(239,68,68,0.18);  border-color: rgba(239,68,68,0.5);  color: #ef4444; }
+
+.notice-preview-label { font-size: 0.75rem; opacity: 0.5; }
+.pn-preview { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-radius: 12px; font-size: 0.85rem; line-height: 1.7; }
+.pn-preview-icon { flex-shrink: 0; font-size: 1rem; line-height: 1.6; }
+.pn-preview.pn-info    { background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.35); color: #93c5fd; }
+.pn-preview.pn-warning { background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.35); color: #fcd34d; }
+.pn-preview.pn-success { background: rgba(34,197,94,0.1);  border: 1px solid rgba(34,197,94,0.35);  color: #86efac; }
+.pn-preview.pn-danger  { background: rgba(239,68,68,0.1);  border: 1px solid rgba(239,68,68,0.35);  color: #fca5a5; }
 
 </style>

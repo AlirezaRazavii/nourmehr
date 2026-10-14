@@ -146,6 +146,20 @@ const sanitizeSeo = (seo) => {
   return Object.keys(out).length ? out : undefined;
 };
 
+/* پاکسازی نوت سفارشی محصول */
+const sanitizeProductNotice = (notice) => {
+  if (typeof notice !== 'object' || notice === null) return { enabled: false, type: 'info', message: { fa: '', en: '' } };
+  const clean = {
+    enabled: notice.enabled === true && !!(String(notice.message?.fa || '').trim() || String(notice.message?.en || '').trim()),
+    type: ['info', 'warning', 'success', 'danger'].includes(notice.type) ? notice.type : 'info',
+    message: {
+      fa: String(notice.message?.fa || '').trim().slice(0, 300),
+      en: String(notice.message?.en || '').trim().slice(0, 300),
+    },
+  };
+  return clean;
+};
+
 const sanitizeImageAlts = (alts, allowedImages) => {
   if (!Array.isArray(alts)) return undefined;
   const allowed = new Set((allowedImages || []).filter(Boolean));
@@ -299,6 +313,11 @@ const createProduct = async (req, res) => {
       if (clean) productData.seo = clean;
       else delete productData.seo;
     }
+
+        if (productData.productNotice !== undefined) {
+      productData.productNotice = sanitizeProductNotice(productData.productNotice);
+    }
+    
     if (productData.imageAlts !== undefined) {
       productData.imageAlts = sanitizeImageAlts(productData.imageAlts, createdImages) || [];
     }
@@ -379,6 +398,10 @@ const updateProduct = async (req, res) => {
       const clean = sanitizeSeo(productData.seo);
       if (clean) productData.seo = clean;
       else delete productData.seo;
+    }
+
+        if (productData.productNotice !== undefined) {
+      productData.productNotice = sanitizeProductNotice(productData.productNotice);
     }
 
     // فایل‌ها فقط جمع می‌شوند؛ حذف واقعی بعد از موفقیت آپدیت انجام می‌شود
