@@ -276,7 +276,7 @@ if (fs.existsSync(DIST_DIR)) {
 
   // SPA fallback — هر مسیر GET غیر API به اپ فرانت می‌رسد
   app.get('*', (req, res, next) => {
-    if (req.method !== 'GET' || req.path.startsWith('/api') || req.path.startsWith('/uploads')) return next();
+    if ((req.method !== 'GET' && req.method !== 'HEAD') || req.path.startsWith('/api') || req.path.startsWith('/uploads')) return next();
     if (req.path.endsWith('.xml') || req.path.endsWith('.txt')) return next();
     res.setHeader('Cache-Control', 'no-cache');
     // CSP هلمت (default-src 'none') روی HTML اپ همه‌ی فایل‌ها را بلاک می‌کند و صفحه سفید می‌شود؛
