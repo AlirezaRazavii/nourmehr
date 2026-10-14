@@ -1065,5 +1065,171 @@ exports.homeBotRenderer = async (req, res, next) => {
 };
 
 
+/* ======================= رندر داینامیک لیست محصولات ======================= */
+
+const PRODUCTS_TEXT = {
+  fa: {
+    h1: 'خرید صنایع دستی ایرانی',
+    title: 'خرید صنایع دستی ایرانی | گلدان، شکلات‌خوری و آجیل‌خوری | نورمهر',
+    description: 'خرید آنلاین صنایع دستی اصل ایرانی از نورمهر: محصولات الماس‌تراشی (گلدان، شکلات‌خوری، قندان، آجیل‌خوری)، فیروزه‌کوبی، خاتم و قلم‌زنی با ضمانت اصالت، پرداخت امن و ارسال سراسری.',
+    intro: 'در فروشگاه آنلاین نورمهر، مجموعه‌ای از اصیل‌ترین صنایع دستی ایران را با ضمانت اصالت می‌بینید. هنر الماس‌تراشی، فیروزه‌کوبی، خاتم‌کاری و قلم‌زنی در قالب گلدان، شکلات‌خوری، آجیل‌خوری، قندان و تنگ — هر قطعه با بررسی کیفی و ارسال امن به سراسر ایران.',
+    currency: 'تومان',
+  },
+  en: {
+    h1: 'Buy Persian Handicrafts',
+    title: 'Buy Persian Handicrafts Online | Vases & Chocolate Dishes | Nourmehr',
+    description: 'Shop authentic Persian handicrafts at Nourmehr: gem-cut crystal vases, chocolate dishes, turquoise inlay and khatam with authenticity guarantee.',
+    intro: 'Browse Nourmehr’s curated collection of authentic Persian handicrafts — gem-cut crystal, turquoise inlay, khatam and qalamzani.',
+    currency: 'IRR',
+  },
+};
+
+const buildProductsHtml = async (lang, categorySlug) => {
+  const t = PRODUCTS_TEXT[lang];
+
+  let category = null;
+  let softNoIndex = false;
+  if (categorySlug) {
+    category = await Category.findOne({ slug: categorySlug, status: 'active' }).lean();
+    if (!category) softNoIndex = true;
+  }
+
+  const filter = {
+    status: { $in: PUBLIC_PRODUCT_STATUSES },
+    'seo.fa.noIndex': { $ne: true },
+    'seo.sitemap.include': { $ne: false },
+  };
+  if (category) filter.category = category._id;
+
+  const products = await Product.find(filter)
+    .select('name slug mainImage price discountPercent')
+    .sort({ createdAt: -1 })
+    .limit(60)
+    .lean();
+
+  const catName = category ? pick(category.name, lang) : '';
+  const title = category
+    ? (seoGet(category.seo, lang, 'title') || `${catName} | خرید ${catName} | نورمهر`)
+    : t.title;
+  const description = truncate(
+    category ? (seoGet(category.seo, lang, 'description') || pick(category.description, lang) || t.description) : t.description,
+    175
+  );
+  const canonical = category
+    ? absoluteUrl(`/${lang}/products?category=${category.slug}`)
+    : absoluteUrl(`/${lang}/products`);
+  const alternates = [
+    { lang: 'fa', url: category ? absoluteUrl(`/fa/products?category=${category.slug}`) : absoluteUrl('/fa/products') },
+    { lang: 'en', url: category ? absoluteUrl(`/en/products?category=${category.slug}`) : absoluteUrl('/en/products') },
+  ];
+  const noIndex = softNoIndex || (category ? seoNoIndex(category.seo, lang) : false);
+
+  const head = metaTags({
+    title,
+    description,
+    canonical,
+    lang,
+    alternates,
+    noIndex,
+    image: products[0]?.mainImage || '',
+  });
+
+  const num = (n) => Number(n).toLocaleString(lang === 'fa' ? 'fa-IR' : 'en-US');
+  const finalPrice = (p) => {
+    const base = Number(p.price) || 0;
+    const d = Number(p.discountPercent) || 0;
+    return d > 0 && d < 100 ? Math.round(base * (1 - d / 100)) : base;
+  };
+
+  const items = products.map((p) => {
+    const name = pick(p.name, lang);
+    const slug = p.slug || p._id;
+    const price = finalPrice(p);
+    const img = p.mainImage
+      ? `\n        <img src="${escapeHtml(absoluteUrl(p.mainImage))}" alt="${escapeHtml(name)}" width="300" />`
+      : '';
+    return `      <li>${img}
+        <a href="/${lang}/product/${escapeHtml(String(slug))}">${escapeHtml(name)}</a>${price > 0 ? ` <span>— ${num(price)} ${t.currency}</span>` : ''}
+      </li>`;
+  }).join('\n');
+
+  const crumbs = [
+    { name: lang === 'fa' ? 'خانه' : 'Home', item: `${SITE_URL}/${lang}` },
+    { name: lang === 'fa' ? 'محصولات' : 'Products', item: `${SITE_URL}/${lang}/products` },
+  ];
+  if (category) crumbs.push({ name: catName, item: canonical });
+
+  const breadcrumbLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: crumbs.map((c, i) => ({ '@type': 'ListItem', position: i + 1, name: c.name, item: c.item })),
+  };
+
+  const listLd = {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    itemListElement: products.map((p, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      url: absoluteUrl(`/${lang}/product/${p.slug || p._id}`),
+      name: pick(p.name, lang),
+    })),
+  };
+
+  const h1 = category ? catName : t.h1;
+  const intro = category ? (pick(category.description, lang) || t.intro) : t.intro;
+
+  const body = `
+  <header>
+    <nav>
+      <a href="/${lang}">${lang === 'fa' ? 'خانه' : 'Home'}</a> |
+      <a href="/${lang}/products">${lang === 'fa' ? 'محصولات' : 'Products'}</a> |
+      <a href="/${lang}/news">${lang === 'fa' ? 'اخبار و مقالات' : 'News'}</a> |
+      <a href="/${lang}/about">${lang === 'fa' ? 'درباره نورمهر' : 'About'}</a> |
+      <a href="/${lang}/contact">${lang === 'fa' ? 'تماس با ما' : 'Contact'}</a>
+    </nav>
+  </header>
+  <main>
+    <nav aria-label="breadcrumb">
+      <a href="/${lang}">${lang === 'fa' ? 'خانه' : 'Home'}</a> ›
+      <a href="/${lang}/products">${lang === 'fa' ? 'محصولات' : 'Products'}</a>${category ? ` › <span>${escapeHtml(catName)}</span>` : ''}
+    </nav>
+    <h1>${escapeHtml(h1)}</h1>
+    <p>${escapeHtml(truncate(intro, 400))}</p>
+    <ul>
+ ${items}
+    </ul>
+  </main>
+  <script type="application/ld+json">${JSON.stringify(breadcrumbLd)}</script>
+  <script type="application/ld+json">${JSON.stringify(listLd)}</script>`;
+
+  return pageShell(lang, head, body);
+};
+
+// GET /:lang/products — ربات‌ها HTML کامل؛ نتایج جستجو/صفحات page>1 → noindex
+exports.productsBotRenderer = async (req, res, next) => {
+  if (!isBot(req.headers['user-agent'])) return next();
+  const lang = ['fa', 'en'].includes(req.params.lang) ? req.params.lang : 'fa';
+  const categorySlug = String(req.query.category || '').toLowerCase().trim();
+  const search = String(req.query.search || '').trim();
+  const page = Number(req.query.page) || 1;
+
+  try {
+    if (search || page > 1) {
+      res.setHeader('X-Robots-Tag', 'noindex, follow');
+      return next();
+    }
+
+    const html = await getOrSet(`seo:products:${lang}:${categorySlug}`, 300, () => buildProductsHtml(lang, categorySlug));
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self' data: https:; style-src 'unsafe-inline'");
+    return res.send(html);
+  } catch (err) {
+    console.error('Products bot renderer error:', err);
+    next();
+  }
+};
+
+
 module.exports.SITE_URL = SITE_URL;
 module.exports.isBot = isBot;
