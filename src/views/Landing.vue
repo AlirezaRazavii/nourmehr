@@ -19,10 +19,16 @@
           <p class="branch-address">
             اصفهان، میدان نقش جهان، بازار شیخ لطف‌الله، صنایع دستی علی نورمهر
           </p>
-          <a :href="MAP_URL_1" target="_blank" rel="noopener" class="branch-btn">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
-            مسیریابی در نقشه
-          </a>
+          <div class="lp-actions">
+            <a :href="MAP_URL_1" target="_blank" rel="noopener" class="branch-btn">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              مسیریابی در نقشه
+            </a>
+            <a :href="GOOGLE_MAPS_URL_1" target="_blank" rel="noopener" class="branch-btn ghost">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              نقشه گوگل
+            </a>
+          </div>
         </div>
 
         <div class="branch-card">
@@ -31,11 +37,27 @@
           <p class="branch-address">
             اصفهان، میدان نقش جهان، بازار چهارسوق مقصود، صنایع دستی علی نورمهر — شعبه دوم
           </p>
-          <a :href="MAP_URL_2" target="_blank" rel="noopener" class="branch-btn">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
-            مسیریابی در نقشه
-          </a>
+          <div class="lp-actions">
+            <a :href="MAP_URL_2" target="_blank" rel="noopener" class="branch-btn">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              مسیریابی در نقشه
+            </a>
+            <a :href="GOOGLE_MAPS_URL_2" target="_blank" rel="noopener" class="branch-btn ghost">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              نقشه گوگل
+            </a>
+          </div>
         </div>
+      </div>
+    </section>
+
+    <!-- ساعت کاری و تماس مستقیم (NAP برای سئوی محلی) -->
+    <section class="lp-section">
+      <h2 class="lp-section-title">ساعت کاری و تماس</h2>
+      <div class="lp-hours">
+        <p class="lp-hours-line">شنبه تا پنجشنبه: ۹:۰۰ تا ۲۱:۰۰</p>
+        <p class="lp-hours-line">جمعه: ۱۱:۰۰ تا ۲۲:۰۰</p>
+        <a :href="`tel:${PHONE_RAW}`" class="lp-hours-phone" dir="ltr">۰۹۱۳ ۲۲۵ ۶۱۲۱</a>
       </div>
     </section>
 
@@ -71,12 +93,105 @@ import logo from '../assests/logo/Nourmehr-gold.webp'
 const { locale } = useI18n()
 
 /* ---------- لینک‌ها (اگر بعداً عوض شدند، فقط همین‌جا تغییر کن) ---------- */
-const WHATSAPP_URL = 'https://wa.me/message/5H2LPQQQ64FRO1'
+// واتساپ مستقیم با شماره (wa.me/98...) — برای گوگل سیگنال NAP قوی‌تر از لینک /message/ مخفی‌کننده شماره است
+const WHATSAPP_URL = 'https://wa.me/989132256121'
 const INSTAGRAM_URL = 'https://www.instagram.com/nourmehr_handicrafts'
+const PHONE_RAW = '+989132256121'
+
+// نقشه گوگل با جست‌وجوی نام کسب‌وکار (لینک کوتاه nshn برای گوگل ارزش سئویی ندارد — این لینک دارد)
+const GOOGLE_MAPS_URL_1 = 'https://www.google.com/maps/search/?api=1&query=%D8%B5%D9%86%D8%A7%DB%8C%D8%B9+%D8%AF%D8%B3%D8%AA%DB%8C+%D9%86%D9%88%D8%B1%D9%85%D9%87%D8%B1+%D8%A8%D8%A7%D8%B2%D8%A7%D8%B1+%D8%B4%DB%8C%D8%AE+%D9%84%D8%B7%D9%81+%D8%A7%D9%84%D9%84%D9%87+%D8%A7%D8%B5%D9%81%D9%87%D8%A7%D9%86'
+const GOOGLE_MAPS_URL_2 = 'https://www.google.com/maps/search/?api=1&query=%D8%B5%D9%86%D8%A7%DB%8C%D8%B9+%D8%AF%D8%B3%D8%AA%DB%8C+%D9%86%D9%88%D8%B1%D9%85%D9%87%D8%B1+%D8%A8%D8%A7%D8%B2%D8%A7%D8%B1+%DA%86%D9%87%D8%A7%D8%B1%D8%B3%D9%88%D9%82+%D9%85%D9%82%D8%B5%D9%88%D8%AF+%D8%A7%D8%B5%D9%81%D9%87%D8%A7%D9%86'
 
 // فعلاً هر دو شعبه یک لینک دارند — اگر لینک جدا برای شعبه ۲ داشتی، MAP_URL_2 را عوض کن
 const MAP_URL_1 = 'https://nshn.ir/f5_bZqDSNxnLYb'
 const MAP_URL_2 = 'https://nshn.ir/f5_bZqDSNxnLYb'
+
+/* ---------- LocalBusiness JSON-LD — سلاح اصلی سئوی محلی این صفحه ----------
+   دو شعبه به‌صورت دو Store با ساعت کاری، تلفن و آدرس یکسان با بقیه سایت (NAP یکدست) */
+const SITE_URL = 'https://nourmehr.ir'
+const SOCIAL_SAMEAS = [
+  'https://www.instagram.com/nourmehr_handicrafts',
+  'https://wa.me/989132256121',
+]
+const OPENING_HOURS = [
+  {
+    '@type': 'OpeningHoursSpecification',
+    dayOfWeek: ['Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'],
+    opens: '09:00',
+    closes: '21:00',
+  },
+  {
+    '@type': 'OpeningHoursSpecification',
+    dayOfWeek: ['Friday'],
+    opens: '11:00',
+    closes: '22:00',
+  },
+]
+
+const storeLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Store',
+  '@id': `${SITE_URL}/#store`,
+  name: 'صنایع دستی نورمهر',
+  legalName: 'صنایع دستی علی نورمهر',
+  alternateName: ['نورمهر', 'نور مهر', 'صنایع دستی علی نورمهر', 'Nourmehr'],
+  url: `${SITE_URL}/fa`,
+  telephone: PHONE_RAW,
+  email: 'a.noormehr@gmail.com',
+  founder: { '@type': 'Person', name: 'علی نورمهر' },
+  priceRange: '$$$',
+  address: {
+    '@type': 'PostalAddress',
+    streetAddress: 'بازار شیخ لطف‌الله، میدان نقش جهان',
+    addressLocality: 'اصفهان',
+    addressRegion: 'اصفهان',
+    addressCountry: 'IR',
+  },
+  geo: { '@type': 'GeoCoordinates', latitude: 32.6573, longitude: 51.6776 },
+  areaServed: { '@type': 'City', name: 'اصفهان' },
+  contactPoint: {
+    '@type': 'ContactPoint',
+    telephone: PHONE_RAW,
+    contactType: 'customer service',
+    availableLanguage: ['fa', 'en'],
+  },
+  openingHoursSpecification: OPENING_HOURS,
+  sameAs: SOCIAL_SAMEAS,
+}
+
+const branch2Ld = {
+  '@context': 'https://schema.org',
+  '@type': 'Store',
+  '@id': `${SITE_URL}/#store-branch-2`,
+  name: 'صنایع دستی نورمهر — بازار چهارسوق مقصود',
+  branchOf: { '@id': `${SITE_URL}/#store` },
+  url: `${SITE_URL}/fa/landing`,
+  telephone: PHONE_RAW,
+  email: 'a.noormehr@gmail.com',
+  priceRange: '$$$',
+  address: {
+    '@type': 'PostalAddress',
+    streetAddress: 'بازار چهارسوق مقصود، میدان نقش جهان',
+    addressLocality: 'اصفهان',
+    addressRegion: 'اصفهان',
+    addressCountry: 'IR',
+  },
+  // مختصات دقیق شعبه ۲ را وقتی داشتی این‌جا اضافه کن
+  areaServed: { '@type': 'City', name: 'اصفهان' },
+  openingHoursSpecification: OPENING_HOURS,
+  sameAs: SOCIAL_SAMEAS,
+}
+
+// تزریق اسکیما در head (این صفحه noindex است ولی اسکیما برای رندر JS و ابزارها سالم می‌ماند)
+const injectJsonLd = (data) => {
+  if (typeof document === 'undefined') return
+  const el = document.createElement('script')
+  el.type = 'application/ld+json'
+  el.textContent = JSON.stringify(data)
+  document.head.appendChild(el)
+}
+injectJsonLd(storeLd)
+injectJsonLd(branch2Ld)
 </script>
 
 <style scoped>
@@ -212,6 +327,41 @@ const MAP_URL_2 = 'https://nshn.ir/f5_bZqDSNxnLYb'
   transition: transform 0.25s, box-shadow 0.25s;
 }
 .lp-cta:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(197,160,89,0.4); }
+
+/* ---------- ساعت کاری و تماس ---------- */
+.lp-hours {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px;
+  border-radius: 20px;
+  background: linear-gradient(165deg, rgba(18,22,36,0.95), rgba(8,10,18,0.98));
+  border: 1px solid rgba(255,255,255,0.05);
+}
+.lp-hours-line { margin: 0; color: rgba(255,255,255,0.75); font-size: 1rem; }
+.lp-hours-phone {
+  margin-top: 6px;
+  color: #facc6b;
+  font-size: 1.4rem;
+  font-weight: 800;
+  text-decoration: none;
+  letter-spacing: 1px;
+}
+.lp-hours-phone:hover { text-decoration: underline; }
+
+/* ---------- دکمه‌های شعبه ---------- */
+.lp-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin-top: auto;
+}
+.branch-btn.ghost {
+  background: transparent;
+  box-shadow: none;
+}
 
 /* ---------- ریسپانسیو ---------- */
 @media (max-width: 768px) {

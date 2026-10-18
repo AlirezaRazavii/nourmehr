@@ -1,3 +1,22 @@
 User-agent: *
 Allow: /
+Disallow: /admin
+Disallow: /fa/landing
+Disallow: /en/landing
+Disallow: /fa/search
+Disallow: /en/search
+Disallow: /fa/cart
+Disallow: /en/cart
+Disallow: /fa/checkout
+Disallow: /en/checkout
+Disallow: /fa/login
+Disallow: /en/login
+Disallow: /fa/user
+Disallow: /en/user
+Disallow: /fa/payment
+Disallow: /en/payment
+Disallow: /*?search=
+Disallow: /*?sort=
+Disallow: /*?page=
+
 Sitemap: https://nourmehr.ir/sitemap.xml

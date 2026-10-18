@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import i18n, { applyDirection, setLocale, loadLocaleMessages, SUPPORTED_LOCALES, getSavedLocale } from './i18n'
+import { applyRouteSeo } from './utils/seoMeta'
 
 // --- لود قطعی صفحه اصلی ---
 import Home from './views/Home.vue'
@@ -7,7 +8,6 @@ import Home from './views/Home.vue'
 const About = () => import('./views/About.vue')
 const Contact = () => import('./views/Contact.vue')
 const Collection = () => import('./views/Collection.vue')
-const CollectionView = () => import('./views/CollectionView.vue')
 const Cart = () => import('./views/Cart.vue')
 const Checkout = () => import('./views/Checkout.vue')
 const Login = () => import('./views/Login.vue')
@@ -36,26 +36,34 @@ const routes = [
   { path: '/:lang/products', name: 'Products', component: Products },
   { path: '/:lang/product/:id', name: 'ProductDetails', component: ProductDetails },
   { path: '/:lang/collection/:slug', name: 'Collection', component: Collection },
-  { path: '/:lang/collections/:slug', name: 'CollectionView', component: CollectionView },
+  // روت جمع قدیمی (collections) → ریدایرکت داخلی به مفرد؛ سرور هم ۳۰۱ دائمی می‌دهد
+  // (قبلاً دو روت با محتوای یکسان زنده بودند = محتوای تکراری برای گوگل)
+  {
+    path: '/:lang/collections/:slug',
+    redirect: to => `/${to.params.lang}/collection/${to.params.slug}`,
+  },
   { path: '/:lang/about', name: 'About', component: About },
   { path: '/:lang/contact', name: 'Contact', component: Contact },
   { path: '/:lang/news', name: 'News', component: News },
   { path: '/:lang/news/:slug', name: 'NewsDetails', component: () => import('./views/NewsDetails.vue') },
-  { path: '/:lang/cart', name: 'Cart', component: Cart },
-  { path: '/:lang/checkout', name: 'Checkout', component: Checkout, meta: { requiresAuth: true } },
-  { path: '/:lang/payment/callback', name: 'PaymentCallback', component: () => import('./views/PaymentCallback.vue') },
-  { path: '/:lang/login', name: 'Login', component: Login },
-  { path: '/:lang/complete-profile', name: 'CompleteProfile', component: CompleteProfile, meta: { requiresAuth: true } },
+  // صفحات خصوصی: meta.noindex → تگ robots در کلاینت هم noindex می‌شود
+  // (لایه اصلی X-Robots-Tag سمت سرور در spaSeoGuard است؛ این ایمنی اضافی است)
+  { path: '/:lang/cart', name: 'Cart', component: Cart, meta: { noindex: true } },
+  { path: '/:lang/checkout', name: 'Checkout', component: Checkout, meta: { requiresAuth: true, noindex: true } },
+  { path: '/:lang/payment/callback', name: 'PaymentCallback', component: () => import('./views/PaymentCallback.vue'), meta: { noindex: true } },
+  { path: '/:lang/login', name: 'Login', component: Login, meta: { noindex: true } },
+  { path: '/:lang/complete-profile', name: 'CompleteProfile', component: CompleteProfile, meta: { requiresAuth: true, noindex: true } },
   { path: '/:lang/orders', redirect: to => `/${to.params.lang}/user/orders` },
   { path: '/:lang/profile', redirect: to => ({ name: 'UserProfile', params: { lang: to.params.lang } }), meta: { requiresAuth: true } },
   { path: '/:lang/discounts', name: 'Discounts', component: () => import('./views/Discounts.vue') },
-  { path: '/:lang/landing', name: 'Landing', component: () => import('./views/Landing.vue') },
+  // لندینگ مخصوص تبلیغات/QR — ایندکس نشود (سرور هم X-Robots-Tag می‌دهد)
+  { path: '/:lang/landing', name: 'Landing', component: () => import('./views/Landing.vue'), meta: { noindex: true } },
 
   {
     path: '/:lang/user',
     component: UserLayout,
     redirect: to => `/${to.params.lang}/user/dashboard`,
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, noindex: true },
     children: [
       { path: 'dashboard', name: 'UserDashboard', component: UserDashboard, meta: { requiresAuth: true } },
       { path: 'orders', name: 'UserOrders', component: () => import('./views/user/UserOrders.vue'), meta: { requiresAuth: true } },
@@ -66,7 +74,7 @@ const routes = [
     ]
   },
 
-  { path: '/:lang/search', name: 'Search', component: () => import('./views/Search.vue') },
+  { path: '/:lang/search', name: 'Search', component: () => import('./views/Search.vue'), meta: { noindex: true } },
 
   {
     path: '/admin',
@@ -104,6 +112,12 @@ const router = createRouter({
     if (to.hash) return { el: to.hash, top: 80 }
     return { top: 0 }
   }
+})
+
+// سئوی کلاینت: اعمال robots متا از route.meta (noindex صفحات خصوصی)
+// نکته: لایه اصلی X-Robots-Tag سمت سرور است؛ این تگ برای حالت رندر JS گوگل ایمنی اضافی است
+router.afterEach((to) => {
+  applyRouteSeo(to)
 })
 
 let cachedUserRaw = null
@@ -162,7 +176,6 @@ const routePathMap = {
   Products: 'products',
   ProductDetails: 'product/:id',
   Collection: 'collection/:slug',
-  CollectionView: 'collections/:slug',
   About: 'about',
   Contact: 'contact',
   Cart: 'cart',

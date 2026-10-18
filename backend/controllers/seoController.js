@@ -40,6 +40,12 @@ const truncate = (s = '', n = 160) => {
 
 const PUBLIC_PRODUCT_STATUSES = ['active', 'out_of_stock'];
 
+// توضیحات پیش‌فرض وقتی متای صفحه خالی است (جلوگیری از description خالی در متا)
+const DEFAULT_DESC = {
+  fa: 'صنایع دستی نورمهر، خانه هنرهای لوکس ایرانی در اصفهان. خرید آنلاین صنایع دستی اصل ایرانی با ضمانت اصالت و ارسال سراسری.',
+  en: 'Nourmehr — home of luxury Persian handicrafts in Isfahan. Buy authentic Iranian handicrafts online.',
+};
+
 const isEnIndexable = (doc) => {
   const en = doc.seo?.en;
   return Boolean(en && (en.title || en.description) && en.noIndex !== true);
@@ -60,6 +66,12 @@ const seoNoIndex = (seo, lang) => {
   if (seo[lang]?.noIndex !== undefined) return seo[lang].noIndex === true;
   return seo.noIndex === true;
 };
+
+// آیا سند محتوای واقعی انگلیسی دارد؟ (برای حذف صفحات en لاغر از سایت‌مپ)
+const hasEnContent = (doc) => Boolean(
+  doc?.name?.en || doc?.description?.en || doc?.title?.en || doc?.excerpt?.en
+  || seoGet(doc?.seo, 'en', 'title')
+);
 
 const pick = (value, lang) => {
   if (value == null) return '';
@@ -83,6 +95,7 @@ const faDate = (d) => {
  */
 const metaTags = ({ title, description, canonical, lang, image, noIndex, type = 'website', publishedTime = null, alternates, ogTitle = '', ogDescription = '' }) => {
   const fullTitle = title.includes('نورمهر') || /Nourmehr/i.test(title) ? title : `${title} | نورمهر`;
+  const desc = description || DEFAULT_DESC[lang] || DEFAULT_DESC.fa;
   const img = image ? absoluteUrl(image) : `${SITE_URL}/og-cover.jpg`;
 
   let hreflangLinks = '';
@@ -104,7 +117,7 @@ const metaTags = ({ title, description, canonical, lang, image, noIndex, type = 
 
   return `
   <title>${escapeHtml(fullTitle)}</title>
-  <meta name="description" content="${escapeHtml(description)}" />
+  <meta name="description" content="${escapeHtml(desc)}" />
   <meta name="robots" content="${noIndex ? 'noindex, nofollow' : 'index, follow, max-image-preview:large'}" />
   <link rel="canonical" href="${escapeHtml(canonical)}" />
  ${hreflangLinks}
@@ -112,12 +125,12 @@ const metaTags = ({ title, description, canonical, lang, image, noIndex, type = 
   <meta property="og:locale" content="${lang === 'fa' ? 'fa_IR' : 'en_US'}" />
   <meta property="og:type" content="${type}" />
   <meta property="og:title" content="${escapeHtml(ogTitle || fullTitle)}" />
-  <meta property="og:description" content="${escapeHtml(ogDescription || description)}" />
+  <meta property="og:description" content="${escapeHtml(ogDescription || desc)}" />
   <meta property="og:url" content="${escapeHtml(canonical)}" />
   <meta property="og:image" content="${escapeHtml(img)}" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="${escapeHtml(fullTitle)}" />
-  <meta name="twitter:description" content="${escapeHtml(description)}" />
+  <meta name="twitter:description" content="${escapeHtml(desc)}" />
   <meta name="twitter:image" content="${escapeHtml(img)}" />
   ${publishedTime ? `<meta property="article:published_time" content="${new Date(publishedTime).toISOString()}" />` : ''}`;
 };
@@ -277,7 +290,7 @@ const buildSitemap = async () => {
       'seo.noIndex': { $ne: true },
       'seo.sitemap.include': { $ne: false }
     })
-      .select('slug updatedAt publishedAt createdAt seo')
+      .select('slug updatedAt publishedAt createdAt seo title excerpt')
       .sort({ publishedAt: -1 })
       .limit(5000)
       .lean(),
@@ -285,7 +298,7 @@ const buildSitemap = async () => {
       status: 'active',
       'seo.fa.noIndex': { $ne: true },
       'seo.sitemap.include': { $ne: false }
-    }).select('slug updatedAt seo').lean(),
+    }).select('slug updatedAt seo name description').lean(),
     Product.find({
       status: { $in: PUBLIC_PRODUCT_STATUSES },
       'seo.fa.noIndex': { $ne: true },
@@ -298,8 +311,8 @@ const buildSitemap = async () => {
       status: 'active',
       'seo.fa.noIndex': { $ne: true },
       'seo.sitemap.include': { $ne: false }
-    }).select('slug updatedAt seo').lean(),
-    BlogCategory.find({ isActive: true }).select('slug').lean(),
+    }).select('slug updatedAt seo name description').lean(),
+    BlogCategory.find({ isActive: true }).select('slug name').lean(),
   ]);
 
   const entries = [];
@@ -315,8 +328,13 @@ const buildSitemap = async () => {
     return `  <url>\n${lines.join('\n')}\n  </url>`;
   };
 
-  // یک جفت fa/en با hreflang متقابل
-  const pushBothLangs = (buildPath, opts = {}) => {
+  // یک جفت fa/en با hreflang متقابل — یا فقط fa وقتی نسخه en محتوای واقعی ندارد
+  const pushBothLangs = (buildPath, opts = {}, enOk = true) => {
+    if (!enOk) {
+      // نسخه انگلیسی محتوای واقعی ندارد → فقط fa بدون hreflang (جلوگیری از thin content)
+      entries.push(urlEntry(buildPath('fa'), { ...opts }));
+      return;
+    }
     const alternates = [
       { lang: 'fa', path: buildPath('fa') },
       { lang: 'en', path: buildPath('en') },
@@ -341,7 +359,7 @@ const buildSitemap = async () => {
       priority: sm.priority ?? 0.7,
       changefreq: sm.changefreq || 'weekly',
       lastmod: c.updatedAt,
-    });
+    }, hasEnContent(c));
   }
 
   // کالکشن‌ها
@@ -351,7 +369,7 @@ const buildSitemap = async () => {
       priority: sm.priority ?? 0.8,
       changefreq: sm.changefreq || 'weekly',
       lastmod: col.updatedAt,
-    });
+    }, hasEnContent(col));
   }
 
   // محصولات — اولویت/تناوب از seo.sitemap + آدرس en فقط وقتی ایندکس‌پذیر باشد
@@ -375,7 +393,7 @@ const buildSitemap = async () => {
 
   // دسته‌بندی‌های اخبار
   for (const c of blogCategories) {
-    pushBothLangs((l) => `/${l}/news?category=${c.slug}`, { priority: '0.6' });
+    pushBothLangs((l) => `/${l}/news?category=${c.slug}`, { priority: '0.6' }, hasEnContent(c));
   }
 
   // مقالات
@@ -385,7 +403,7 @@ const buildSitemap = async () => {
       priority: sm.priority ?? 0.8,
       changefreq: sm.changefreq || 'weekly',
       lastmod: b.updatedAt || b.publishedAt || b.createdAt,
-    });
+    }, isEnIndexable(b));
   }
 
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -459,7 +477,31 @@ exports.rss = async (req, res) => {
 // GET /robots.txt
 exports.robots = (req, res) => {
   res.type('text/plain').send(
-    `User-agent: *\nAllow: /\nDisallow: /admin\n\nSitemap: ${SITE_URL}/sitemap.xml\n`
+    [
+      'User-agent: *',
+      'Allow: /',
+      'Disallow: /admin',
+      'Disallow: /fa/landing',
+      'Disallow: /en/landing',
+      'Disallow: /fa/search',
+      'Disallow: /en/search',
+      'Disallow: /fa/cart',
+      'Disallow: /en/cart',
+      'Disallow: /fa/checkout',
+      'Disallow: /en/checkout',
+      'Disallow: /fa/login',
+      'Disallow: /en/login',
+      'Disallow: /fa/user',
+      'Disallow: /en/user',
+      'Disallow: /fa/payment',
+      'Disallow: /en/payment',
+      'Disallow: /*?search=',
+      'Disallow: /*?sort=',
+      'Disallow: /*?page=',
+      '',
+      `Sitemap: ${SITE_URL}/sitemap.xml`,
+      '',
+    ].join('\n')
   );
 };
 
@@ -769,7 +811,21 @@ exports.collectionBotRenderer = async (req, res, next) => {
     const slug = String(req.params.slug || '').toLowerCase();
 
     const collection = await Collection.findOne({ slug, status: 'active' }).lean();
-    if (!collection) return next();
+    if (!collection) {
+      // قبلاً next() می‌شد و ربات به SPA fallback با status 200 می‌رسید (soft-404)
+      const nfHead = metaTags({
+        title: lang === 'fa' ? 'مجموعه یافت نشد' : 'Collection not found',
+        description: lang === 'fa' ? 'این مجموعه یافت نشد.' : 'This collection could not be found.',
+        canonical: absoluteUrl(`/${lang}/products`),
+        lang,
+        noIndex: true,
+        alternates: null,
+      });
+      const nfBody = `<h1>${lang === 'fa' ? 'مجموعه مورد نظر یافت نشد' : 'Collection not found'}</h1>
+      <p><a href="/${lang}/products">${lang === 'fa' ? 'بازگشت به محصولات' : 'Back to products'}</a></p>`;
+      res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+      return res.status(404).send(pageShell(lang, nfHead, nfBody));
+    }
 
     const seoLang = collection.seo?.[lang] || {};
     const name = pick(collection.name, lang);
@@ -855,6 +911,53 @@ const SOCIAL_PROFILES = [
   'https://www.instagram.com/nourmehr_handicrafts',
   'https://wa.me/989132256121',
 ];
+
+/* ---------- اطلاعات ثابت کسب‌وکار (NAP) — تنها منبع حقیقت؛ فقط همین‌جا ویرایش شود ----------
+   این داده‌ها در اسکیمای صفحه اصلی، صفحات استاتیک و Landing همه از همین‌جا خوانده می‌شوند
+   تا NAP (Name/Address/Phone) همه‌جا یکسان بماند — سیگنال حیاتی سئوی محلی و هویت برند */
+const BUSINESS = {
+  name: 'صنایع دستی نورمهر',
+  legalName: 'صنایع دستی علی نورمهر',
+  phone: '+989132256121',
+  phoneDisplay: { fa: '۰۹۱۳ ۲۲۵ ۶۱۲۱', en: '+98 913 225 6121' },
+  email: 'a.noormehr@gmail.com',
+  priceRange: '$$$',
+  founder: { '@type': 'Person', name: 'علی نورمهر' },
+  branches: [
+    {
+      '@id': `${SITE_URL}/#store`,
+      name: 'صنایع دستی نورمهر — بازار شیخ لطف الله',
+      streetAddress: 'بازار شیخ لطف الله، میدان نقش جهان',
+      geo: { '@type': 'GeoCoordinates', latitude: 32.6573, longitude: 51.6776 },
+    },
+    {
+      '@id': `${SITE_URL}/#store-branch-2`,
+      name: 'صنایع دستی نورمهر — بازار چهارسوق مقصود',
+      streetAddress: 'بازار چهارسوق مقصود، میدان نقش جهان',
+      geo: null, // ← مختصات دقیق شعبه ۲ را وقتی داشتی این‌جا اضافه کن
+    },
+  ],
+  // شنبه تا پنجشنبه ۹:۰۰–۲۱:۰۰ — جمعه ۱۱:۰۰–۲۲:۰۰
+  openingHoursSpecification: [
+    {
+      '@type': 'OpeningHoursSpecification',
+      dayOfWeek: ['Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'],
+      opens: '09:00',
+      closes: '21:00',
+    },
+    {
+      '@type': 'OpeningHoursSpecification',
+      dayOfWeek: ['Friday'],
+      opens: '11:00',
+      closes: '22:00',
+    },
+  ],
+};
+
+const OPENING_HOURS_TEXT = {
+  fa: 'شنبه تا پنجشنبه ۹:۰۰ تا ۲۱:۰۰ — جمعه ۱۱:۰۰ تا ۲۲:۰۰',
+  en: 'Saturday–Thursday 9:00–21:00 — Friday 11:00–22:00',
+};
 
 const HOME_TEXT = {
   fa: {
@@ -953,27 +1056,58 @@ const buildHomeHtml = async (lang) => {
     '@context': 'https://schema.org',
     '@type': 'Store',
     '@id': `${SITE_URL}/#store`,
-    name: 'صنایع دستی نورمهر',
-    alternateName: ['نورمهر', 'نور مهر', 'صنایع دستی نور مهر', 'Nourmehr'],
+    name: BUSINESS.name,
+    legalName: BUSINESS.legalName,
+    alternateName: ['نورمهر', 'نور مهر', 'صنایع دستی نور مهر', 'صنایع دستی علی نورمهر', 'Nourmehr'],
+    description: HOME_TEXT.fa.description,
     url: `${SITE_URL}/fa`,
     logo: `${SITE_URL}/apple-touch-icon.png`,
     image: `${SITE_URL}/og-cover.jpg`,
-    telephone: '+989132256121',
+    telephone: BUSINESS.phone,
+    email: BUSINESS.email,
+    founder: BUSINESS.founder,
+    priceRange: BUSINESS.priceRange,
     address: {
       '@type': 'PostalAddress',
-      streetAddress: 'بازار شیخ لطف الله، میدان نقش جهان',
+      streetAddress: BUSINESS.branches[0].streetAddress,
       addressLocality: 'اصفهان',
       addressRegion: 'اصفهان',
       addressCountry: 'IR',
     },
-    geo: { '@type': 'GeoCoordinates', latitude: 32.6573, longitude: 51.6776 },
+    geo: BUSINESS.branches[0].geo,
     areaServed: { '@type': 'Country', name: 'IR' },
     contactPoint: {
       '@type': 'ContactPoint',
-      telephone: '+989132256121',
+      telephone: BUSINESS.phone,
+      email: BUSINESS.email,
       contactType: 'customer service',
       availableLanguage: ['fa', 'en'],
     },
+    openingHoursSpecification: BUSINESS.openingHoursSpecification,
+    sameAs: SOCIAL_PROFILES,
+  };
+
+  /* ---- JSON-LD: شعبه دوم (بازار چهارسوق مقصود) ---- */
+  const branch2Ld = {
+    '@context': 'https://schema.org',
+    '@type': 'Store',
+    '@id': BUSINESS.branches[1]['@id'],
+    name: BUSINESS.branches[1].name,
+    branchOf: { '@id': `${SITE_URL}/#store` },
+    url: `${SITE_URL}/fa`,
+    telephone: BUSINESS.phone,
+    email: BUSINESS.email,
+    priceRange: BUSINESS.priceRange,
+    address: {
+      '@type': 'PostalAddress',
+      streetAddress: BUSINESS.branches[1].streetAddress,
+      addressLocality: 'اصفهان',
+      addressRegion: 'اصفهان',
+      addressCountry: 'IR',
+    },
+    ...(BUSINESS.branches[1].geo ? { geo: BUSINESS.branches[1].geo } : {}),
+    areaServed: { '@type': 'City', name: 'اصفهان' },
+    openingHoursSpecification: BUSINESS.openingHoursSpecification,
     sameAs: SOCIAL_PROFILES,
   };
 
@@ -1019,6 +1153,9 @@ const buildHomeHtml = async (lang) => {
   <main>
     <h1>${escapeHtml(t.h1)}</h1>
     <p>${escapeHtml(t.intro)}</p>
+    <p>${escapeHtml(lang === 'fa'
+      ? `آدرس: ${BUSINESS.branches[0].streetAddress}، اصفهان — تلفن: ${BUSINESS.phoneDisplay.fa} — ${OPENING_HOURS_TEXT.fa}`
+      : `Address: ${BUSINESS.branches[0].streetAddress}, Isfahan — Phone: ${BUSINESS.phoneDisplay.en} — ${OPENING_HOURS_TEXT.en}`)}</p>
  ${catItems ? `
     <h2>${escapeHtml(t.categories)}</h2>
     <ul>
@@ -1042,6 +1179,7 @@ const buildHomeHtml = async (lang) => {
     </ul>` : ''}
   </main>
   <script type="application/ld+json">${JSON.stringify(orgLd)}</script>
+  <script type="application/ld+json">${JSON.stringify(branch2Ld)}</script>
   <script type="application/ld+json">${JSON.stringify(siteLd)}</script>
   <script type="application/ld+json">${JSON.stringify(listLd)}</script>`;
 
@@ -1230,6 +1368,254 @@ exports.productsBotRenderer = async (req, res, next) => {
   }
 };
 
+
+/* ================== رندر داینامیک صفحات استاتیک (about / contact / discounts) ==================
+   این صفحات در سایت‌مپ هستند ولی قبلاً رندرر ربات نداشتند؛
+   نتیجه: گوگل فقط پوسته SPA با متای پیش‌فرض صفحه اصلی را می‌دید. */
+
+const STATIC_PAGES = {
+  fa: {
+    about: {
+      title: 'درباره صنایع دستی نورمهر | بیش از ۷۰ سال هنر دست اصفهان',
+      description: 'صنایع دستی نورمهر؛ خانه هنرهای لوکس ایرانی در بازار شیخ لطف الله اصفهان. بیش از ۷۰ سال تجربه، استادکاران نامدار، ضمانت اصالت و ارسال سراسری آثار دست‌ساز.',
+      h1: 'درباره صنایع دستی نورمهر',
+      intro: 'صنایع دستی نورمهر خانه هنرهای لوکس ایرانی است. هنرهای اصیل اصفهان — فیروزه‌کوبی، خاتم‌کاری، قلم‌زنی و الماس‌تراش نقره‌کوب — با بیش از ۷۰ سال تجربه خانواده نورمهر در بازار شیخ لطف الله و چهارسوق مقصود میدان نقش جهان اصفهان عرضه می‌شوند.',
+      sections: [
+        ['داستان نورمهر', 'نورمهر میراث بیش از هفتاد سال حضور خانواده علی نورمهر در بازارهای تاریخی اصفهان است. از همان ابتدا هدف ما یک چیز بوده: رساندن اثر اصیل و دست‌ساز ایرانی به خانه‌های ایرانی، بدون واسطه و بدون ذره‌ای کوتاهی در کیفیت. امروز دو نمایشگاه در بازار شیخ لطف الله و چهارسوق مقصود میزبان شما هستند.'],
+        ['استادکاران و کیفیت', 'هر اثر نورمهر به دست استادکاران نامداری مانند استاد داودی و استاد چمن‌آرا ساخته یا بازبینی می‌شود. قطعات الماس‌تراش و فیروزه‌کوب پیش از ارسال از نظر تراش، نصب و پرداخت کنترل می‌شوند تا آنچه به خانه شما می‌رسد همان چیزی باشد که در نمایشگاه می‌بینید.'],
+        ['ضمانت و خرید مطمئن', 'خرید از نورمهر با ضمانت اصالت، پرداخت امن و ارسال سراسر ایران همراه است. نماد اعتماد الکترونیکی ما و پشتیبانی واتساپ و تلفنی، خرید آنلاین صنایع دستی را برای شما ساده و مطمئن می‌کند.'],
+      ],
+    },
+    contact: {
+      title: 'تماس با صنایع دستی نورمهر | بازار شیخ لطف الله اصفهان',
+      description: 'تماس با صنایع دستی نورمهر: تلفن ۰۹۱۳۲۲۵۶۱۲۱ — اصفهان، میدان نقش جهان، بازار شیخ لطف الله و بازار چهارسوق مقصود. شنبه تا پنجشنبه ۹ تا ۲۱، جمعه ۱۱ تا ۲۲.',
+      h1: 'تماس با صنایع دستی نورمهر',
+      intro: 'برای مشاوره، سفارش اختصاصی یا بازدید حضوری از نمایشگاه‌های ما، از راه‌های زیر با نورمهر در ارتباط باشید.',
+      sections: [
+        ['شعبه ۱ — بازار شیخ لطف الله', 'اصفهان، میدان نقش جهان، بازار شیخ لطف الله، صنایع دستی علی نورمهر'],
+        ['شعبه ۲ — بازار چهارسوق مقصود', 'اصفهان، میدان نقش جهان، بازار چهارسوق مقصود، صنایع دستی علی نورمهر — شعبه دوم'],
+        ['ساعات کاری', 'شنبه تا پنجشنبه ۹:۰۰ تا ۲۱:۰۰ — جمعه ۱۱:۰۰ تا ۲۲:۰۰'],
+      ],
+    },
+    discounts: {
+      title: 'تخفیف‌ها و پیشنهادهای ویژه نورمهر',
+      description: 'تخفیف‌ها و پیشنهادهای ویژه صنایع دستی نورمهر روی فیروزه‌کوبی، الماس‌تراش نقره‌کوب، خاتم‌کاری و قلم‌زنی با ضمانت اصالت.',
+      h1: 'تخفیف‌ها و پیشنهادهای ویژه نورمهر',
+      intro: 'پیشنهادهای ویژه و کدهای تخفیف فعال فروشگاه نورمهر را در این صفحه ببینید.',
+      sections: [
+        ['چطور از تخفیف استفاده کنم؟', 'کد تخفیف فعال را هنگام پرداخت در سبد خرید وارد کنید. تخفیف‌های نورمهر روی مجموعه‌های منتخب فیروزه‌کوبی، الماس‌تراش نقره‌کوب و خاتم اعمال می‌شوند.'],
+      ],
+    },
+  },
+  en: {
+    about: {
+      title: 'About Nourmehr Handicrafts | 70+ Years of Persian Craft in Isfahan',
+      description: 'Nourmehr — home of luxury Persian handicrafts at Isfahan\'s Sheikh Lutfollah Bazaar. 70+ years of experience, master craftsmen, authenticity guarantee and nationwide delivery.',
+      h1: 'About Nourmehr Handicrafts',
+      intro: 'Nourmehr is the home of luxury Persian handicrafts. The authentic arts of Isfahan — turquoise inlay, khatam, qalamzani and silver-inlaid gem-cut crystal — carry more than 70 years of the Nourmehr family\'s experience in the historic bazaars of Naqsh-e Jahan Square.',
+      sections: [
+        ['Our Story', 'Nourmehr is the legacy of over seventy years of the Ali Nourmehr family\'s presence in Isfahan\'s historic bazaars. Our goal has always been the same: delivering authentic, handmade Persian pieces to Iranian homes with no compromise on quality. Today two showrooms — in Sheikh Lutfollah Bazaar and Chaharsuq Maqsud — host you.'],
+        ['Craftsmanship & Quality', 'Every Nourmehr piece is made or inspected by renowned masters. Gem-cut and turquoise-inlaid items are checked for cut, setting and finish before shipping.'],
+        ['Guarantee & Safe Shopping', 'Shopping at Nourmehr comes with an authenticity guarantee, secure payment and nationwide delivery, backed by our trust seal and phone/WhatsApp support.'],
+      ],
+    },
+    contact: {
+      title: 'Contact Nourmehr Handicrafts | Sheikh Lutfollah Bazaar, Isfahan',
+      description: 'Contact Nourmehr: +98 913 225 6121 — Isfahan, Naqsh-e Jahan Square, Sheikh Lutfollah Bazaar & Chaharsuq Maqsud. Saturday–Thursday 9–21, Friday 11–22.',
+      h1: 'Contact Nourmehr Handicrafts',
+      intro: 'For advice, custom orders or an in-person visit, reach us through any of the channels below.',
+      sections: [
+        ['Branch 1 — Sheikh Lutfollah Bazaar', 'Isfahan, Naqsh-e Jahan Square, Sheikh Lutfollah Bazaar, Ali Nourmehr Handicrafts'],
+        ['Branch 2 — Chaharsuq Maqsud Bazaar', 'Isfahan, Naqsh-e Jahan Square, Chaharsuq Maqsud Bazaar, Ali Nourmehr Handicrafts'],
+        ['Opening Hours', 'Saturday–Thursday 9:00–21:00 — Friday 11:00–22:00'],
+      ],
+    },
+    discounts: {
+      title: 'Nourmehr Special Offers & Discounts',
+      description: 'Special offers and discounts on Persian turquoise inlay, silver-inlaid gem-cut crystal, khatam and qalamzani at Nourmehr.',
+      h1: 'Nourmehr Special Offers',
+      intro: 'See the active discount codes and special offers of the Nourmehr store on this page.',
+      sections: [
+        ['How to Use a Discount', 'Enter your active discount code at checkout. Nourmehr discounts apply to selected collections.'],
+      ],
+    },
+  },
+};
+
+// گراف کامل فروشگاه (سرشاخه + شعبه دوم) — برای صفحات about/contact
+const buildStoreGraph = () => {
+  const store = {
+    '@context': 'https://schema.org',
+    '@type': 'Store',
+    '@id': `${SITE_URL}/#store`,
+    name: BUSINESS.name,
+    legalName: BUSINESS.legalName,
+    alternateName: ['نورمهر', 'نور مهر', 'صنایع دستی نور مهر', 'Nourmehr'],
+    url: `${SITE_URL}/fa`,
+    telephone: BUSINESS.phone,
+    email: BUSINESS.email,
+    founder: BUSINESS.founder,
+    priceRange: BUSINESS.priceRange,
+    address: {
+      '@type': 'PostalAddress',
+      streetAddress: BUSINESS.branches[0].streetAddress,
+      addressLocality: 'اصفهان',
+      addressRegion: 'اصفهان',
+      addressCountry: 'IR',
+    },
+    geo: BUSINESS.branches[0].geo,
+    contactPoint: {
+      '@type': 'ContactPoint',
+      telephone: BUSINESS.phone,
+      email: BUSINESS.email,
+      contactType: 'customer service',
+      availableLanguage: ['fa', 'en'],
+    },
+    openingHoursSpecification: BUSINESS.openingHoursSpecification,
+    sameAs: SOCIAL_PROFILES,
+  };
+  const branch2 = {
+    '@context': 'https://schema.org',
+    '@type': 'Store',
+    '@id': BUSINESS.branches[1]['@id'],
+    name: BUSINESS.branches[1].name,
+    branchOf: { '@id': `${SITE_URL}/#store` },
+    url: `${SITE_URL}/fa/contact`,
+    telephone: BUSINESS.phone,
+    email: BUSINESS.email,
+    priceRange: BUSINESS.priceRange,
+    address: {
+      '@type': 'PostalAddress',
+      streetAddress: BUSINESS.branches[1].streetAddress,
+      addressLocality: 'اصفهان',
+      addressRegion: 'اصفهان',
+      addressCountry: 'IR',
+    },
+    ...(BUSINESS.branches[1].geo ? { geo: BUSINESS.branches[1].geo } : {}),
+    openingHoursSpecification: BUSINESS.openingHoursSpecification,
+    sameAs: SOCIAL_PROFILES,
+  };
+  return [store, branch2];
+};
+
+// GET /:lang/about | /:lang/contact | /:lang/discounts — رندرر ربات
+exports.staticPageRenderer = (page) => async (req, res, next) => {
+  if (!isBot(req.headers['user-agent'])) return next();
+  try {
+    const lang = ['fa', 'en'].includes(req.params.lang) ? req.params.lang : 'fa';
+    const t = STATIC_PAGES[lang]?.[page];
+    if (!t) return next();
+
+    const canonical = absoluteUrl(`/${lang}/${page}`);
+    const head = metaTags({
+      title: t.title,
+      description: t.description,
+      canonical,
+      lang,
+      alternates: [
+        { lang: 'fa', url: absoluteUrl(`/fa/${page}`) },
+        { lang: 'en', url: absoluteUrl(`/en/${page}`) },
+      ],
+    });
+
+    const pageType = page === 'contact' ? 'ContactPage' : page === 'about' ? 'AboutPage' : 'WebPage';
+    const pageLd = {
+      '@context': 'https://schema.org',
+      '@type': pageType,
+      url: canonical,
+      name: t.title,
+      description: t.description,
+      inLanguage: lang,
+      mainEntity: { '@id': `${SITE_URL}/#store` },
+    };
+
+    const sectionsHtml = (t.sections || [])
+      .map(([h2, p]) => `<h2>${escapeHtml(h2)}</h2><p>${escapeHtml(p)}</p>`)
+      .join('\n');
+
+    // صفحه تماس: NAP کامل به‌صورت متن قابل‌خواندن برای ربات + اسکیمای گراف فروشگاه
+    const napLine = page === 'contact'
+      ? `<p>${escapeHtml(
+          lang === 'fa'
+            ? `تلفن: ${BUSINESS.phoneDisplay.fa} — ایمیل: ${BUSINESS.email} — ${OPENING_HOURS_TEXT.fa} — اینستاگرام: @nourmehr_handicrafts — واتساپ: ${BUSINESS.phoneDisplay.fa}`
+            : `Phone: ${BUSINESS.phoneDisplay.en} — Email: ${BUSINESS.email} — ${OPENING_HOURS_TEXT.en} — Instagram: @nourmehr_handicrafts — WhatsApp: ${BUSINESS.phoneDisplay.en}`
+        )}</p>`
+      : '';
+
+    const storeGraph = page === 'discounts' ? [] : buildStoreGraph();
+
+    const body = `
+  <header>
+    <nav>
+      <a href="/${lang}">${lang === 'fa' ? 'خانه' : 'Home'}</a> |
+      <a href="/${lang}/products">${lang === 'fa' ? 'محصولات' : 'Products'}</a> |
+      <a href="/${lang}/news">${lang === 'fa' ? 'اخبار و مقالات' : 'News'}</a> |
+      <a href="/${lang}/about">${lang === 'fa' ? 'درباره نورمهر' : 'About'}</a> |
+      <a href="/${lang}/contact">${lang === 'fa' ? 'تماس با ما' : 'Contact'}</a>
+    </nav>
+  </header>
+  <main>
+    <h1>${escapeHtml(t.h1)}</h1>
+    <p>${escapeHtml(t.intro)}</p>
+    ${napLine}
+    ${sectionsHtml}
+    <p><a href="/${lang}/products">${lang === 'fa' ? 'مشاهده محصولات نورمهر' : 'View Nourmehr products'}</a></p>
+  </main>
+  <script type="application/ld+json">${JSON.stringify(pageLd)}</script>
+  ${storeGraph.map((ld) => `<script type="application/ld+json">${JSON.stringify(ld)}</script>`).join('\n  ')}`;
+
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self' data: https:; style-src 'unsafe-inline'");
+    return res.send(pageShell(lang, head, body));
+  } catch (err) {
+    console.error(`Static page (${page}) renderer error:`, err);
+    next();
+  }
+};
+
+/* ======================= گارد سئوی fallback SPA =======================
+   - صفحات خصوصی (landing/search/cart/checkout/login/user/payment) → X-Robots-Tag: noindex, follow
+   - مسیر ناشناخته + ربات → 404 واقعی (قبل از این، هر URL ناشناخته‌ای status 200 با متای
+     صفحه اصلی می‌گرفت = soft-404 سراسری)
+   - بقیه حالات next() تا SPA سرو شود */
+const PRIVATE_SPA_RE = /^\/(fa|en)\/(landing|search|cart|checkout|login|complete-profile|payment|user)(\/|$)/i;
+const ADMIN_RE = /^\/admin(\/|$)/i;
+const KNOWN_SPA_RE = [
+  /^\/(fa|en)$/i,
+  /^\/(fa|en)\/(products|product|collections?|about|contact|news|discounts)(\/|$)/i,
+  PRIVATE_SPA_RE,
+  ADMIN_RE,
+  /^\/landing(\/|$)/i,
+];
+
+exports.spaSeoGuard = (req, res, next) => {
+  const path = req.path;
+
+  if (PRIVATE_SPA_RE.test(path) || ADMIN_RE.test(path)) {
+    res.setHeader('X-Robots-Tag', 'noindex, follow');
+  }
+
+  if (isBot(req.headers['user-agent']) && /^\/(fa|en)/i.test(path)) {
+    const known = KNOWN_SPA_RE.some((re) => re.test(path));
+    if (!known) {
+      const lang = path.startsWith('/en') ? 'en' : 'fa';
+      const head = metaTags({
+        title: lang === 'fa' ? 'صفحه یافت نشد' : 'Page not found',
+        description: lang === 'fa' ? 'این صفحه در فروشگاه نورمهر یافت نشد.' : 'This page was not found on Nourmehr.',
+        canonical: absoluteUrl(`/${lang}`),
+        lang,
+        noIndex: true,
+        alternates: null,
+      });
+      const body = `<h1>${lang === 'fa' ? 'صفحه مورد نظر یافت نشد' : 'Page not found'}</h1>
+      <p><a href="/${lang}">${lang === 'fa' ? 'بازگشت به خانه' : 'Back to home'}</a></p>`;
+      res.setHeader('X-Robots-Tag', 'noindex, follow');
+      return res.status(404).send(pageShell(lang, head, body));
+    }
+  }
+
+  next();
+};
 
 module.exports.SITE_URL = SITE_URL;
 module.exports.isBot = isBot;

@@ -257,7 +257,19 @@ if (fs.existsSync(DIST_DIR)) {
   app.get('/:lang/news', seoController.newsBotRenderer);
   app.get('/:lang/product/:slug', seoController.productBotRenderer, seoController.productSlugRedirect);
   app.get('/:lang/collection/:slug', seoController.collectionBotRenderer);
-  app.get('/:lang/collections/:slug', seoController.collectionBotRenderer);
+
+  // روت قدیمی جمع (collections) → ۳۰۱ دائمی به مفرد (collection) برای همه کاربران و ربات‌ها
+  // (قبلاً هر دو روت با محتوای یکسان زنده بودند = محتوای تکراری)
+  app.get('/:lang/collections/:slug', (req, res) => {
+    res.redirect(301, `/${req.params.lang}/collection/${encodeURIComponent(req.params.slug)}`);
+  });
+
+  // رندرر ربات صفحات استاتیک — این صفحات در سایت‌مپ هستند ولی قبلاً پوسته SPA با
+  // متای پیش‌فرض صفحه اصلی می‌گرفتند (حفره رندر about/contact/discounts)
+  app.get('/:lang/about', seoController.staticPageRenderer('about'));
+  app.get('/:lang/contact', seoController.staticPageRenderer('contact'));
+  app.get('/:lang/discounts', seoController.staticPageRenderer('discounts'));
+
   app.get('/:lang', seoController.homeBotRenderer);
   app.get('/:lang/products', seoController.productsBotRenderer);
 
@@ -276,7 +288,10 @@ if (fs.existsSync(DIST_DIR)) {
   );
 
   // SPA fallback — هر مسیر GET غیر API به اپ فرانت می‌رسد
-  app.get('*', (req, res, next) => {
+  // spaSeoGuard (از seoController):
+  //   ۱) صفحات خصوصی (landing/search/cart/checkout/login/user/payment) → X-Robots-Tag: noindex
+  //   ۲) مسیر ناشناخته + ربات → 404 واقعی (قبلاً status 200 + متای صفحه اصلی = soft-404 سراسری)
+  app.get('*', seoController.spaSeoGuard, (req, res, next) => {
     if ((req.method !== 'GET' && req.method !== 'HEAD') || req.path.startsWith('/api') || req.path.startsWith('/uploads')) return next();
     if (req.path.endsWith('.xml') || req.path.endsWith('.txt')) return next();
     res.setHeader('Cache-Control', 'no-cache');
