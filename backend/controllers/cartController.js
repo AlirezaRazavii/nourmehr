@@ -6,21 +6,19 @@ const getUnitPrice = (product, sizeName) => {
   let base = product.price;
   let sizeDiscount = 0;
   if (sizeName && Array.isArray(product.sizes)) {
-    const s = product.sizes.find(x =>
-      x && x.name && (x.name.fa === sizeName || x.name.en === sizeName)
-    );
+    const s = product.sizes.find(x => {
+      if (!x || !x.name) return false;
+      if (typeof x.name === 'string') return x.name === sizeName;
+      return x.name.fa === sizeName || x.name.en === sizeName;
+    });
     if (s) {
       if (s.price) base = s.price;
       if (s.discountPercent && s.discountPercent > 0) sizeDiscount = s.discountPercent;
     }
   }
-  // اگر سایز تخفیف مخصوص داشت، همان اعمال می‌شود
-  if (sizeDiscount > 0) {
-    return base * (1 - sizeDiscount / 100);
-  }
-  // در غیر این صورت تخفیف کلی محصول (اگر روزی تعریف شود)
+  if (sizeDiscount > 0) return Math.round(base * (1 - sizeDiscount / 100));
   if (product.discountPercent && product.discountPercent > 0) {
-    return base * (1 - product.discountPercent / 100);
+    return Math.round(base * (1 - product.discountPercent / 100));
   }
   return base;
 };

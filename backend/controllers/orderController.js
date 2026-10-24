@@ -41,10 +41,10 @@ const getUnitPrice = (product, sizeName) => {
     }
   }
   if (sizeDiscount > 0) {
-    return base * (1 - sizeDiscount / 100);
+    return Math.round(base * (1 - sizeDiscount / 100));
   }
   if (product.discountPercent && product.discountPercent > 0) {
-    return base * (1 - product.discountPercent / 100);
+    return Math.round(base * (1 - product.discountPercent / 100));
   }
   return base;
 };

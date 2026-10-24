@@ -136,8 +136,8 @@ const displayUnitPrice = computed(() => {
     if (s.price) base = s.price
     if (s.discountPercent > 0) sizeDiscount = s.discountPercent
   }
-  if (sizeDiscount > 0) return base * (1 - sizeDiscount / 100)
-  if (p.discountPercent > 0) return base * (1 - p.discountPercent / 100)
+  if (sizeDiscount > 0) return Math.round(base * (1 - sizeDiscount / 100))
+  if (p.discountPercent > 0) return Math.round(base * (1 - p.discountPercent / 100))
   return base
 })
 
@@ -152,6 +152,23 @@ const selectedSizeDiscount = computed(() => {
   const s = sizeList.value.find((x) => x.name === selectedSize.value)
   return s && s.discountPercent ? s.discountPercent : 0
 })
+
+
+// درصد تخفیف مؤثر: اول تخفیف سایز انتخابی، وگرنه تخفیف خود محصول
+const effectiveDiscount = computed(() => {
+  if (selectedSizeDiscount.value > 0) return selectedSizeDiscount.value
+  const d = Number(product.value?.discountPercent) || 0
+  return d > 0 && d < 100 ? d : 0
+})
+
+// ✦ تضمین انتخاب سایز — قلبِ رفع باگ:
+// هر وقت لیست سایزها آماده یا تغییر کند، اگر سایزِ انتخاب‌شده در آن نبود
+// (مثلاً به‌خاطر تغییر locale یا تفاوت نرمال‌سازی نام)، اولین سایز خودکار انتخاب می‌شود.
+watch(sizeList, (list) => {
+  if (!list.length) return
+  const ok = list.some((s) => s.name === selectedSize.value)
+  if (!ok) selectedSize.value = list[0].name
+}, { immediate: true })
 
 const productImages = computed(() => getProductImages(product.value))
 
@@ -236,8 +253,8 @@ const loadProduct = async (idOrSlug) => {
 
   if (product.value?.colors?.length > 0) selectedColor.value = product.value.colors[0]
   if (product.value?.sizes?.length > 0) {
-    const first = product.value.sizes[0]
-    selectedSize.value = typeof first === 'string' ? first : getLocalizedText(first?.name)
+    // از خود sizeList می‌خوانیم تا کلید انتخاب با کلید دکمه‌های سایز ۱۰۰٪ یکی باشد
+    selectedSize.value = sizeList.value[0]?.name || ''
   }
   if (product.value?._id || product.value?.id) {
     fetchReviews(product.value._id || product.value.id)
@@ -308,6 +325,12 @@ const handleAddToCart = async () => {
     addError.value = t('product_out_of_stock')
     return
   }
+
+    if (sizeList.value.length > 0 && !selectedSize.value) {
+    addError.value = 'لطفاً ابتدا سایز مورد نظر را انتخاب کنید'
+    return
+  }
+
   const colorName = selectedColor.value ? getLocalizedText(selectedColor.value.name) : null
   const res = await addToCart(
     product.value._id,
@@ -513,11 +536,11 @@ watch(locale, () => setProductSeo(product.value, locale.value))
           <div class="price-section glass">
             <div class="price-row">
               <div class="prices">
-                <span v-if="selectedSizeDiscount > 0" class="old-price">{{ formatPrice(originalUnitPrice) }} {{ $t('products_currency') }}</span>
+                <span v-if="effectiveDiscount > 0" class="old-price">{{ formatPrice(originalUnitPrice) }} {{ $t('products_currency') }}</span>
                 <span class="current-price">{{ formatPrice(displayUnitPrice) }} {{ $t('products_currency') }}</span>
               </div>
-              <span v-if="selectedSizeDiscount > 0" class="save-badge">
-                {{ $t('product_save') }} {{ formatPrice(selectedSizeDiscount) }}٪
+              <span v-if="effectiveDiscount > 0" class="save-badge">
+                {{ $t('product_save') }} {{ formatPrice(effectiveDiscount) }}٪
               </span>
             </div>
           </div>
