@@ -15,17 +15,25 @@ const INTERVAL_MS = 5 * 60 * 1000;      // هر ۵ دقیقه
 const MIN_AGE_MS = 10 * 60 * 1000;      // حداقل ۱۰ دقیقه از ساخت توکن
 const MAX_AGE_MS = 24 * 60 * 60 * 1000; // فقط ۲۴ ساعت اخیر
 
-const FAIL_STATES = ['CANCEL', 'CANCELLED', 'CANCELED', 'FAILED', 'EXPIRED', 'REJECTED'];
+const FAIL_STATES = ['CANCEL', 'CANCELLED', 'CANCELED', 'FAILED', 'EXPIRED', 'REJECTED', 'REVERT'];
 
 let running = false;
 
 const recoverOne = async (payment) => {
   const st = await getPurchaseStatus(payment.authority);
   if (!st.success) {
+    // ۱۰۰۷ = اسنپ‌پی این توکن را نمی‌شناسد (تست قدیمی/توکن منقضی) — هرگز پرداخت نمی‌شود
+    if (st.code === 1007) {
+      payment.status = 'failed';
+      payment.failureReason = 'SnappPayTokenNotFound(1007)';
+      payment.failedAt = new Date();
+      await payment.save();
+      console.warn('[snappay][recovery] توکن نزد اسنپ‌پی پیدا نشد (1007) → failed: payment=' + payment._id);
+      return;
+    }
     console.warn('[snappay][recovery] status ناموفق: payment=' + payment._id + ' code=' + st.code + ' ' + st.message);
     return; // خطای موقت — ران بعدی
   }
-
   const s = String((st.response && st.response.status) || '').toUpperCase();
   if (!s || s === 'ONGOING' || s === 'PENDING') return; // هنوز در جریان
 
