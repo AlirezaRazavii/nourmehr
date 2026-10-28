@@ -147,7 +147,8 @@ const updateSnappayOrder = async (req, res) => {
       externalSourceAmount: 0,
     };
 
-    const result = await updatePurchase(payment.authority, payload);
+mo    // ⭐ سرویس ما: updatePurchase(payload) — paymentToken داخل payload
+    const result = await updatePurchase({ paymentToken: payment.authority, ...payload });dule.exports = { getOrders, getOrderById, updateOrderStatus, updateOrderTracking };
     if (!result.success) {
       console.error('[snappay][admin-update] ناموفق:', result.code, result.message,
         '| order=' + order.orderRef, 'payment=' + payment._id);

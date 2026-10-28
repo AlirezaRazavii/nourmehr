@@ -241,9 +241,4 @@ const updateOrderTracking = async (req, res) => {
   }
 };
 
-const { updateSnappayOrder, cancelSnappayOrder } = require('../controllers/admin/snappayAdminController');
-
-router.put('/orders/:id/snappay/update', /* همان middleware روت status */, updateSnappayOrder);
-router.post('/orders/:id/snappay/cancel', /* همان middleware روت status */, cancelSnappayOrder);
-
 module.exports = { getOrders, getOrderById, updateOrderStatus, updateOrderTracking };

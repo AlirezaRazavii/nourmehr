@@ -27,6 +27,17 @@ export const adminApi = {
     return res.data
   },
 
+  /* --------- اسنپ‌پی: مرجوع جزئی/کل (الزامات پشتیبانی) --------- */
+  async updateSnappayOrder(id, data) {
+    const res = await api.put(`/admin/orders/${id}/snappay/update`, data)
+    return res.data
+  },
+
+  async cancelSnappayOrder(id) {
+    const res = await api.post(`/admin/orders/${id}/snappay/cancel`)
+    return res.data
+  },
+
   async getUsers(params = {}) {
     const query = new URLSearchParams(params).toString()
     const res = await api.get(`/admin/users${query ? '?' + query : ''}`)

@@ -354,34 +354,9 @@ const snappPayCallback = async (req, res) => {
 };
 
 
-/* ============================================================
-   Update / Cancel — الزامات پشتیبانی اسنپ‌پی (مرجوع جزئی/کل)
-   ⚠️ snappayRequest = همان helper درون فایل شماست که verifyPurchase
-   و settlePurchase از آن استفاده می‌کنند — اگر نام/شکلش فرق دارد،
-   فقط فراخوانی را هم‌شکل بقیه تابع‌های فایل کنید.
-   ============================================================ */
-
-// مرجوع جزئی — payload: { amount, cartList, discountAmount, externalSourceAmount }
-const updatePurchase = async (paymentToken, payload) => {
-  return snappayRequest('/purchase/v2/update', {
-    method: 'POST',
-    body: { paymentToken, ...payload },
-  });
-};
-
-// مرجوع کل / لغو خرید
-const cancelPurchase = async (paymentToken) => {
-  return snappayRequest('/purchase/v2/cancel', {
-    method: 'POST',
-    body: { paymentToken },
-  });
-};
-
 module.exports = {
   getSnappPayEligibility,
   initiateSnappPayPayment,
   snappPayCallback,
   finalizePaidSnappPay,
-  cancelPurchase,
-  updatePurchase,
 };

@@ -42,7 +42,8 @@ const orderSchema = new mongoose.Schema({
   },
   tracking: { code: String, carrier: String },
   paymentAuthority: String,
-  paymentRefId: String
+  paymentRefId: String,
+  paymentToken: String
 }, { timestamps: true });
 
 orderSchema.index({ user: 1, createdAt: -1 });

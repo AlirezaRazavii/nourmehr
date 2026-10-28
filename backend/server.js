@@ -38,7 +38,6 @@ const heroImageRoutes = require('./routes/heroImageRoutes');
 const torobRoutes = require('./routes/torobRoutes');
 const { startTorobPayRecovery } = require('./services/torobpayRecovery');
 const { initSnappayRecovery } = require('./jobs/snappayRecovery');
-initSnappayRecovery();
 const { startOrderExpiryCron } = require('./services/orderExpiry');
 const discountRoutes = require('./routes/discountRoutes');
 const seoController = require('./controllers/seoController');
@@ -79,6 +78,7 @@ mongoose.connection.once('open', async () => {
     console.log('✅ Seeding finished.');
     startTorobPayRecovery();
     startOrderExpiryCron();
+    initSnappayRecovery();
   } catch (err) {
     console.error('🔴 Seeding error:', err);
   }

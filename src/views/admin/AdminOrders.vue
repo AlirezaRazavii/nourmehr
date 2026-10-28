@@ -19,6 +19,19 @@ const totalPages = ref(1)
 const showDetail = ref(false)
 const updatingStatus = ref(false)
 
+/* ---------- جستجوی سفارش (شماره سفارش / کد تراکنش اسنپ‌پی / موبایل / نام) ---------- */
+const searchQuery = ref('')
+let searchTimer = null
+watch(searchQuery, () => {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => { page.value = 1; fetchOrders() }, 400)
+})
+
+/* ---------- اسنپ‌پی: مرجوع جزئی (Update) و مرجوع کل (Cancel) ---------- */
+const refundQty = ref({})       // index آیتم → تعداد جدید
+const snappayBusy = ref(false)
+const confirmBox = ref({ open: false, title: '', message: '', action: null })
+
 /* ---------- تشخیص «پس کرایه» برای سفارش‌ها ---------- */
 const shippingInfoMap = ref({}) // id روش ارسال → { title, postPaid }
 
@@ -83,6 +96,7 @@ const fetchOrders = async () => {
   try {
     const params = { page: page.value, limit: pageSize }
     if (statusFilter.value) params.status = statusFilter.value
+    if (searchQuery.value.trim()) params.search = searchQuery.value.trim()
     const res = await adminApi.getOrders(params)
     if (res.success) {
       orders.value = res.data || []
@@ -149,6 +163,9 @@ const openDetail = (order) => {
     code: order.tracking?.code || '',
     carrier: order.tracking?.carrier || ''
   }
+  // فرم مرجوعی اسنپ‌پی را با تعداد فعلی پر کن
+  refundQty.value = {}
+  order.items.forEach((it, idx) => { refundQty.value[idx] = it.quantity })
   showDetail.value = true
 }
 
@@ -225,6 +242,120 @@ const changeOrderStatus = async (newStatus) => {
     updatingStatus.value = false
   }
 }
+
+/* ---------- برچسب درگاه پرداخت ---------- */
+const paymentMethodLabel = (m) => ({
+  online: 'زرین‌پال', cod: 'پس کرایه', wallet: 'کیف پول', torobpay: 'توروب‌پی', snappay: 'اسنپ‌پی',
+}[m] || m || '—')
+
+/* ---------- کپی (کد تراکنش / paymentToken) ---------- */
+const copyText = async (t) => {
+  try {
+    await navigator.clipboard.writeText(t)
+    alert('کپی شد ✅')
+  } catch {
+    const ta = document.createElement('textarea')
+    ta.value = t
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    document.body.removeChild(ta)
+    alert('کپی شد ✅')
+  }
+}
+
+/* ---------- اسنپ‌پی: مرجوع جزئی/کل ---------- */
+const isSnappayPaid = (o) =>
+  o?.paymentMethod === 'snappay' &&
+  o?.paymentStatus === 'paid' &&
+  !['cancelled', 'refunded'].includes(o?.status)
+
+const clampedQty = (item, idx) =>
+  Math.max(0, Math.min(item.quantity, Number(refundQty.value[idx] ?? item.quantity) || 0))
+
+const computedNewTotal = computed(() => {
+  const o = selectedOrder.value
+  if (!o) return 0
+  let sub = 0
+  o.items.forEach((it, idx) => { sub += it.price * clampedQty(it, idx) })
+  return sub - Math.min(Number(o.discountAmount || 0), sub) + Number(o.shippingCost || 0)
+})
+
+const askSnappayUpdate = () => {
+  const o = selectedOrder.value
+  if (!o.items.some((it, idx) => clampedQty(it, idx) !== it.quantity)) {
+    alert('تعدادی را تغییر نداده‌اید')
+    return
+  }
+  if (o.items.every((it, idx) => clampedQty(it, idx) === 0)) {
+    alert('همه کالاها حذف می‌شوند — برای مرجوع کامل از دکمه «بازپرداخت کامل» استفاده کنید')
+    return
+  }
+  const kept = o.items
+    .map((it, idx) => ({ name: itemName(it.name), qty: clampedQty(it, idx) }))
+    .filter((x) => x.qty > 0)
+    .map((x) => `${x.name} × ${x.qty}`)
+    .join(' | ')
+  confirmBox.value = {
+    open: true,
+    title: 'تأیید ارسال تغییرات به اسنپ‌پی (Update)',
+    message: `اقلام جدید: ${kept}\nمبلغ جدید سفارش: ${computedNewTotal.value.toLocaleString('fa-IR')} تومان\n\n⚠️ این عملیات سیستمی به اسنپ‌پی ارسال می‌شود و مبلغ قابل تسویه کاهش می‌یابد. این کار غیرقابل بازگشت است. ادامه می‌دهید؟`,
+    action: applySnappayUpdate,
+  }
+}
+
+const applySnappayUpdate = async () => {
+  const o = selectedOrder.value
+  if (!o) return
+  snappayBusy.value = true
+  try {
+    const items = o.items.map((it, idx) => ({ index: idx, quantity: clampedQty(it, idx) }))
+    const res = await adminApi.updateSnappayOrder(o._id || o.id, { items })
+    if (!res.success) throw new Error(res.message || 'اسنپ‌پی تغییرات را نپذیرفت')
+    if (res.data) {
+      selectedOrder.value = res.data
+      const idx = orders.value.findIndex((x) => (x._id || x.id) === (o._id || o.id))
+      if (idx !== -1) orders.value[idx] = res.data
+    }
+    confirmBox.value.open = false
+    alert('تغییرات با موفقیت به اسنپ‌پی ارسال شد ✅')
+  } catch (err) {
+    alert('خطا: ' + (err.response?.data?.message || err.message || 'عملیات ناموفق بود'))
+  } finally {
+    snappayBusy.value = false
+  }
+}
+
+const askSnappayCancel = () => {
+  const o = selectedOrder.value
+  confirmBox.value = {
+    open: true,
+    title: 'تأیید بازپرداخت کامل اسنپ‌پی (Cancel)',
+    message: `کل مبلغ ${(o.total || 0).toLocaleString('fa-IR')} تومان به مشتری در اسنپ‌پی بازگردانده می‌شود و سفارش «عودت داده شده» می‌شود.\n\n⚠️ این عملیات غیرقابل بازگشت است. ادامه می‌دهید؟`,
+    action: applySnappayCancel,
+  }
+}
+
+const applySnappayCancel = async () => {
+  const o = selectedOrder.value
+  if (!o) return
+  snappayBusy.value = true
+  try {
+    const res = await adminApi.cancelSnappayOrder(o._id || o.id)
+    if (!res.success) throw new Error(res.message || 'بازپرداخت ناموفق بود')
+    if (res.data) {
+      selectedOrder.value = res.data
+      const idx = orders.value.findIndex((x) => (x._id || x.id) === (o._id || o.id))
+      if (idx !== -1) orders.value[idx] = res.data
+    }
+    confirmBox.value.open = false
+    alert('بازپرداخت کامل انجام شد ✅')
+  } catch (err) {
+    alert('خطا: ' + (err.response?.data?.message || err.message || 'عملیات ناموفق بود'))
+  } finally {
+    snappayBusy.value = false
+  }
+}
 </script>
 
 <template>
@@ -239,10 +370,13 @@ const changeOrderStatus = async (newStatus) => {
       </div>
     </div>
 
-    <div class="tabs">
-      <button v-for="tab in tabs" :key="tab.value" class="tab" :class="{ active: statusFilter === tab.value }" @click="statusFilter = tab.value">
-        {{ tab.label }}
-      </button>
+    <div class="filters-bar">
+      <div class="tabs">
+        <button v-for="tab in tabs" :key="tab.value" class="tab" :class="{ active: statusFilter === tab.value }" @click="statusFilter = tab.value">
+          {{ tab.label }}
+        </button>
+      </div>
+      <input v-model="searchQuery" type="search" class="search-input" placeholder="🔍 جستجو: شماره سفارش، کد تراکنش اسنپ‌پی، موبایل، نام مشتری" />
     </div>
 
     <div v-if="loading" class="loading-state">
@@ -267,7 +401,10 @@ const changeOrderStatus = async (newStatus) => {
           </thead>
           <tbody>
             <tr v-for="order in orders" :key="order._id">
-              <td class="font-mono">{{ order.orderRef }}</td>
+              <td class="font-mono">
+                {{ order.orderRef }}
+                <span v-if="order.paymentRefId" class="ref-id-chip" title="کد تراکنش — کلیک = کپی" @click="copyText(order.paymentRefId)">{{ order.paymentRefId }}</span>
+              </td>
               <td>
                 <div class="customer-cell">
                   <span class="customer-name">{{ order.user?.name || order.shippingInfo?.fullName || 'نامشخص' }}</span>
@@ -283,7 +420,7 @@ const changeOrderStatus = async (newStatus) => {
               </td>
               <td class="font-mono">{{ (order.total || 0).toLocaleString('fa-IR') }} <small>تومان</small></td>
               <td>
-                <span class="payment-badge" :class="order.paymentStatus">{{ order.paymentMethod }}</span>
+                <span class="payment-badge" :class="order.paymentStatus">{{ paymentMethodLabel(order.paymentMethod) }}</span>
               </td>
               <td>
                 <span class="status-badge" :style="{ background: statusColors[order.status]?.bg, color: statusColors[order.status]?.color }">
@@ -347,6 +484,20 @@ const changeOrderStatus = async (newStatus) => {
                 <span class="info-label">تلفن:</span>
                 <span>{{ selectedOrder.user?.phone || selectedOrder.shippingInfo?.phone }}</span>
               </div>
+              <div class="info-chip" v-if="selectedOrder.paymentMethod">
+                <span class="info-label">درگاه:</span>
+                <span>{{ paymentMethodLabel(selectedOrder.paymentMethod) }}</span>
+              </div>
+              <div class="info-chip" v-if="selectedOrder.paymentRefId">
+                <span class="info-label">کد تراکنش:</span>
+                <span class="mono-ltr">{{ selectedOrder.paymentRefId }}</span>
+                <button class="copy-mini" @click="copyText(selectedOrder.paymentRefId)">کپی</button>
+              </div>
+              <div class="info-chip" v-if="selectedOrder.paymentMethod === 'snappay' && selectedOrder.paymentToken">
+                <span class="info-label">paymentToken:</span>
+                <span class="mono-ltr token-clip">{{ selectedOrder.paymentToken }}</span>
+                <button class="copy-mini" @click="copyText(selectedOrder.paymentToken)">کپی</button>
+              </div>
               <div class="info-chip" v-if="shippingTitle(selectedOrder.shippingInfo?.shippingMethod)">
                 <span class="info-label">روش ارسال:</span>
                 <span>{{ shippingTitle(selectedOrder.shippingInfo.shippingMethod) }}</span>
@@ -386,6 +537,27 @@ const changeOrderStatus = async (newStatus) => {
               <span class="tracking-hint">پیشنهاد: همزمان وضعیت را «ارسال شده» بگذارید تا مشتری ببیند</span>
             </div>
 
+            <!-- اسنپ‌پی: مرجوع جزئی / بازپرداخت کامل (الزامات پشتیبانی) -->
+            <div v-if="isSnappayPaid(selectedOrder)" class="snappay-actions">
+              <strong class="tracking-title">💳 بازگشت کالا و بازپرداخت اسنپ‌پی</strong>
+              <span class="snappay-hint">تعداد جدید هر کالا را وارد کنید (۰ = حذف کامل). تغییرات به‌صورت سیستمی به اسنپ‌پی ارسال می‌شود.</span>
+              <div v-for="(item, idx) in selectedOrder.items" :key="idx" class="refund-row">
+                <span class="item-name">{{ itemName(item.name) }} <small v-if="item.size">({{ item.size }})</small></span>
+                <span class="refund-current">فعلی: × {{ item.quantity }}</span>
+                <input v-model.number="refundQty[idx]" type="number" min="0" :max="item.quantity" class="refund-input" />
+              </div>
+              <div class="snappay-new-total">
+                مبلغ جدید: <strong>{{ computedNewTotal.toLocaleString('fa-IR') }} تومان</strong>
+                (فعلی: {{ selectedOrder.total?.toLocaleString('fa-IR') }})
+              </div>
+              <div class="snappay-btns">
+                <button class="snappay-update-btn" :disabled="snappayBusy" @click="askSnappayUpdate">
+                  {{ snappayBusy ? 'در حال ارسال...' : 'ارسال تغییرات (Update)' }}
+                </button>
+                <button class="snappay-cancel-btn" :disabled="snappayBusy" @click="askSnappayCancel">بازپرداخت کامل (Cancel)</button>
+              </div>
+            </div>
+
             <div class="order-items-list">
               <div v-for="(item, idx) in selectedOrder.items" :key="idx" class="order-item-row">
                 <span class="item-name">{{ itemName(item.name) }}</span>
@@ -405,6 +577,22 @@ const changeOrderStatus = async (newStatus) => {
               </div>
               <div class="total-row final"><span>مبلغ نهایی:</span><span>{{ selectedOrder.total?.toLocaleString('fa-IR') }} تومان</span></div>
             </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- پاپ‌آپ تأییدیه مجدد (الزام اسنپ‌پی — عملیات غیرقابل بازگشت) -->
+    <Transition name="modal">
+      <div v-if="confirmBox.open" class="modal-overlay" @click.self="confirmBox.open = false">
+        <div class="modal-content glass confirm-box">
+          <h3 class="confirm-title">{{ confirmBox.title }}</h3>
+          <p class="confirm-message">{{ confirmBox.message }}</p>
+          <div class="confirm-btns">
+            <button class="confirm-no" :disabled="snappayBusy" @click="confirmBox.open = false">انصراف</button>
+            <button class="confirm-yes" :disabled="snappayBusy" @click="confirmBox.action && confirmBox.action()">
+              {{ snappayBusy ? 'در حال انجام...' : 'بله، تأیید می‌کنم' }}
+            </button>
           </div>
         </div>
       </div>
@@ -910,4 +1098,168 @@ const changeOrderStatus = async (newStatus) => {
   opacity: 0;
   transform: scale(0.95);
 }
+
+/* ---------- نوار فیلتر + جستجو ---------- */
+.filters-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.search-input {
+  flex: 0 1 340px;
+  min-width: 220px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  outline: none;
+}
+.search-input:focus { border-color: rgba(197,160,89,0.5); }
+.search-input::placeholder { color: rgba(255,255,255,0.35); }
+
+/* بج کد تراکنش زیر شماره سفارش */
+.ref-id-chip {
+  display: block;
+  margin-top: 4px;
+  direction: ltr;
+  font-size: 0.7rem;
+  color: #facc6b;
+  opacity: 0.85;
+  cursor: pointer;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ref-id-chip:hover { opacity: 1; text-decoration: underline; }
+
+.mono-ltr {
+  direction: ltr;
+  font-family: ui-monospace, monospace;
+  font-size: 0.8rem;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.token-clip { max-width: 120px; }
+.copy-mini {
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(197,160,89,0.4);
+  background: rgba(197,160,89,0.12);
+  color: #facc6b;
+  font-size: 0.72rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+.copy-mini:hover { background: rgba(197,160,89,0.25); }
+
+/* ---------- اسنپ‌پی: مرجوع جزئی/کل ---------- */
+.snappay-actions {
+  padding: 14px;
+  border-radius: 12px;
+  background: rgba(59,130,246,0.06);
+  border: 1px dashed rgba(59,130,246,0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.snappay-hint { font-size: 0.78rem; opacity: 0.6; }
+.refund-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.03);
+  font-size: 0.85rem;
+}
+.refund-current { font-size: 0.75rem; opacity: 0.5; flex-shrink: 0; }
+.refund-input {
+  width: 74px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  outline: none;
+  text-align: center;
+}
+.refund-input:focus { border-color: rgba(59,130,246,0.6); }
+.snappay-new-total { font-size: 0.85rem; opacity: 0.8; }
+.snappay-new-total strong { color: #facc6b; }
+.snappay-btns { display: flex; gap: 10px; flex-wrap: wrap; }
+.snappay-update-btn {
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+.snappay-update-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.snappay-cancel-btn {
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: 1px solid rgba(239,68,68,0.5);
+  background: rgba(239,68,68,0.12);
+  color: #ef4444;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+.snappay-cancel-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ---------- پاپ‌آپ تأیید ---------- */
+.confirm-box {
+  max-width: 440px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.confirm-title { margin: 0; font-size: 1.05rem; color: #facc6b; }
+.confirm-message {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.9;
+  opacity: 0.9;
+  white-space: pre-line;
+}
+.confirm-btns { display: flex; gap: 10px; justify-content: flex-end; }
+.confirm-no {
+  padding: 9px 18px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.15);
+  background: transparent;
+  color: rgba(255,255,255,0.7);
+  font-size: 0.85rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+.confirm-yes {
+  padding: 9px 18px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+.confirm-yes:disabled { opacity: 0.5; cursor: not-allowed; }
+
 </style>
