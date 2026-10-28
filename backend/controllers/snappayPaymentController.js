@@ -97,6 +97,8 @@ const finalizePaidSnappPay = async (payment, order, refId) => {
   order.status = 'confirmed';
   // ⭐ شناسه تراکنش اسنپ‌پی — الزام ایمیل: قابل جستجو در پنل ادمین
   if (refId) order.paymentRefId = String(refId);
+  // ⭐ توکن پرداخت — پشتیبانی اسنپ‌پی برای پیگیری درخواست می‌خواهد
+  if (payment.authority) order.paymentToken = String(payment.authority);
 
   if (order.discountCode && !order.discountConsumed) {
     const consumed = await consumeDiscount(order.discountCode);
@@ -351,9 +353,35 @@ const snappPayCallback = async (req, res) => {
   }
 };
 
+
+/* ============================================================
+   Update / Cancel — الزامات پشتیبانی اسنپ‌پی (مرجوع جزئی/کل)
+   ⚠️ snappayRequest = همان helper درون فایل شماست که verifyPurchase
+   و settlePurchase از آن استفاده می‌کنند — اگر نام/شکلش فرق دارد،
+   فقط فراخوانی را هم‌شکل بقیه تابع‌های فایل کنید.
+   ============================================================ */
+
+// مرجوع جزئی — payload: { amount, cartList, discountAmount, externalSourceAmount }
+const updatePurchase = async (paymentToken, payload) => {
+  return snappayRequest('/purchase/v2/update', {
+    method: 'POST',
+    body: { paymentToken, ...payload },
+  });
+};
+
+// مرجوع کل / لغو خرید
+const cancelPurchase = async (paymentToken) => {
+  return snappayRequest('/purchase/v2/cancel', {
+    method: 'POST',
+    body: { paymentToken },
+  });
+};
+
 module.exports = {
   getSnappPayEligibility,
   initiateSnappPayPayment,
   snappPayCallback,
   finalizePaidSnappPay,
+  cancelPurchase,
+  updatePurchase,
 };

@@ -37,6 +37,8 @@ const heroRoutes = require('./routes/heroRoutes');
 const heroImageRoutes = require('./routes/heroImageRoutes');
 const torobRoutes = require('./routes/torobRoutes');
 const { startTorobPayRecovery } = require('./services/torobpayRecovery');
+const { initSnappayRecovery } = require('./jobs/snappayRecovery');
+initSnappayRecovery();
 const { startOrderExpiryCron } = require('./services/orderExpiry');
 const discountRoutes = require('./routes/discountRoutes');
 const seoController = require('./controllers/seoController');
