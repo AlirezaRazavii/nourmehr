@@ -30,7 +30,13 @@ watch(searchQuery, () => {
 /* ---------- اسنپ‌پی: مرجوع جزئی (Update) و مرجوع کل (Cancel) ---------- */
 const refundQty = ref({})       // index آیتم → تعداد جدید
 const snappayBusy = ref(false)
-const confirmBox = ref({ open: false, title: '', message: '', action: null })
+const confirmBox = ref({ open: false, step: 1, title: '', message: '', action: null })
+const confirmAgreed = ref(false)
+const resetConfirm = () => {
+  confirmBox.value.open = false
+  confirmBox.value.step = 1
+  confirmAgreed.value = false
+}
 
 /* ---------- تشخیص «پس کرایه» برای سفارش‌ها ---------- */
 const shippingInfoMap = ref({}) // id روش ارسال → { title, postPaid }
@@ -298,10 +304,12 @@ const askSnappayUpdate = () => {
     .join(' | ')
   confirmBox.value = {
     open: true,
+    step: 1,
     title: 'تأیید ارسال تغییرات به اسنپ‌پی (Update)',
     message: `اقلام جدید: ${kept}\nمبلغ جدید سفارش: ${computedNewTotal.value.toLocaleString('fa-IR')} تومان\n\n⚠️ این عملیات سیستمی به اسنپ‌پی ارسال می‌شود و مبلغ قابل تسویه کاهش می‌یابد. این کار غیرقابل بازگشت است. ادامه می‌دهید؟`,
     action: applySnappayUpdate,
   }
+  confirmAgreed.value = false
 }
 
 const applySnappayUpdate = async () => {
@@ -317,7 +325,7 @@ const applySnappayUpdate = async () => {
       const idx = orders.value.findIndex((x) => (x._id || x.id) === (o._id || o.id))
       if (idx !== -1) orders.value[idx] = res.data
     }
-    confirmBox.value.open = false
+    resetConfirm()
     alert('تغییرات با موفقیت به اسنپ‌پی ارسال شد ✅')
   } catch (err) {
     alert('خطا: ' + (err.response?.data?.message || err.message || 'عملیات ناموفق بود'))
@@ -330,10 +338,12 @@ const askSnappayCancel = () => {
   const o = selectedOrder.value
   confirmBox.value = {
     open: true,
+    step: 1,
     title: 'تأیید بازپرداخت کامل اسنپ‌پی (Cancel)',
     message: `کل مبلغ ${(o.total || 0).toLocaleString('fa-IR')} تومان به مشتری در اسنپ‌پی بازگردانده می‌شود و سفارش «عودت داده شده» می‌شود.\n\n⚠️ این عملیات غیرقابل بازگشت است. ادامه می‌دهید؟`,
     action: applySnappayCancel,
   }
+  confirmAgreed.value = false
 }
 
 const applySnappayCancel = async () => {
@@ -348,7 +358,7 @@ const applySnappayCancel = async () => {
       const idx = orders.value.findIndex((x) => (x._id || x.id) === (o._id || o.id))
       if (idx !== -1) orders.value[idx] = res.data
     }
-    confirmBox.value.open = false
+    resetConfirm()
     alert('بازپرداخت کامل انجام شد ✅')
   } catch (err) {
     alert('خطا: ' + (err.response?.data?.message || err.message || 'عملیات ناموفق بود'))
@@ -582,18 +592,36 @@ const applySnappayCancel = async () => {
       </div>
     </Transition>
 
-    <!-- پاپ‌آپ تأییدیه مجدد (الزام اسنپ‌پی — عملیات غیرقابل بازگشت) -->
+    <!-- پاپ‌آپ تأیید دو مرحله‌ای (الزام اسنپ‌پی — عملیات غیرقابل بازگشت) -->
     <Transition name="modal">
-      <div v-if="confirmBox.open" class="modal-overlay" @click.self="confirmBox.open = false">
+      <div v-if="confirmBox.open" class="modal-overlay" @click.self="!snappayBusy && resetConfirm()">
         <div class="modal-content glass confirm-box">
+          <div class="confirm-steps">
+            <span class="step" :class="{ active: confirmBox.step === 1, done: confirmBox.step === 2 }">۱. بررسی</span>
+            <span class="step" :class="{ active: confirmBox.step === 2 }">۲. تأیید نهایی</span>
+          </div>
           <h3 class="confirm-title">{{ confirmBox.title }}</h3>
           <p class="confirm-message">{{ confirmBox.message }}</p>
-          <div class="confirm-btns">
-            <button class="confirm-no" :disabled="snappayBusy" @click="confirmBox.open = false">انصراف</button>
-            <button class="confirm-yes" :disabled="snappayBusy" @click="confirmBox.action && confirmBox.action()">
-              {{ snappayBusy ? 'در حال انجام...' : 'بله، تأیید می‌کنم' }}
-            </button>
+
+          <!-- مرحله ۱: بررسی اطلاعات -->
+          <div v-if="confirmBox.step === 1" class="confirm-btns">
+            <button class="confirm-no" :disabled="snappayBusy" @click="resetConfirm()">انصراف</button>
+            <button class="confirm-yes" :disabled="snappayBusy" @click="confirmBox.step = 2">ادامه به تأیید نهایی ←</button>
           </div>
+
+          <!-- مرحله ۲: تأیید نهایی -->
+          <template v-else>
+            <label class="confirm-check">
+              <input v-model="confirmAgreed" type="checkbox" />
+              <span>می‌دانم این عملیات (کاهش مبلغ یا بازگشت وجه) <strong>قطعی و غیرقابل بازگشت</strong> است و پس از انجام، قابل لغو یا ویرایش نیست.</span>
+            </label>
+            <div class="confirm-btns">
+              <button class="confirm-no" :disabled="snappayBusy" @click="confirmBox.step = 1">→ بازگشت</button>
+              <button class="confirm-yes" :disabled="snappayBusy || !confirmAgreed" @click="confirmBox.action && confirmBox.action()">
+                {{ snappayBusy ? 'در حال انجام...' : 'بله، تأیید نهایی می‌کنم' }}
+              </button>
+            </div>
+          </template>
         </div>
       </div>
     </Transition>
@@ -1261,5 +1289,39 @@ const applySnappayCancel = async () => {
   font-family: inherit;
 }
 .confirm-yes:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ---------- تأیید دو مرحله‌ای ---------- */
+.confirm-steps { display: flex; gap: 8px; }
+.confirm-steps .step {
+  flex: 1;
+  text-align: center;
+  padding: 6px 0;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.4);
+}
+.confirm-steps .step.active {
+  border-color: rgba(250,204,107,0.6);
+  color: #facc6b;
+  background: rgba(197,160,89,0.1);
+}
+.confirm-steps .step.done {
+  border-color: rgba(34,197,94,0.5);
+  color: #22c55e;
+}
+.confirm-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(239,68,68,0.08);
+  border: 1px solid rgba(239,68,68,0.3);
+  font-size: 0.85rem;
+  line-height: 1.8;
+  cursor: pointer;
+}
+.confirm-check input { margin-top: 6px; accent-color: #ef4444; cursor: pointer; }
 
 </style>

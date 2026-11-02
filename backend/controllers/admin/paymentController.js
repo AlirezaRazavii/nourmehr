@@ -4,12 +4,26 @@ const { rollbackDiscount } = require('../../utils/discountEngine');
 
 const getPayments = async (req, res) => {
   try {
-    let { status, page = 1, limit = 10 } = req.query;
+    let { status, search, page = 1, limit = 10 } = req.query;
     page = Math.max(1, parseInt(page) || 1);
     limit = Math.min(100, Math.max(1, parseInt(limit) || 10)); // سقف امن برای limit
 
     const filter = {};
     if (status && status !== 'all') filter.status = status;
+
+        // جستجو: کد مرجع (refId) / توکن درگاه (authority) / شماره سفارش / کد تراکنش اسنپ‌پی سفارش
+    const s = String(search || '').trim();
+    if (s) {
+      const rx = new RegExp(s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      const matchedOrders = await Order.find({
+        $or: [{ orderRef: rx }, { paymentRefId: rx }],
+      }).select('_id').lean();
+      filter.$or = [
+        { refId: rx },
+        { authority: rx },
+        { order: { $in: matchedOrders.map((o) => o._id) } },
+      ];
+    }
 
     const skip = (page - 1) * limit;
     const payments = await Payment.find(filter)
