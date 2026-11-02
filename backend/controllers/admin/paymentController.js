@@ -11,7 +11,7 @@ const getPayments = async (req, res) => {
     const filter = {};
     if (status && status !== 'all') filter.status = status;
 
-        // جستجو: کد مرجع (refId) / توکن درگاه (authority) / شماره سفارش / کد تراکنش اسنپ‌پی سفارش
+    // جستجو: کد مرجع (refId) / توکن درگاه (authority) / شماره سفارش / کد تراکنش اسنپ‌پی سفارش
     const s = String(search || '').trim();
     if (s) {
       const rx = new RegExp(s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
