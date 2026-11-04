@@ -13,41 +13,6 @@
         <p class="jn-sub">{{ $t('news_subtitle') }}</p>
       </header>
 
-      <!-- ═══════════════ مقاله برگزیده (فقط نمای اول، بدون فیلتر) ═══════════════ -->
-      <div v-if="featured.length && page === 1 && !hasActiveFilters" class="jn-cell reveal jn-spotlight-cell">
-        <article
-          class="jn-spotlight" :class="{ noimg: !featured[0].image }"
-          tabindex="0" role="link" :aria-label="loc(featured[0].title)"
-          @click="open(featured[0])"
-          @keydown.enter.prevent="open(featured[0])"
-          @mouseenter="prefetch(featured[0].slug)"
-        >
-          <div class="jn-spot-img">
-            <img
-              v-if="featured[0].image"
-              :src="heroSrc(featured[0])" :srcset="srcset(featured[0])"
-              sizes="(max-width:900px) 96vw, 660px"
-              :alt="loc(featured[0].imageAlt) || loc(featured[0].title)"
-              loading="eager" fetchpriority="high"
-            />
-          </div>
-          <div class="jn-spot-body">
-            <p class="jn-spot-tag">✦ {{ $t('news_featured') }}</p>
-            <h2>{{ loc(featured[0].title) }}</h2>
-            <p v-if="loc(featured[0].excerpt)" class="jn-spot-excerpt">{{ loc(featured[0].excerpt) }}</p>
-            <div class="jn-spot-meta">
-              <span v-if="featured[0].category" class="cat">{{ featured[0].category.name }}</span>
-              <time :datetime="featured[0].publishedAt || featured[0].createdAt">{{ fmtDate(featured[0].publishedAt || featured[0].createdAt) }}</time>
-              <span v-if="featured[0].readingTime">⏱ {{ featured[0].readingTime }} {{ $t('news_min_read') }}</span>
-            </div>
-            <span class="jn-spot-cta">
-              {{ $t('news_read_more') }}
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
-            </span>
-          </div>
-        </article>
-      </div>
-
       <!-- ═══════════════ نوار ابزار (چسبان) ═══════════════ -->
       <div class="jn-toolbar">
         <div class="jn-toolbar-row">
@@ -236,7 +201,6 @@ const { theme, toggle } = useTheme()
 const articles = ref([])
 const categories = ref([])
 const tags = ref([])
-const featured = ref([])
 const totalCount = ref(0)
 const loading = ref(true)
 const error = ref(false)
@@ -263,24 +227,13 @@ const periodLabel = (p) => {
 
 // srcset از variants پایپ‌لاین sharp
 const srcset = (a) => (a.imageVariants || []).map(v => `${getImageUrl(v.url)} ${v.w}w`).join(', ')
-const heroSrc = (a) => {
-  const vs = a.imageVariants || []
-  return vs.length ? getImageUrl(vs.find(v => v.w === 1200)?.url || vs[vs.length - 1].url) : getImageUrl(a.image)
-}
 const cardImage = (a) => {
   const vs = a.imageVariants || []
   return vs.length ? getImageUrl(vs.find(v => v.w === 768)?.url || vs[0].url) : getImageUrl(a.image)
 }
 
 const hasActiveFilters = computed(() => filters.search || filters.category || filters.type || filters.tag || filters.period)
-// کارت‌های لیست = همه به‌جز مقاله برگزیده (در نمای اول)
-const visibleArticles = computed(() => {
-  if (page.value === 1 && !hasActiveFilters.value && featured.value.length) {
-    const fIds = new Set(featured.value.map(f => f._id))
-    return articles.value.filter(a => !fIds.has(a._id))
-  }
-  return articles.value
-})
+const visibleArticles = computed(() => articles.value)
 
 /* -------------------- قرص‌های فیلتر فعال + حذف همه -------------------- */
 const activeFilters = computed(() => {
@@ -327,13 +280,6 @@ const load = async () => {
       articles.value = res.data
       page.value = 1
       totalCount.value = res.meta?.total ?? res.data.length
-      // مقاله برگزیده: یک مقاله ویژه فقط در نمای بدون فیلتر
-      if (!hasActiveFilters.value) {
-        const feats = res.data.filter(a => a.featured)
-        featured.value = (feats.length ? feats : res.data).slice(0, 1)
-      } else {
-        featured.value = []
-      }
       await nextTick()
       refreshReveal()
     } else error.value = true
@@ -490,72 +436,6 @@ const open = (a) => router.push({ name: 'ArticleView', params: { lang: locale.va
   transition: opacity 0.6s ease var(--d, 0ms), transform 0.6s cubic-bezier(0.22, 1, 0.36, 1) var(--d, 0ms);
 }
 .jn-cell.reveal.revealed { opacity: 1; transform: none; }
-
-/* ═══════════════ مقاله برگزیده ═══════════════ */
-.jn-spotlight-cell { margin: 34px 0 8px; }
-.jn-spotlight {
-  position: relative;
-  display: grid; grid-template-columns: 1.08fr 1fr;
-  border-radius: 24px; overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--nm-gold) 30%, transparent);
-  background: var(--nm-surface-solid);
-  cursor: pointer;
-  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.5s ease, border-color 0.5s ease;
-}
-/* قاب داخلی طلایی — حس «پاسپارتو» گالری */
-.jn-spotlight::after {
-  content: ''; position: absolute; inset: 10px; z-index: 2;
-  border: 1px solid color-mix(in srgb, var(--nm-gold) 22%, transparent);
-  border-radius: 16px; pointer-events: none;
-  transition: inset 0.45s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.45s ease;
-}
-.jn-spotlight:hover {
-  transform: translateY(-5px);
-  box-shadow: var(--nm-shadow);
-  border-color: color-mix(in srgb, var(--nm-gold) 55%, transparent);
-}
-.jn-spotlight:hover::after { inset: 6px; }
-.jn-spotlight:focus-visible { outline: 2px solid var(--nm-gold); outline-offset: 3px; }
-
-.jn-spot-img { position: relative; min-height: 330px; overflow: hidden; }
-.jn-spot-img img {
-  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
-  transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.jn-spotlight:hover .jn-spot-img img { transform: scale(1.045); }
-.jn-spotlight.noimg .jn-spot-img {
-  background:
-    radial-gradient(120% 120% at 78% 18%, color-mix(in srgb, var(--nm-gold) 20%, transparent), transparent 55%),
-    linear-gradient(160deg, var(--nm-bg-soft), var(--nm-bg));
-}
-
-.jn-spot-body {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 14px;
-  padding: clamp(26px, 4vw, 46px);
-}
-.jn-spot-tag { margin: 0; color: var(--nm-gold); font-size: 0.78rem; font-weight: 700; }
-.jn-spot-body h2 {
-  margin: 0; font-size: clamp(1.25rem, 2.6vw, 1.85rem);
-  font-weight: 800; line-height: 1.65;
-  display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
-}
-.jn-spot-excerpt {
-  margin: 0; color: var(--nm-text-dim); font-size: 0.92rem; line-height: 2.05;
-  display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
-}
-.jn-spot-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 0.8rem; color: var(--nm-text-faint); }
-.jn-spot-meta .cat { color: var(--nm-gold); font-weight: 700; }
-.jn-spot-cta {
-  margin-top: 8px;
-  display: inline-flex; align-items: center; gap: 10px;
-  padding: 12px 24px; border-radius: 14px;
-  border: 1px solid color-mix(in srgb, var(--nm-gold) 55%, transparent);
-  color: var(--nm-gold); font-size: 0.88rem; font-weight: 700;
-  transition: background 0.35s ease, color 0.35s ease;
-}
-.jn-spot-cta svg { transition: transform 0.3s ease; }
-.jn-spotlight:hover .jn-spot-cta { background: var(--nm-gold); color: #0b0e18; }
-.jn-spotlight:hover .jn-spot-cta svg { transform: translateX(-4px); }
 
 /* ═══════════════ نوار ابزار ═══════════════ */
 .jn-toolbar {
@@ -804,8 +684,6 @@ const open = (a) => router.push({ name: 'ArticleView', params: { lang: locale.va
   .jn-toolbar { position: static; } /* موبایل/تبلت: نوار ابزار چسبان نمی‌ماند */
 }
 @media (max-width: 900px) {
-  .jn-spotlight { grid-template-columns: 1fr; }
-  .jn-spot-img { min-height: 240px; }
 }
 @media (max-width: 700px) {
   .jn-page { padding: 116px 14px 64px; }
@@ -822,8 +700,8 @@ const open = (a) => router.push({ name: 'ArticleView', params: { lang: locale.va
 @media (prefers-reduced-motion: reduce) {
   .jn-head { animation: none; }
   .jn-cell.reveal { opacity: 1; transform: none; transition: none; }
-  .jn-card, .jn-spotlight, .jn-spotlight::after, .jn-card-img img, .jn-spot-img img,
-  .jn-go svg, .jn-spot-cta svg, .jn-theme-btn, .jn-shimmer::after {
+  .jn-card, .jn-card-img img,
+  .jn-go svg, .jn-theme-btn, .jn-shimmer::after {
     transition: none !important;
     animation: none !important;
   }
