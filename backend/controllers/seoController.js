@@ -510,7 +510,10 @@ exports.robots = (req, res) => {
 exports.newsBotRenderer = async (req, res, next) => {
   if (!isBot(req.headers['user-agent'])) return next();
   try {
-    const lang = req.lang || 'fa';
+    // ★ فیکس B-03: زبان از پارامتر مسیر می‌آید (همان الگوی productBotRenderer)
+    // قبلاً req.lang (که هیچ‌وقت ست نمی‌شد) باعث می‌شد /en/news برای گوگل‌بات
+    // با متن فارسی رندر شود = محتوای تکراری و تجربه نادرست در نتایج جستجو.
+    const lang = ['fa', 'en'].includes(req.params.lang) ? req.params.lang : 'fa';
 
     // صفحه جزئیات
     if (req.params.slug) {

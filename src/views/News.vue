@@ -140,7 +140,7 @@ const searchInput = ref('')
 const page = ref(1)
 const sort = ref('newest')
 const meta = reactive({ page: 1, limit: 9, total: 0, pages: 1 })
-const filters = reactive({ search: '', category: '', type: '' })
+const filters = reactive({ search: '', category: '', type: '', tag: '' })
 
 // پیام حالت خالی بر اساس تب فعال (خبر/رویداد/مقاله)
 const emptyMessage = computed(() => {
@@ -192,6 +192,7 @@ const load = async () => {
     if (filters.search) params.search = filters.search
     if (filters.category) params.category = filters.category
     if (filters.type) params.type = filters.type
+    if (filters.tag) params.tag = filters.tag
 
     const res = await getBlogs(params)
     if (res.success) {
@@ -258,6 +259,7 @@ const goToBlog = (slug) => {
 watch(() => route.query, (q) => {
   filters.category = q.category || ''
   filters.type = q.type || ''
+  filters.tag = q.tag || ''
   filters.search = q.search || ''
   searchInput.value = q.search || ''
   page.value = Math.max(1, parseInt(q.page) || 1)
@@ -274,6 +276,7 @@ const buildQuery = () => {
   if (page.value > 1) q.page = page.value
   if (filters.category) q.category = filters.category
   if (filters.type) q.type = filters.type
+  if (filters.tag) q.tag = filters.tag
   if (filters.search) q.search = filters.search
   if (sort.value !== 'newest') q.sort = sort.value
   return q
@@ -282,6 +285,7 @@ const buildQuery = () => {
 onMounted(() => {
   if (route.query.category) filters.category = route.query.category
   if (route.query.type) filters.type = route.query.type
+  if (route.query.tag) filters.tag = route.query.tag
   if (route.query.search) { filters.search = route.query.search; searchInput.value = route.query.search }
   if (route.query.page) page.value = Math.max(1, parseInt(route.query.page) || 1)
   if (route.query.sort) sort.value = route.query.sort

@@ -111,11 +111,19 @@ exports.getBlogs = async (req, res) => {
     }
     if (req.query.search) {
       const rx = new RegExp(escapeRegex(String(req.query.search).trim()), 'i');
-      query.$or = [
-        { 'title.fa': rx },
-        { 'title.en': rx },
-        { 'excerpt.fa': rx },
-        { 'excerpt.en': rx }
+      // ★ فیکس B-01: قبلاً query.$or فیلتر انتشار را بازنویسی می‌کرد و
+      // پیش‌نویس‌ها به نتایج جستجوی عمومی راه می‌یافتند.
+      // حالا فیلتر انتشار و شرط جستجو هر کدام در $and جدا زندگی می‌کنند.
+      query.$and = [
+        publishedFilter(),
+        {
+          $or: [
+            { 'title.fa': rx },
+            { 'title.en': rx },
+            { 'excerpt.fa': rx },
+            { 'excerpt.en': rx }
+          ]
+        }
       ];
     }
 
@@ -247,18 +255,41 @@ exports.getRelatedBlogs = async (req, res) => {
 
     const tagSlugs = (current.tags || []).map(t => t.slug);
 
-    const related = await Blog.find({
-      _id: { $ne: current._id },
-      ...publishedFilter(),
-      $or: [
-        ...(current.category ? [{ category: current.category }] : []),
-        ...(tagSlugs.length ? [{ 'tags.slug': { $in: tagSlugs } }] : [])
-      ]
-    })
-      .select('title slug excerpt image imageAlt type publishedAt readingTime')
-      .sort({ publishedAt: -1 })
-      .limit(4)
-      .lean();
+    // ★ فیکس B-02: قبلاً $or معیار شباهت، فیلتر انتشارِ spread شده را بازنویسی
+    // می‌کرد (پیش‌نویس‌ها در «مقالات مرتبط» ظاهر می‌شدند) و اگر مقاله نه دسته
+    // داشت و نه تگ، آرایه $or خالی باعث خطای ۵۰۰ می‌شد.
+    const orConditions = [
+      ...(current.category ? [{ category: current.category }] : []),
+      ...(tagSlugs.length ? [{ 'tags.slug': { $in: tagSlugs } }] : [])
+    ];
+
+    let related = [];
+    if (orConditions.length) {
+      related = await Blog.find({
+        $and: [
+          { _id: { $ne: current._id } },
+          publishedFilter(),
+          { $or: orConditions }
+        ]
+      })
+        .select('title slug excerpt image imageAlt type publishedAt readingTime')
+        .sort({ publishedAt: -1 })
+        .limit(4)
+        .lean();
+    }
+
+    // اگر شباهتی پیدا نشد → جدیدترین‌ها تا صفحه خالی نماند
+    if (related.length < 4) {
+      const exclude = [current._id, ...related.map(r => r._id)];
+      const extra = await Blog.find({
+        $and: [{ _id: { $nin: exclude } }, publishedFilter()]
+      })
+        .select('title slug excerpt image imageAlt type publishedAt readingTime')
+        .sort({ publishedAt: -1 })
+        .limit(4 - related.length)
+        .lean();
+      related = [...related, ...extra];
+    }
 
     res.json({ success: true, data: related.map(b => localizeBlog(b, lang)) });
   } catch (err) {
