@@ -269,16 +269,21 @@ exports.getArticleBySlug = async (req, res) => {
     const slug = String(req.params.slug || '').toLowerCase();
     const other = lang === 'fa' ? 'en' : 'fa';
 
-    const article = await Article.findOne({
-      $or: [
-        { [`slug.${lang}`]: slug },
-        { legacySlugs: slug }
-      ],
-      ...publishedFilter()
-    })
-      .populate('category', 'name slug')
-      .populate('author', 'name')
-      .populate('relatedProducts.product', 'name slug mainImage price discountPercent status shortDesc');
+    // اولویت با تطابق دقیق اسلاگ زبان فعلی است؛ legacySlugs فقط fallback
+    const POPULATE = 'category name slug | author name | relatedProducts.product name slug mainImage price discountPercent status shortDesc';
+    const [exactLang, exactOther, legacy] = await Promise.all([
+      Article.findOne({ [`slug.${lang}`]: slug, ...publishedFilter() }),
+      Article.findOne({ [`slug.${other}`]: slug, ...publishedFilter() }),
+      Article.findOne({ legacySlugs: slug, ...publishedFilter() })
+    ]);
+    const article = exactLang || exactOther || legacy;
+    if (article) {
+      await article.populate([
+        { path: 'category', select: 'name slug' },
+        { path: 'author', select: 'name' },
+        { path: 'relatedProducts.product', select: 'name slug mainImage price discountPercent status shortDesc' }
+      ]);
+    }
 
     if (!article) return res.status(404).json({ success: false, message: 'Article not found' });
 
