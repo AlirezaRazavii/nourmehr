@@ -105,7 +105,7 @@ const withCategory = async (articles, lang) => {
 };
 
 /* ------------------------------- لیست عمومی ------------------------------- */
-// GET /api/articles?page=1&limit=9&search=..&category=slug&tag=slug&type=news&sort=newest|oldest|popular
+// GET /api/articles?page=1&limit=9&search=..&category=slug&tag=slug&type=news&period=today|week|month|year&sort=newest|oldest|popular
 exports.getArticles = async (req, res) => {
   try {
     const lang = req.lang || 'fa';
@@ -138,6 +138,17 @@ exports.getArticles = async (req, res) => {
           { 'title.en': rx },
           { 'excerpt.fa': rx },
           { 'excerpt.en': rx }
+        ]
+      });
+    }
+    // بازه زمانی انتشار — امروز / ۷ روز / ۳۰ روز / یک سال اخیر
+    const PERIOD_DAYS = { today: 1, week: 7, month: 30, year: 365 };
+    if (req.query.period && PERIOD_DAYS[req.query.period]) {
+      const from = new Date(Date.now() - PERIOD_DAYS[req.query.period] * 24 * 60 * 60 * 1000);
+      conditions.push({
+        $or: [
+          { publishedAt: { $gte: from } },
+          { publishedAt: { $exists: false }, createdAt: { $gte: from } }
         ]
       });
     }
