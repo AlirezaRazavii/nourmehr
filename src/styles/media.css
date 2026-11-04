@@ -1,9 +1,11 @@
 /* ============================================================
-   media.css — سیستم طراحی ماژول رسانه‌ای نورمهر
-   - متغیرهای CSS با حالت تاریک (پیش‌فرض برند) و روشن
+   media.css — سیستم طراحی «مجله لوکس» ماژول رسانه‌ای نورمهر
+   - پالت تاریک برند (پیش‌فرض) + روشن، رنگ‌بندی نوع مطلب:
+     خبر=آبی، رویداد=سبز، مقاله=طلایی
+   - هیروی سینمایی (هاب + صفحه مقاله)، گرید مجله‌ای با کارت پهن
    - تایپوگرافی مقاله ~65ch با logical properties (RTL/LTR خودکار)
    - کارت، چیپ، اسکلتون، انیمیشن ورود، نوار پیشرفت، TOC، آکاردئون FAQ
-   نحوه استفاده: هر ویوی جدید در <script setup> این فایل را import می‌کند:
+   نحوه استفاده: هر ویو در <script setup> این فایل را import می‌کند:
      import '../styles/media.css'
    ============================================================ */
 
@@ -23,6 +25,7 @@
   --nm-gold-light: #facc6b;
   --nm-gold-soft: rgba(197, 160, 89, 0.14);
   --nm-teal: #2bbf9e;
+  --nm-teal-soft: rgba(43, 191, 158, 0.13);
   --nm-blue: #60a5fa;
   --nm-blue-soft: rgba(96, 165, 250, 0.14);
   --nm-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
@@ -43,6 +46,7 @@
   --nm-gold-light: #8a6a24;
   --nm-gold-soft: rgba(169, 127, 47, 0.12);
   --nm-teal: #14917a;
+  --nm-teal-soft: rgba(20, 145, 122, 0.1);
   --nm-blue: #2563eb;
   --nm-blue-soft: rgba(37, 99, 235, 0.1);
   --nm-shadow: 0 20px 40px rgba(60, 50, 30, 0.14);
@@ -57,24 +61,119 @@
   color: var(--nm-text);
   transition: background 0.35s ease, color 0.35s ease;
 }
-
 .nm-container { max-width: 1240px; margin: 0 auto; }
 
-/* ------------------------------- هیروی هاب ------------------------------- */
-.nm-hero {
+/* -------------------- هیروی سینمایی هاب (مقاله منتخب) -------------------- */
+.nm-cover-hero {
   position: relative;
-  padding: 40px 0 34px;
-  margin-bottom: 28px;
-  text-align: center;
+  min-height: 460px;
+  display: flex;
+  align-items: flex-end;
+  margin: 8px 0 40px;
+  border-radius: 26px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--nm-gold) 28%, transparent);
+  cursor: pointer;
+  outline-offset: 3px;
+  transition: border-color 0.35s, box-shadow 0.35s, transform 0.35s;
 }
+.nm-cover-hero:hover {
+  border-color: color-mix(in srgb, var(--nm-gold) 55%, transparent);
+  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.5);
+  transform: translateY(-4px);
+}
+.nm-cover-hero:focus-visible { outline: 2px solid var(--nm-gold); }
+.nm-cover-hero > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.nm-cover-hero:hover > img { transform: scale(1.045); }
+.nm-cover-noimg { background: linear-gradient(135deg, #12172a, #090c18); }
+
+.nm-cover-overlay {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 880px;
+  padding: 40px 42px 36px;
+  background: linear-gradient(to top, rgba(4, 6, 12, 0.95) 0%, rgba(4, 6, 12, 0.68) 48%, transparent 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.nm-cover-badges { display: flex; gap: 8px; flex-wrap: wrap; }
+.nm-cover-title {
+  margin: 0;
+  font-size: clamp(1.45rem, 3.2vw, 2.3rem);
+  font-weight: 800;
+  line-height: 1.4;
+  color: #fff;
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.5);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.nm-cover-excerpt {
+  margin: 0;
+  font-size: 0.98rem;
+  line-height: 1.9;
+  color: rgba(244, 246, 251, 0.78);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.nm-cover-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 0.82rem;
+  color: rgba(244, 246, 251, 0.62);
+}
+.nm-cover-meta .sep { opacity: 0.5; }
+.nm-cover-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-inline-start: auto;
+  padding: 9px 20px;
+  border-radius: 999px;
+  background: linear-gradient(120deg, var(--nm-gold), var(--nm-gold-light));
+  color: #0a0d14;
+  font-size: 0.84rem;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: gap 0.25s, filter 0.25s;
+}
+.nm-cover-hero:hover .nm-cover-cta { gap: 12px; filter: brightness(1.08); }
+html[dir='rtl'] .nm-cover-cta svg { transform: rotate(180deg); }
+
+/* ------------------------------- سربرگ هاب ------------------------------- */
+.nm-hero { position: relative; padding: 34px 0 30px; margin-bottom: 26px; text-align: center; }
 .nm-hero::after {
   content: '';
   position: absolute;
-  inset-inline: 20%;
+  inset-inline: 16%;
   bottom: 0;
   height: 1px;
-  background: linear-gradient(to var(--nm-dir-right, right), transparent, var(--nm-gold), transparent);
+  background: linear-gradient(to right, transparent, var(--nm-gold), transparent);
   opacity: 0.5;
+}
+.nm-eyebrow {
+  margin: 0 0 10px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: var(--nm-gold);
 }
 .nm-hero h1 {
   margin: 0 0 12px;
@@ -115,7 +214,7 @@
   flex-direction: column;
   gap: 14px;
   padding: 18px 20px;
-  margin-bottom: 30px;
+  margin-bottom: 34px;
   border-radius: 18px;
   background: var(--nm-surface);
   border: 1px solid var(--nm-line);
@@ -130,7 +229,9 @@
   border-radius: 12px;
   background: color-mix(in srgb, var(--nm-surface-solid) 55%, transparent);
   border: 1px solid var(--nm-line);
+  transition: border-color 0.25s;
 }
+.nm-search:focus-within { border-color: color-mix(in srgb, var(--nm-gold) 50%, transparent); }
 .nm-search input {
   flex: 1;
   background: transparent;
@@ -154,34 +255,6 @@
 }
 .nm-sort option { background: var(--nm-surface-solid); color: var(--nm-text); }
 
-/* ------------------------- پست ویژه (featured) ------------------------- */
-.nm-featured {
-  display: grid;
-  grid-template-columns: 1.25fr 1fr;
-  gap: 0;
-  overflow: hidden;
-  margin-bottom: 16px;
-  border-radius: 22px;
-  border: 1px solid color-mix(in srgb, var(--nm-gold) 30%, transparent);
-  background: var(--nm-surface);
-  cursor: pointer;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-.nm-featured + .nm-featured { grid-template-columns: 1fr 1.25fr; } /* دومی آینه‌ای */
-.nm-featured:hover { transform: translateY(-4px); box-shadow: var(--nm-shadow); }
-.nm-featured-img { min-height: 300px; overflow: hidden; }
-.nm-featured-img img {
-  width: 100%; height: 100%; object-fit: cover;
-  transition: transform 0.6s ease;
-}
-.nm-featured:hover .nm-featured-img img { transform: scale(1.04); }
-.nm-featured-body {
-  display: flex; flex-direction: column; justify-content: center;
-  gap: 13px; padding: 32px 36px;
-}
-.nm-featured-body h2 { margin: 0; font-size: 1.65rem; line-height: 1.45; }
-.nm-featured-body > p { margin: 0; color: var(--nm-text-dim); line-height: 1.85; }
-
 /* -------------------------------- کارت‌ها -------------------------------- */
 .nm-grid {
   display: grid;
@@ -189,7 +262,9 @@
   gap: 22px;
 }
 .nm-card {
-  display: flex; flex-direction: column;
+  position: relative;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   border-radius: 18px;
   background: var(--nm-surface);
@@ -197,6 +272,19 @@
   cursor: pointer;
   transition: transform 0.28s ease, border-color 0.28s ease, box-shadow 0.28s ease;
 }
+/* خط لهجه رنگی نوع مطلب — بالای هر کارت */
+.nm-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  inset-inline: 0;
+  height: 3px;
+  z-index: 2;
+  background: linear-gradient(to var(--nm-dir, left), transparent, var(--nm-gold), transparent);
+  opacity: 0.85;
+}
+.nm-card.news::before { --nm-dir: left; background: linear-gradient(to left, transparent, var(--nm-blue), transparent); }
+.nm-card.event::before { background: linear-gradient(to left, transparent, var(--nm-teal), transparent); }
 .nm-card:hover {
   transform: translateY(-6px);
   border-color: color-mix(in srgb, var(--nm-gold) 45%, transparent);
@@ -218,14 +306,31 @@
   border-top: 1px solid var(--nm-line);
   font-size: 0.78rem; color: var(--nm-text-faint);
 }
-.nm-readmore { color: var(--nm-teal); font-weight: 600; font-size: 0.82rem; }
+.nm-readmore { color: var(--nm-gold-light); font-weight: 600; font-size: 0.82rem; }
 
+/* کارت پهن مجله‌ای — اولین کارت گرید، دو ستون و افقی */
+.nm-card.wide { grid-column: span 2; display: grid; grid-template-columns: 1.15fr 1fr; }
+.nm-card.wide .nm-card-img { height: 100%; min-height: 250px; }
+.nm-card.wide .nm-card-body { justify-content: center; }
+.nm-card.wide .nm-card-body h3 { font-size: 1.3rem; }
+.nm-card.wide .nm-card-body > p { -webkit-line-clamp: 3; }
+
+/* ------------------------------ بج نوع مطلب ------------------------------ */
 .nm-badge {
-  display: inline-block; padding: 4px 12px; border-radius: 999px;
-  background: var(--nm-gold-soft); color: var(--nm-gold-light);
-  font-size: 0.72rem; width: fit-content;
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--nm-gold-soft);
+  color: var(--nm-gold-light);
+  font-size: 0.72rem;
+  font-weight: 600;
+  width: fit-content;
+  border: 1px solid color-mix(in srgb, var(--nm-gold) 30%, transparent);
 }
-.nm-badge.blue { background: var(--nm-blue-soft); color: var(--nm-blue); }
+.nm-badge.news { background: var(--nm-blue-soft); color: var(--nm-blue); border-color: color-mix(in srgb, var(--nm-blue) 35%, transparent); }
+.nm-badge.event { background: var(--nm-teal-soft); color: var(--nm-teal); border-color: color-mix(in srgb, var(--nm-teal) 35%, transparent); }
+.nm-badge.cat { background: rgba(255, 255, 255, 0.07); color: var(--nm-text-dim); border-color: var(--nm-line); }
+[data-theme='light'] .nm-badge.cat { background: rgba(60, 50, 30, 0.06); }
 
 /* ------------------------------- اسکلتون ------------------------------- */
 .nm-skeleton {
@@ -252,7 +357,78 @@
   transition: width 0.12s linear;
 }
 
-/* ------------------------ صفحه مقاله — چیدمان سه‌ستونه ------------------------ */
+/* ------------------- صفحه مقاله — هیروی سینمایی سر مقاله ------------------- */
+.nm-article-hero {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  min-height: 420px;
+  margin: 4px 0 34px;
+  border-radius: 26px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--nm-gold) 25%, transparent);
+}
+.nm-article-hero > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* حالت بدون تصویر: سطح تیره با هاله طلایی */
+.nm-article-hero.no-img {
+  min-height: 0;
+  background:
+    radial-gradient(600px 200px at 15% 0%, rgba(197, 160, 89, 0.12), transparent 70%),
+    var(--nm-surface);
+}
+.nm-article-hero-overlay {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  padding: 42px 44px 34px;
+  background: linear-gradient(to top, rgba(4, 6, 12, 0.95) 0%, rgba(4, 6, 12, 0.62) 55%, transparent 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+.nm-article-hero.no-img .nm-article-hero-overlay { background: none; padding: 30px 34px 26px; }
+.nm-article-hero-overlay h1 {
+  margin: 0;
+  max-width: 20ch;
+  font-size: clamp(1.5rem, 3.4vw, 2.5rem);
+  font-weight: 800;
+  line-height: 1.4;
+  color: #fff;
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.5);
+}
+.nm-article-hero.no-img .nm-article-hero-overlay h1 { color: var(--nm-text); text-shadow: none; }
+.nm-article-hero-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 0.85rem;
+  color: rgba(244, 246, 251, 0.72);
+}
+.nm-article-hero.no-img .nm-article-hero-meta { color: var(--nm-text-dim); }
+.nm-article-hero-meta .dot { opacity: 0.45; }
+
+/* مسیر راهنما روی هیرو */
+.nm-breadcrumb {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 0.82rem;
+}
+.nm-breadcrumb a { color: var(--nm-gold-light); text-decoration: none; transition: opacity 0.2s; }
+.nm-breadcrumb a:hover { opacity: 0.8; text-decoration: underline; }
+.nm-breadcrumb .sep { color: rgba(244, 246, 251, 0.4); }
+.nm-breadcrumb .current { color: rgba(244, 246, 251, 0.66); }
+.nm-article-hero.no-img .nm-breadcrumb .sep,
+.nm-article-hero.no-img .nm-breadcrumb .current { color: var(--nm-text-faint); }
+
+/* ------------------------ چیدمان سه‌ستونه صفحه مقاله ------------------------ */
 .nm-article-layout {
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr) 300px;
@@ -282,33 +458,43 @@
 
 /* بدنه مقاله — حدود 65 کاراکتر در هر خط برای خوانایی بهینه */
 .nm-article { max-width: 68ch; width: 100%; margin-inline: auto; }
-.nm-article h1 { margin: 10px 0 16px; font-size: clamp(1.6rem, 3.4vw, 2.4rem); line-height: 1.4; font-weight: 800; }
-.nm-article-meta {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 16px;
-  color: var(--nm-text-fim); color: var(--nm-text-faint); font-size: 0.85rem;
-}
-.nm-article-cover { margin: 22px 0; border-radius: 18px; overflow: hidden; }
-.nm-article-cover img { display: block; width: 100%; height: auto; }
 .nm-article-excerpt {
-  padding: 16px 20px; margin: 0 0 24px;
+  padding: 18px 22px; margin: 0 0 28px;
   border-inline-start: 3px solid var(--nm-gold);
   border-radius: 12px; background: var(--nm-gold-soft);
-  color: var(--nm-text-dim); line-height: 1.9; font-size: 1.04rem;
+  color: var(--nm-text-dim); line-height: 1.95; font-size: 1.06rem;
 }
 
 /* تایپوگرافی محتوا — logical properties برای RTL/LTR خودکار */
-.nm-prose { font-size: 1.03rem; line-height: 2.1; color: var(--nm-text); }
+.nm-prose { font-size: 1.05rem; line-height: 2.15; color: var(--nm-text); }
 .nm-prose > * { max-width: 100%; }
 .nm-prose p { margin: 0 0 1.5em; }
-.nm-prose h2 { margin: 1.7em 0 0.7em; font-size: 1.45rem; color: var(--nm-gold-light); line-height: 1.5; }
-.nm-prose h3 { margin: 1.4em 0 0.6em; font-size: 1.2rem; line-height: 1.55; }
+.nm-prose p:first-of-type { font-size: 1.12rem; color: var(--nm-text); }
+.nm-prose h2 { margin: 1.7em 0 0.7em; font-size: 1.5rem; color: var(--nm-gold-light); line-height: 1.5; }
+.nm-prose h3 { margin: 1.4em 0 0.6em; font-size: 1.22rem; line-height: 1.55; }
 .nm-prose ul, .nm-prose ol { margin: 0 0 1.5em; padding-inline-start: 1.6em; }
 .nm-prose li { margin-bottom: 0.5em; }
+/* نقل‌قول به سبک مجله — بزرگ و طلایی */
 .nm-prose blockquote {
-  margin: 1.6em 0; padding: 14px 20px;
+  position: relative;
+  margin: 2em 0; padding: 22px 26px;
   border-inline-start: 3px solid var(--nm-gold);
-  border-radius: 12px; background: var(--nm-gold-soft);
-  color: var(--nm-text-dim);
+  border-radius: 14px;
+  background: linear-gradient(120deg, var(--nm-gold-soft), transparent 80%);
+  color: var(--nm-text);
+  font-size: 1.12rem;
+  line-height: 2;
+  font-weight: 500;
+}
+.nm-prose blockquote::before {
+  content: '”';
+  position: absolute;
+  top: -6px;
+  inset-inline-start: 14px;
+  font-size: 3rem;
+  line-height: 1;
+  color: var(--nm-gold);
+  opacity: 0.5;
 }
 .nm-prose img { max-width: 100%; border-radius: 14px; height: auto; }
 .nm-prose a { color: var(--nm-blue); text-underline-offset: 4px; }
@@ -371,6 +557,7 @@
 .nm-empty .icon { font-size: 3.4rem; margin-bottom: 14px; }
 .nm-sentinel { height: 1px; }
 .nm-loading-more { text-align: center; padding: 26px; color: var(--nm-text-faint); font-size: 0.9rem; }
+.nm-section-title { font-size: 1.4rem; font-weight: 800; margin: 0 0 20px; }
 
 /* دکمه تم */
 .nm-theme-btn {
@@ -394,12 +581,17 @@
   .nm-rail > * { flex: 1 1 240px; }
 }
 @media (max-width: 900px) {
-  .nm-featured, .nm-featured + .nm-featured { grid-template-columns: 1fr; }
-  .nm-featured-img { min-height: 210px; }
+  .nm-cover-hero { min-height: 340px; }
+  .nm-cover-overlay { padding: 26px 24px 24px; }
+  .nm-card.wide { grid-column: span 1; grid-template-columns: 1fr; }
+  .nm-card.wide .nm-card-img { min-height: 195px; }
+  .nm-article-hero { min-height: 330px; }
+  .nm-article-hero-overlay { padding: 28px 24px 24px; }
 }
 @media (max-width: 640px) {
   .nm-page { padding: 96px 14px 56px; }
   .nm-grid { grid-template-columns: 1fr; }
-  .nm-featured-body { padding: 22px; }
-  .nm-featured-body h2 { font-size: 1.3rem; }
+  .nm-cover-hero { min-height: 300px; }
+  .nm-cover-cta { margin-inline-start: 0; }
+  .nm-article-hero-overlay h1 { font-size: 1.35rem; }
 }

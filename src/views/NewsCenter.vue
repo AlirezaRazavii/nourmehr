@@ -1,13 +1,49 @@
 <template>
   <section class="nm-page">
-    <!-- نوار پیشرفت + دکمه تم -->
+    <!-- دکمه تم -->
     <button class="nm-theme-btn" type="button" :title="theme === 'dark' ? 'حالت روشن' : 'حالت تاریک'" @click="toggle">
       {{ theme === 'dark' ? '☀️' : '🌙' }}
     </button>
 
     <div class="nm-container">
-      <!-- هیرو -->
+      <!-- کاور سینمایی — مقاله منتخب، فقط نمای اول بدون فیلتر -->
+      <template v-if="featured.length && page === 1 && !hasActiveFilters">
+        <article
+          v-for="(f, i) in featured" :key="f._id"
+          class="nm-cover-hero reveal" :class="{ 'nm-cover-noimg': !f.image }"
+          tabindex="0" role="link" :aria-label="loc(f.title)"
+          @click="open(f)" @keydown.enter.prevent="open(f)" @mouseenter="prefetch(f.slug)"
+        >
+          <img
+            v-if="f.image"
+            :src="heroSrc(f)" :srcset="srcset(f)"
+            sizes="(max-width:640px) 96vw, 1240px"
+            :alt="loc(f.imageAlt) || loc(f.title)"
+            :loading="i === 0 ? 'eager' : 'lazy'" :fetchpriority="i === 0 ? 'high' : undefined"
+          />
+          <div class="nm-cover-overlay">
+            <div class="nm-cover-badges">
+              <span class="nm-badge" :class="f.type">{{ typeLabel(f.type) }}</span>
+              <span v-if="f.category" class="nm-badge cat">{{ f.category.name }}</span>
+            </div>
+            <h2 class="nm-cover-title">{{ loc(f.title) }}</h2>
+            <p v-if="loc(f.excerpt)" class="nm-cover-excerpt">{{ loc(f.excerpt) }}</p>
+            <div class="nm-cover-meta">
+              <time :datetime="f.publishedAt || f.createdAt">{{ fmtDate(f.publishedAt || f.createdAt) }}</time>
+              <span v-if="f.readingTime" class="sep">·</span>
+              <span v-if="f.readingTime">⏱ {{ f.readingTime }} {{ $t('news_min_read') }}</span>
+              <span class="nm-cover-cta">
+                {{ $t('news_read_more') }}
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+              </span>
+            </div>
+          </div>
+        </article>
+      </template>
+
+      <!-- سربرگ هاب -->
       <header class="nm-hero">
+        <p class="nm-eyebrow">{{ $t('media_eyebrow') }}</p>
         <h1>{{ $t('news_title') }}</h1>
         <p>{{ $t('news_subtitle') }}</p>
       </header>
@@ -72,39 +108,21 @@
       </div>
 
       <template v-else>
-        <!-- پست‌های ویژه — فقط نمای اول بدون فیلتر -->
-        <template v-if="featured.length && page === 1 && !hasActiveFilters">
-          <article v-for="(f, i) in featured" :key="f._id" class="nm-featured reveal" @click="open(f)" @mouseenter="prefetch(f.slug)">
-            <div class="nm-featured-img"><img v-if="f.image" :src="imgUrl(f.image)" :alt="loc(f.imageAlt) || loc(f.title)" :loading="i === 0 ? 'eager' : 'lazy'" :fetchpriority="i === 0 ? 'high' : undefined" /></div>
-            <div class="nm-featured-body">
-              <div style="display:flex;gap:8px;flex-wrap:wrap">
-                <span class="nm-badge">{{ typeLabel(f.type) }}</span>
-                <span v-if="f.category" class="nm-badge blue">{{ f.category.name }}</span>
-              </div>
-              <h2>{{ loc(f.title) }}</h2>
-              <p>{{ loc(f.excerpt) }}</p>
-              <div class="nm-card-foot" style="border:none;padding:0">
-                <span>{{ fmtDate(f.publishedAt || f.createdAt) }}</span>
-                <span v-if="f.readingTime">⏱ {{ f.readingTime }} {{ $t('news_min_read') }}</span>
-              </div>
-            </div>
-          </article>
-        </template>
-
-        <!-- شبکه کارت‌ها -->
+        <!-- شبکه کارت‌ها — کارت اول در نمای بدون فیلتر، پهن (مجله‌ای) -->
         <div v-if="visibleArticles.length" class="nm-grid">
           <article
-            v-for="a in visibleArticles" :key="a._id"
-            class="nm-card reveal"
-            @click="open(a)" @mouseenter="prefetch(a.slug)"
+            v-for="(a, i) in visibleArticles" :key="a._id"
+            class="nm-card reveal" :class="[a.type, { wide: i === 0 && firstWide }]"
+            tabindex="0" role="link" :aria-label="loc(a.title)"
+            @click="open(a)" @keydown.enter.prevent="open(a)" @mouseenter="prefetch(a.slug)"
           >
             <div class="nm-card-img">
               <img v-if="a.image" :src="cardImage(a)" :srcset="srcset(a)" sizes="(max-width:640px) 92vw, (max-width:1100px) 45vw, 380px" :alt="loc(a.imageAlt) || loc(a.title)" loading="lazy" />
             </div>
             <div class="nm-card-body">
               <div style="display:flex;gap:8px;flex-wrap:wrap">
-                <span class="nm-badge">{{ typeLabel(a.type) }}</span>
-                <span v-if="a.category" class="nm-badge blue">{{ a.category.name }}</span>
+                <span class="nm-badge" :class="a.type">{{ typeLabel(a.type) }}</span>
+                <span v-if="a.category" class="nm-badge cat">{{ a.category.name }}</span>
               </div>
               <h3>{{ loc(a.title) }}</h3>
               <p>{{ loc(a.excerpt) }}</p>
@@ -133,9 +151,10 @@
 
 <script setup>
 /**
- * NewsCenter — هاب اخبار سیستم رسانه‌ای جدید
- * ویژگی‌ها: جستجوی لحظه‌ای (debounce)، فیلتر دسته/تگ/نوع از URL،
- * بارگذاری بی‌پایان، پیش‌واکشی در هاور، اسکلتون، حالت روشن/تاریک.
+ * NewsCenter — هاب رسانه‌ای «مجله لوکس»
+ * کاور سینمایی مقاله منتخب (featured) بالای صفحه + سربرگ مجله‌ای +
+ * فیلتر دسته/تگ/نوع از URL، جستجوی لحظه‌ای (debounce)، بارگذاری بی‌پایان،
+ * پیش‌واکشی در هاور، اسکلتون، حالت روشن/تاریک.
  *
  * نکته F-01: پارامتر tag از URL خوانده می‌شود (باگ ماژول قدیمی اینجا وجود ندارد)
  */
@@ -179,10 +198,13 @@ const typeLabel = (type) => {
   return te(key) ? t(key) : (te('news_type_general') ? t('news_type_general') : '')
 }
 const fmtDate = (d) => { try { return new Date(d).toLocaleDateString(locale.value === 'fa' ? 'fa-IR' : 'en-US') } catch { return '' } }
-const imgUrl = (p) => getImageUrl(p)
 
 // srcset از variants پایپ‌لاین sharp
 const srcset = (a) => (a.imageVariants || []).map(v => `${getImageUrl(v.url)} ${v.w}w`).join(', ')
+const heroSrc = (a) => {
+  const vs = a.imageVariants || []
+  return vs.length ? getImageUrl(vs.find(v => v.w === 1200)?.url || vs[vs.length - 1].url) : getImageUrl(a.image)
+}
 const cardImage = (a) => {
   const vs = a.imageVariants || []
   return vs.length ? getImageUrl(vs.find(v => v.w === 768)?.url || vs[0].url) : getImageUrl(a.image)
@@ -197,6 +219,8 @@ const visibleArticles = computed(() => {
   }
   return articles.value
 })
+// کارت اول گرید فقط در نمای اولِ بدون فیلتر پهن می‌شود (ریتم مجله‌ای)
+const firstWide = computed(() => page.value === 1 && !hasActiveFilters.value && featured.value.length > 0)
 
 /* ------------------------------ بارگذاری ------------------------------ */
 let searchTimer = null
@@ -218,10 +242,10 @@ const load = async () => {
     if (res.success) {
       articles.value = res.data
       page.value = 1
-      // دو پست ویژه فقط در نمای بدون فیلتر
+      // کاور سینمایی: یک مقاله ویژه فقط در نمای بدون فیلتر
       if (!hasActiveFilters.value) {
         const feats = res.data.filter(a => a.featured)
-        featured.value = (feats.length ? feats : res.data).slice(0, 2)
+        featured.value = (feats.length ? feats : res.data).slice(0, 1)
       } else {
         featured.value = []
       }

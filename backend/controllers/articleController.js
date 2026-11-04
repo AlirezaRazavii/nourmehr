@@ -174,19 +174,21 @@ exports.getArticles = async (req, res) => {
   }
 };
 
-/* -------------------------- مقالات صفحه اصلی (۳ تا) ------------------------- */
+/* ---------------- مقالات صفحه اصلی (هیرو + کارت‌های بخش رسانه) ---------------- */
 exports.getHomeAnnouncements = async (req, res) => {
   try {
     const lang = req.lang || 'fa';
     promoteScheduled();
 
+    // ۶ مقاله: اولی هیروی سینمایی بخش رسانه، سه تای بعدی کارت‌های کناری
     const articles = await Article.find(publishedFilter())
-      .select('title slug excerpt image type publishedAt createdAt readingTime featured')
+      .select('title slug excerpt image imageAlt imageVariants type category publishedAt createdAt readingTime featured')
       .sort({ featured: -1, publishedAt: -1, createdAt: -1 })
-      .limit(3)
+      .limit(6)
       .lean();
 
-    res.json({ success: true, data: articles.map(a => localizeArticle(a, lang)) });
+    const localized = await withCategory(articles, lang);
+    res.json({ success: true, data: localized.map(a => localizeArticle(a, lang)) });
   } catch (err) {
     console.error('Error fetching home articles:', err);
     res.status(500).json({ success: false, message: 'Server Error' });

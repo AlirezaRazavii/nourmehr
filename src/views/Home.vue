@@ -6,7 +6,7 @@
     <HomeCollections />
     <BrandStory />
     <Testimonials />
-    <Announcements />
+    <MediaShowcase />
   </div>
 </template>
 
@@ -18,7 +18,7 @@ const Features = defineAsyncComponent(() => import('../components/Features.vue')
 const BrandStory = defineAsyncComponent(() => import('../components/BrandStory.vue'))
 const HomeCollections = defineAsyncComponent(() => import('../components/HomeCollections.vue'))
 const HomeCategories = defineAsyncComponent(() => import('../components/HomeCategories.vue'))
-const Announcements = defineAsyncComponent(() => import('../components/Announcements.vue'))
+const MediaShowcase = defineAsyncComponent(() => import('../components/MediaShowcase.vue'))
 const Testimonials = defineAsyncComponent(() => import('../components/Testimonials.vue'))
 </script>
 

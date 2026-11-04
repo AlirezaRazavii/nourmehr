@@ -150,7 +150,7 @@
             <!-- پیش‌نمایش شمسی بدون هیچ کتابخانه‌ای -->
             <p v-if="jalaliPreview" class="jalali">🗓 {{ jalaliPreview }}</p>
           </div>
-          <label class="check-row"><input type="checkbox" v-model="form.featured" /> پست ویژه (بالای هاب اخبار)</label>
+          <label class="check-row"><input type="checkbox" v-model="form.featured" /> نمایش در صفحه اصلی + هیروی رسانه (پست ویژه)</label>
         </div>
 
         <!-- دسته و نوع -->
