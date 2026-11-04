@@ -44,8 +44,17 @@ const routes = [
   },
   { path: '/:lang/about', name: 'About', component: About },
   { path: '/:lang/contact', name: 'Contact', component: Contact },
-  { path: '/:lang/news', name: 'News', component: News },
-  { path: '/:lang/news/:slug', name: 'NewsDetails', component: () => import('./views/NewsDetails.vue') },
+  // ماژول رسانه‌ای — سوییچ بیلد-تایم: در فایل .env سطر VITE_NEW_MEDIA=true
+  // اضافه کنید و npm run build بگیرید (پیش‌فرض = ماژول قدیمی، بدون هیچ تغییری)
+  ...(import.meta.env.VITE_NEW_MEDIA === 'true'
+    ? [
+        { path: '/:lang/news', name: 'NewsCenter', component: () => import('./views/NewsCenter.vue') },
+        { path: '/:lang/news/:slug', name: 'ArticleView', component: () => import('./views/ArticleView.vue') }
+      ]
+    : [
+        { path: '/:lang/news', name: 'News', component: News },
+        { path: '/:lang/news/:slug', name: 'NewsDetails', component: () => import('./views/NewsDetails.vue') }
+      ]),
   // صفحات خصوصی: meta.noindex → تگ robots در کلاینت هم noindex می‌شود
   // (لایه اصلی X-Robots-Tag سمت سرور در spaSeoGuard است؛ این ایمنی اضافی است)
   { path: '/:lang/cart', name: 'Cart', component: Cart, meta: { noindex: true } },
@@ -85,6 +94,9 @@ const routes = [
       { path: 'blogs', name: 'AdminBlogs', component: () => import('./views/admin/AdminBlogs.vue') },
       { path: 'blogs/new', name: 'AdminBlogNew', component: () => import('./views/admin/AdminBlogEditor.vue') },
       { path: 'blogs/:id/edit', name: 'AdminBlogEdit', component: () => import('./views/admin/AdminBlogEditor.vue') },
+      { path: 'articles', name: 'AdminArticles', component: () => import('./views/admin/AdminArticles.vue') },
+      { path: 'articles/new', name: 'AdminArticleNew', component: () => import('./views/admin/AdminArticleEditor.vue') },
+      { path: 'articles/:id/edit', name: 'AdminArticleEdit', component: () => import('./views/admin/AdminArticleEditor.vue') },
       { path: 'dashboard', name: 'AdminDashboard', component: AdminDashboard },
       { path: 'orders', name: 'AdminOrders', component: AdminOrders },
       { path: 'users', name: 'AdminUsers', component: AdminUsers },

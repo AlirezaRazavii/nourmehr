@@ -296,6 +296,22 @@ router.put('/blogs-comments/:id/approve', hasPermission(PERMISSIONS.BLOGS), blog
 router.put('/blogs-comments/:id/unapprove', hasPermission(PERMISSIONS.BLOGS), blogController.unapproveComment);
 router.delete('/blogs-comments/:id', hasPermission(PERMISSIONS.BLOGS), blogController.deleteComment);
 
+/* ------- ماژول رسانه‌ای جدید (Article) — از همان مجوز blogs استفاده می‌کند ------- */
+// توجه: مسیرهای ثابت (stats / link-search) باید قبل از /articles/:id باشند
+const articleAdmin = require('../controllers/admin/articleAdminController');
+
+router.get('/articles', hasPermission(PERMISSIONS.BLOGS), articleAdmin.getArticles);
+router.post('/articles/upload-image', hasPermission(PERMISSIONS.BLOGS), blogUpload.single('image'), handleUploadError, articleAdmin.uploadImage);
+router.post('/articles/bulk', hasPermission(PERMISSIONS.BLOGS), articleAdmin.bulkAction);
+router.post('/articles', hasPermission(PERMISSIONS.BLOGS), articleAdmin.createArticle);
+router.get('/articles-stats', hasPermission(PERMISSIONS.BLOGS), articleAdmin.getStats);
+router.get('/articles/link-search', hasPermission(PERMISSIONS.BLOGS), articleAdmin.linkSearch);
+router.get('/articles/:id', hasPermission(PERMISSIONS.BLOGS), articleAdmin.getArticleById);
+router.put('/articles/:id', hasPermission(PERMISSIONS.BLOGS), articleAdmin.updateArticle);
+router.delete('/articles/:id', hasPermission(PERMISSIONS.BLOGS), articleAdmin.deleteArticle);
+router.post('/articles/:id/revisions/:index/restore', hasPermission(PERMISSIONS.BLOGS), articleAdmin.restoreRevision);
+router.get('/articles/:id/bot-preview', hasPermission(PERMISSIONS.BLOGS), articleAdmin.botPreview);
+
 /* --------------------------------- نظرات ----------------------------------- */
 router.get('/reviews', hasPermission(PERMISSIONS.REVIEWS), reviewController.getReviews);
 router.put('/reviews/:id/approve', hasPermission(PERMISSIONS.REVIEWS), reviewController.approveReview);

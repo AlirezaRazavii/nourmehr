@@ -283,17 +283,34 @@ const renderNewsNotFound = (req) => {
 
 /* -------------------------------- sitemap -------------------------------- */
 const buildSitemap = async () => {
+  // ★ ماژول رسانه‌ای جدید: وقتی ARTICLE_MODULE_ENABLED فعال است منبع مقالات
+  // کالکشن Article است؛ در غیر این صورت همان Blog قدیمی (بدون هیچ تغییری)
+  const useArticleModule = process.env.ARTICLE_MODULE_ENABLED === 'true';
+  const Article = require('../models/Article');
+
+  const articlesPromise = useArticleModule
+    ? Article.find({
+        ...publishedFilter(),
+        'seo.fa.noIndex': { $ne: true },
+        'seo.sitemap.include': { $ne: false }
+      })
+        .select('slug updatedAt publishedAt createdAt seo title excerpt')
+        .sort({ publishedAt: -1 })
+        .limit(5000)
+        .lean()
+    : Blog.find({
+        ...publishedFilter(),
+        'seo.fa.noIndex': { $ne: true },
+        'seo.noIndex': { $ne: true },
+        'seo.sitemap.include': { $ne: false }
+      })
+        .select('slug updatedAt publishedAt createdAt seo title excerpt')
+        .sort({ publishedAt: -1 })
+        .limit(5000)
+        .lean();
+
   const [blogs, categories, products, collections, blogCategories] = await Promise.all([
-    Blog.find({
-      ...publishedFilter(),
-      'seo.fa.noIndex': { $ne: true },
-      'seo.noIndex': { $ne: true },
-      'seo.sitemap.include': { $ne: false }
-    })
-      .select('slug updatedAt publishedAt createdAt seo title excerpt')
-      .sort({ publishedAt: -1 })
-      .limit(5000)
-      .lean(),
+    articlesPromise,
     Category.find({
       status: 'active',
       'seo.fa.noIndex': { $ne: true },
@@ -396,10 +413,11 @@ const buildSitemap = async () => {
     pushBothLangs((l) => `/${l}/news?category=${c.slug}`, { priority: '0.6' }, hasEnContent(c));
   }
 
-  // مقالات
+  // مقالات — اسلاگ Article دوزبانه ({fa,en}) است، Blog تک‌رشته‌ای؛ slugOf هر دو را پوشش می‌دهد
+  const slugOf = (b, l) => (typeof b.slug === 'string' ? b.slug : (b.slug?.[l] || b.slug?.fa || ''));
   for (const b of blogs) {
     const sm = b.seo?.sitemap || {};
-    pushBothLangs((l) => `/${l}/news/${b.slug}`, {
+    pushBothLangs((l) => `/${l}/news/${slugOf(b, l)}`, {
       priority: sm.priority ?? 0.8,
       changefreq: sm.changefreq || 'weekly',
       lastmod: b.updatedAt || b.publishedAt || b.createdAt,
@@ -413,19 +431,30 @@ const buildSitemap = async () => {
 };
 /* ---------------------------------- RSS ---------------------------------- */
 const buildRss = async () => {
-  const blogs = await Blog.find(publishedFilter())
-    .select('title slug excerpt content image publishedAt createdAt')
-    .sort({ publishedAt: -1 })
-    .limit(30)
-    .lean();
+  // ★ ماژول رسانه‌ای جدید: منبع فید با فلگ عوض می‌شود
+  const useArticleModule = process.env.ARTICLE_MODULE_ENABLED === 'true';
+  const Article = require('../models/Article');
+  const blogs = await (useArticleModule
+    ? Article.find(publishedFilter())
+        .select('title slug excerpt content image publishedAt createdAt')
+        .sort({ publishedAt: -1 })
+        .limit(30)
+        .lean()
+    : Blog.find(publishedFilter())
+        .select('title slug excerpt content image publishedAt createdAt')
+        .sort({ publishedAt: -1 })
+        .limit(30)
+        .lean());
 
   const items = blogs.map(b => {
     const title = pick(b.title, 'fa') || pick(b.title, 'en');
     const desc = truncate(pick(b.excerpt, 'fa') || stripHtml(pick(b.content, 'fa')), 300);
+    // اسلاگ Article دوزبانه است، Blog تک‌رشته‌ای
+    const slug = typeof b.slug === 'string' ? b.slug : (b.slug?.fa || b.slug?.en || '');
     return `    <item>
       <title>${escapeXml(title)}</title>
-      <link>${escapeXml(absoluteUrl(`/fa/news/${b.slug}`))}</link>
-      <guid isPermaLink="true">${escapeXml(absoluteUrl(`/fa/news/${b.slug}`))}</guid>
+      <link>${escapeXml(absoluteUrl(`/fa/news/${slug}`))}</link>
+      <guid isPermaLink="true">${escapeXml(absoluteUrl(`/fa/news/${slug}`))}</guid>
       <pubDate>${new Date(b.publishedAt || b.createdAt).toUTCString()}</pubDate>
       <description>${escapeXml(desc)}</description>
     </item>`;

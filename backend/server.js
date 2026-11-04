@@ -30,6 +30,8 @@ const contactRoutes = require('./routes/contactRoutes');
 const collectionRoutes = require('./routes/collectionRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
 const blogRoutes = require('./routes/blogRoutes');
+const articleRoutes = require('./routes/articleRoutes');
+const articleSeoController = require('./controllers/articleSeoController');
 const reviewRoutes = require('./routes/reviewRoutes');
 const wishlistRoutes = require('./routes/wishlistRoutes');
 const ticketRoutes = require('./routes/ticketRoutes');
@@ -240,6 +242,7 @@ app.use('/api/contact', contactRoutes);
 app.use('/api/tickets', ticketRoutes);
 app.use('/api/collections', collectionRoutes);
 app.use('/api/blogs', blogRoutes);
+app.use('/api/articles', articleRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/hero', heroRoutes);
@@ -255,8 +258,21 @@ app.get('/robots.txt', seoController.robots);
 const DIST_DIR = path.join(__dirname, '../dist');
 if (fs.existsSync(DIST_DIR)) {
   // رندر داینامیک صفحات اخبار برای ربات‌های موتور جستجو + ریدایرکت ۳۰۱ slugهای قدیمی
-  app.get('/:lang/news/:slug', seoController.newsBotRenderer, seoController.newsSlugRedirect);
-  app.get('/:lang/news', seoController.newsBotRenderer);
+  // سوییچ ماژول رسانه‌ای: با متغیر محیطی ARTICLE_MODULE_ENABLED تعیین می‌شود
+  // کدام رندرر صفحات /news را برای ربات‌ها می‌سازد (پیش‌فرض = ماژول قدیمی)
+  const useArticleModule = process.env.ARTICLE_MODULE_ENABLED === 'true';
+  app.get('/:lang/news/:slug',
+    useArticleModule ? articleSeoController.articleBotRenderer : seoController.newsBotRenderer,
+    useArticleModule ? articleSeoController.articleSlugRedirect : seoController.newsSlugRedirect);
+  app.get('/:lang/news', useArticleModule ? articleSeoController.articleBotRenderer : seoController.newsBotRenderer);
+
+  // آدرس‌های قدیمی /blog → ۳۰۱ دائمی به /news (حفظ اعتبار سئوی کسب‌شده)
+  app.get('/:lang/blog/:slug', (req, res) => {
+    res.redirect(301, `/${req.params.lang}/news/${encodeURIComponent(req.params.slug)}`);
+  });
+  app.get('/:lang/blog', (req, res) => {
+    res.redirect(301, `/${req.params.lang}/news`);
+  });
   app.get('/:lang/product/:slug', seoController.productBotRenderer, seoController.productSlugRedirect);
   app.get('/:lang/collection/:slug', seoController.collectionBotRenderer);
 
