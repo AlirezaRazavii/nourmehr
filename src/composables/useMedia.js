@@ -10,7 +10,7 @@
  *
  * نکته: همه به‌صورت lazy پاک می‌شوند (unobserve/disconnect) — بدون نشتی حافظه.
  */
-import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 
 /* ------------------------------ ۱) فهرست مطالب ------------------------------ */
 /**
@@ -174,6 +174,13 @@ export function useInfiniteScroll(loadMore, opts = {}) {
       { rootMargin: '600px 0px' } // قبل از رسیدن به انتها شروع می‌کند
     )
     if (sentinel.value) observer.observe(sentinel.value)
+  })
+
+  // باگ مهم: سنتینل داخل v-else رندر می‌شود و موقع mount (حالت اسکلتون)
+  // هنوز در DOM نیست؛ بدون این watch، observe هرگز انجام نمی‌شد و
+  // بارگذاری بی‌نهایت عملاً غیرفعال بود.
+  watch(sentinel, (el) => {
+    if (el && observer) observer.observe(el)
   })
 
   onBeforeUnmount(() => {

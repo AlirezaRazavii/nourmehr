@@ -399,11 +399,15 @@ onUnmounted(() => {
 })
 
 /* ───────── static links ───────── */
+/* رسانه — در بیلد ماژول جدید (VITE_NEW_MEDIA=true) نام روت NewsCenter است؛
+   بدون این نگاشت، لینک رسانه در نوبار می‌شکند (روت News وجود ندارد) */
+const mediaRouteName = import.meta.env.VITE_NEW_MEDIA === 'true' ? 'NewsCenter' : 'News'
+
 const links = computed(() => [
   { name: 'Home', label: t('nav_home') },
   { name: 'Products', label: t('nav_products') },
   { name: 'Discounts', label: t('nav_discounts'), hot: true },
-  { name: 'News', label: t('nav_news') },
+  { name: mediaRouteName, label: t('nav_media') },
   { name: 'About', label: t('nav_about') },
   { name: 'Contact', label: t('nav_contact') },
 ])

@@ -42,8 +42,12 @@
 }
 
 html {
-  /* جلوگیری از اسکرول افقی در کل سایت - مشکل اصلی ریسپانسیو */
+  /* جلوگیری از اسکرول افقی در کل سایت - مشکل اصلی ریسپانسیو
+     نکته مهم: از clip به‌جای hidden استفاده می‌کنیم؛ hidden روی html/body
+     اسکرول‌کانتینر می‌سازد و position: sticky (مثل نوار فیلتر اخبار) را می‌شکند.
+     خط اول fallback مرورگرهای قدیمی است. */
   overflow-x: hidden;
+  overflow-x: clip;
   scroll-behavior: smooth;
 }
 
@@ -52,6 +56,7 @@ body {
   color: #fff;
   font-family: 'Vazirmatn', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   overflow-x: hidden;
+  overflow-x: clip; /* sticky را نمی‌شکند — توضیح در بالای فایل */
   width: 100%;
   padding-top: 0px;
   -webkit-font-smoothing: antialiased;
