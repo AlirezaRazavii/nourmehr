@@ -1611,10 +1611,14 @@ exports.staticPageRenderer = (page) => async (req, res, next) => {
      صفحه اصلی می‌گرفت = soft-404 سراسری)
    - بقیه حالات next() تا SPA سرو شود */
 const PRIVATE_SPA_RE = /^\/(fa|en)\/(landing|search|cart|checkout|login|complete-profile|payment|user)(\/|$)/i;
+// [SEO-PATCH] مسیرهای مجاز بدون پیشوند زبان + فایل‌های استاتیک + الگوی URL خراب دامنه‌دار
+const KNOWN_BARE_RE = /^\/(admin|landing)(\/|$)/i;
+const STATIC_FILE_RE = /\.(xml|txt|json|html?|ico|png|jpe?g|webp|svg|gif|woff2?)$/i;
+const JUNK_DOMAIN_RE = /^\/(www\.)?nourmehr\.ir(\/|$)/i;
 const ADMIN_RE = /^\/admin(\/|$)/i;
 const KNOWN_SPA_RE = [
   /^\/(fa|en)$/i,
-  /^\/(fa|en)\/(products|product|collections?|about|contact|news|discounts)(\/|$)/i,
+  /^\/(fa|en)\/(products|product|collections?|about|contact|news|discounts|terms|privacy)(\/|$)/i,
   PRIVATE_SPA_RE,
   ADMIN_RE,
   /^\/landing(\/|$)/i,
@@ -1622,6 +1626,13 @@ const KNOWN_SPA_RE = [
 
 exports.spaSeoGuard = (req, res, next) => {
   const path = req.path;
+
+  // [SEO-PATCH 1] ۳۰۱ دائمی برای URLهای خراب با پیشوند دامنه (مثل /nourmehr.ir/)
+  // این آدرس با ۱۱۵ ایمپرشن و ۷ کلیک در گوگل ایندکس شده بود؛ اعتبارش به خانه برمی‌گردد.
+  if (JUNK_DOMAIN_RE.test(path)) {
+    const rest = path.replace(/^\/(www\.)?nourmehr\.ir/i, '');
+    return res.redirect(301, rest || '/');
+  }
 
   if (PRIVATE_SPA_RE.test(path) || ADMIN_RE.test(path)) {
     res.setHeader('X-Robots-Tag', 'noindex, follow');
@@ -1644,6 +1655,29 @@ exports.spaSeoGuard = (req, res, next) => {
       res.setHeader('X-Robots-Tag', 'noindex, follow');
       return res.status(404).send(pageShell(lang, head, body));
     }
+  }
+
+  // [SEO-PATCH 2] ربات + مسیر تک‌بخشی ناشناخته (بدون /fa یا /en) → 404 واقعی
+  // جلوی soft-404 برای هر URL عجیبی که از بیرون (مثل فید ترب) تزریق می‌شود.
+  if (
+    isBot(req.headers['user-agent']) &&
+    path !== '/' &&
+    !path.startsWith('/api') &&
+    !/^\/(fa|en)(\/|$)/i.test(path) &&
+    !KNOWN_BARE_RE.test(path) &&
+    !STATIC_FILE_RE.test(path)
+  ) {
+    const head = metaTags({
+      title: 'صفحه یافت نشد',
+      description: 'این صفحه در فروشگاه نورمهر یافت نشد.',
+      canonical: absoluteUrl('/fa'),
+      lang: 'fa',
+      noIndex: true,
+      alternates: null,
+    });
+    res.setHeader('X-Robots-Tag', 'noindex, follow');
+    return res.status(404).send(pageShell('fa', head, `<h1>صفحه مورد نظر یافت نشد</h1>
+      <p><a href="/fa">بازگشت به خانه</a></p>`));
   }
 
   next();
