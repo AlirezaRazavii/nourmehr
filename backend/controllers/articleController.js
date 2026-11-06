@@ -344,10 +344,17 @@ exports.getRelatedArticles = async (req, res) => {
     const lang = req.lang || 'fa';
     const slug = String(req.params.slug || '').toLowerCase();
 
-    const current = await Article.findOne({
-      $or: [{ [`slug.${lang}`]: slug }, { legacySlugs: slug }],
-      ...publishedFilter()
-    }).select('relatedArticles').lean();
+    const other = lang === 'fa' ? 'en' : 'fa';
+
+    // اولویت با تطابق دقیق اسلاگ (همان الگوی getArticleBySlug)
+    // هشدار: publishedFilter() خودش $or دارد؛ اگر روی کوئریِ دارای $or اسپرد شود،
+    // $or اسلاگ را بازنویسی می‌کند و کوئری به «هر مقاله‌ی منتشرشده» تبدیل می‌شود.
+    const [exactLang, exactOther, legacy] = await Promise.all([
+      Article.findOne({ [`slug.${lang}`]: slug, ...publishedFilter() }).select('relatedArticles').lean(),
+      Article.findOne({ [`slug.${other}`]: slug, ...publishedFilter() }).select('relatedArticles').lean(),
+      Article.findOne({ legacySlugs: slug, ...publishedFilter() }).select('relatedArticles').lean()
+    ]);
+    const current = exactLang || exactOther || legacy;
     if (!current) return res.json({ success: true, data: [] });
 
     const ids = current.relatedArticles || [];
@@ -379,10 +386,15 @@ exports.getAdjacentArticles = async (req, res) => {
     const lang = req.lang || 'fa';
     const slug = String(req.params.slug || '').toLowerCase();
 
-    const current = await Article.findOne({
-      $or: [{ [`slug.${lang}`]: slug }, { legacySlugs: slug }],
-      ...publishedFilter()
-    }).select('publishedAt').lean();
+    const other = lang === 'fa' ? 'en' : 'fa';
+
+    // همان الگوی getArticleBySlug — بدون بازنویسی $or
+    const [exactLang, exactOther, legacy] = await Promise.all([
+      Article.findOne({ [`slug.${lang}`]: slug, ...publishedFilter() }).select('publishedAt').lean(),
+      Article.findOne({ [`slug.${other}`]: slug, ...publishedFilter() }).select('publishedAt').lean(),
+      Article.findOne({ legacySlugs: slug, ...publishedFilter() }).select('publishedAt').lean()
+    ]);
+    const current = exactLang || exactOther || legacy;
     if (!current) return res.json({ success: true, data: { prev: null, next: null } });
 
     const select = 'title slug image publishedAt';
