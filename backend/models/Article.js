@@ -98,6 +98,8 @@ const articleSchema = new mongoose.Schema({
   viewsCount: { type: Number, default: 0 },
   faq: { type: [faqSchema], default: [] },
   relatedProducts: { type: [relatedProductSchema], default: [] },
+  // مقالات مرتبط — فقط انتخاب دستی ادمین (حداکثر ۶)؛ ترتیب نمایش = ترتیب همین آرایه
+  relatedArticles: { type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Article' }], default: [] },
   revisions: { type: [revisionSchema], default: [] },
   seo: seoSchema({ priority: 0.8, changefreq: 'weekly' })
 }, { timestamps: true });

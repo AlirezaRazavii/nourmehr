@@ -211,6 +211,26 @@
           </div>
         </div>
 
+                <!-- مقالات مرتبط (انتخاب دستی) -->
+        <div class="panel">
+          <div class="label-row">
+            <h2 class="panel-title">🔗 مقالات مرتبط</h2>
+          </div>
+          <p class="hint">فقط مقالاتی که اینجا انتخاب می‌کنی نمایش داده می‌شوند؛ اگر خالی بماند هیچ مقاله‌ای نشان داده نمی‌شود. (حداکثر ۶)</p>
+          <div class="form-group" style="position:relative">
+            <input v-model="relatedSearch" type="text" placeholder="جستجوی مقاله…" @input="searchRelated" />
+            <div v-if="relatedResults.length" class="search-dropdown">
+              <button v-for="a in relatedResults" :key="a.id" type="button" @click="addRelated(a)">
+                {{ a.title }} <small v-if="a.slug" dir="ltr">{{ a.slug }}</small>
+              </button>
+            </div>
+          </div>
+          <div v-for="(r, i) in form.relatedArticles" :key="r._id" class="related-item">
+            <span>{{ r.title }}</span>
+            <button type="button" class="btn small danger" @click="form.relatedArticles.splice(i, 1)">✕</button>
+          </div>
+        </div>
+
         <!-- تاریخچه نسخه‌ها -->
         <div v-if="isEdit && form.revisions?.length" class="panel">
           <h2 class="panel-title">🕘 تاریخچه نسخه‌ها</h2>
@@ -306,6 +326,8 @@ const categories = ref([])
 const tagsInput = ref('')
 const productSearch = ref('')
 const productResults = ref([])
+const relatedSearch = ref('')
+const relatedResults = ref([])
 const linkQuery = ref('')
 const linkResults = ref([])
 const publishAtInput = ref('')
@@ -325,6 +347,7 @@ const form = reactive({
   featured: false,
   faq: [],
   relatedProducts: [], // [{ product, title, note }]
+  relatedArticles: [], // [{ _id, title }]
   revisions: [],
   seo: {
     fa: { title: '', description: '', focusKeyword: '', canonicalUrl: '', noIndex: false },
@@ -443,6 +466,7 @@ const collectPayload = (autosave) => {
     featured: form.featured,
     faq: form.faq,
     relatedProducts: form.relatedProducts.map(rp => ({ product: rp.product, note: { fa: '', en: '' } })),
+    relatedArticles: form.relatedArticles.map(r => r._id),
     seo: form.seo,
     autosave
   }
@@ -549,6 +573,24 @@ const addProduct = (p) => {
   productResults.value = []
 }
 
+/* ------------------------------ مقالات مرتبط (دستی) ------------------------------ */
+let relatedTimer = null
+const searchRelated = () => {
+  clearTimeout(relatedTimer)
+  relatedTimer = setTimeout(async () => {
+    if (relatedSearch.value.trim().length < 2) { relatedResults.value = []; return }
+    const res = await adminLinkSearch(relatedSearch.value.trim())
+    if (res.success) relatedResults.value = res.data.filter(x => x.type === 'article')
+  }, 300)
+}
+const addRelated = (a) => {
+  // توجه: linkSearch فیلد را id برمی‌گرداند نه _id (علت باگ محصولات مرتبط)
+  if (form.relatedArticles.some(r => r._id === a.id)) return
+  form.relatedArticles.push({ _id: a.id, title: a.title })
+  relatedSearch.value = ''
+  relatedResults.value = []
+}
+
 /* ------------------------------ FAQ / تگ‌ها ------------------------------ */
 const addFaq = () => {
   form.faq.push({ question: { fa: '', en: '' }, answer: { fa: '', en: '' } })
@@ -598,6 +640,10 @@ onMounted(async () => {
         relatedProducts: (a.relatedProducts || []).map(rp => ({
           product: rp.product?._id || rp.product,
           title: rp.product?.name?.fa || rp.product?.name?.en || 'محصول'
+        })),
+        relatedArticles: (a.relatedArticles || []).map(ra => ({
+          _id: ra._id,
+          title: (ra.title?.fa || ra.title?.en || 'مقاله') + (ra.status !== 'published' ? ' (پیش‌نویس)' : '')
         }))
       })
       if (a.seo) {

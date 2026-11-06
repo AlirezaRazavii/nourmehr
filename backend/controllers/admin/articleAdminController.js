@@ -86,6 +86,22 @@ const normalizeRelatedProducts = (list) => {
   return out;
 };
 
+// مقالات مرتبط: فقط ObjectIdهای معتبر و یکتا (حداکثر ۶) — خود مقاله هم پذیرفته نمی‌شود
+const normalizeRelatedArticles = (list, selfId = null) => {
+  if (!Array.isArray(list)) return [];
+  const seen = new Set();
+  const out = [];
+  const ObjectId = require('mongoose').Types.ObjectId;
+  for (const item of list.slice(0, 6)) {
+    const id = String(item?._id || item?.id || item || '');
+    if (!ObjectId.isValid(id) || seen.has(id)) continue;
+    if (selfId && String(selfId) === id) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+};
+
 // تاریخ انتشار طبق وضعیت
 const resolvePublishedAt = (data, existing = null) => {
   if (data.status === 'scheduled') {
@@ -160,7 +176,8 @@ exports.getArticleById = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Article not found' });
     }
     const article = await Article.findById(req.params.id)
-      .populate('relatedProducts.product', 'name slug mainImage status');
+      .populate('relatedProducts.product', 'name slug mainImage status')
+      .populate('relatedArticles', 'title slug status publishedAt');
     if (!article) return res.status(404).json({ success: false, message: 'Article not found' });
     res.json({ success: true, data: article });
   } catch (err) {
@@ -194,6 +211,7 @@ exports.createArticle = async (req, res) => {
     data.tags = normalizeTags(data.tags);
     data.faq = normalizeFaq(data.faq);
     data.relatedProducts = normalizeRelatedProducts(data.relatedProducts);
+    data.relatedArticles = normalizeRelatedArticles(data.relatedArticles);
     data.publishedAt = resolvePublishedAt(data);
 
     if (req.user?._id) {
@@ -275,6 +293,7 @@ exports.updateArticle = async (req, res) => {
     if (data.tags !== undefined) data.tags = normalizeTags(data.tags);
     if (data.faq !== undefined) data.faq = normalizeFaq(data.faq);
     if (data.relatedProducts !== undefined) data.relatedProducts = normalizeRelatedProducts(data.relatedProducts);
+    if (data.relatedArticles !== undefined) data.relatedArticles = normalizeRelatedArticles(data.relatedArticles, article._id);
 
     data.publishedAt = resolvePublishedAt(data, article);
     if (data.status === 'published' && !data.publishedAt) data.publishedAt = article.publishedAt || new Date();

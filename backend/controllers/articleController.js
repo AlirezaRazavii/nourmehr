@@ -337,8 +337,8 @@ exports.getArticleBySlug = async (req, res) => {
   }
 };
 
-/* ------------------------------ مقالات مرتبط ------------------------------ */
-// GET /api/articles/:slug/related — الگوی صحیح (رفع B-02) + fallback جدیدترین‌ها
+/* --------------------- مقالات مرتبط (فقط انتخاب دستی ادمین) --------------------- */
+// GET /api/articles/:slug/related — بدون fallback خودکار؛ اگر ادمین خالی گذاشته باشد → []
 exports.getRelatedArticles = async (req, res) => {
   try {
     const lang = req.lang || 'fa';
@@ -347,46 +347,25 @@ exports.getRelatedArticles = async (req, res) => {
     const current = await Article.findOne({
       $or: [{ [`slug.${lang}`]: slug }, { legacySlugs: slug }],
       ...publishedFilter()
-    }).select('category tags').lean();
+    }).select('relatedArticles').lean();
     if (!current) return res.json({ success: true, data: [] });
 
-    const tagSlugs = (current.tags || []).map(t => t.slug);
+    const ids = current.relatedArticles || [];
+    if (!ids.length) return res.json({ success: true, data: [] });
 
-    // معیارهای شباهت — اگر خالی بود $or خالی نمی‌سازیم (رفع کرش)
-    const orConditions = [
-      ...(current.category ? [{ category: current.category }] : []),
-      ...(tagSlugs.length ? [{ 'tags.slug': { $in: tagSlugs } }] : [])
-    ];
+    // فقط مقالات منتشرشده (اگر ادمین مقاله‌ای را بعداً پیش‌نویس کرده باشد نمایش داده نمی‌شود)
+    const docs = await Article.find({
+      _id: { $in: ids, $ne: current._id },
+      ...publishedFilter()
+    })
+      .select('title slug excerpt image imageAlt imageVariants type category publishedAt readingTime')
+      .lean();
 
-    let related = [];
-    if (orConditions.length) {
-      related = await Article.find({
-        $and: [
-          { _id: { $ne: current._id } },
-          publishedFilter(),
-          { $or: orConditions }
-        ]
-      })
-        .select('title slug excerpt image imageAlt imageVariants type publishedAt readingTime')
-        .sort({ publishedAt: -1 })
-        .limit(3)
-        .lean();
-    }
+    // حفظ ترتیب انتخابی ادمین
+    const order = new Map(ids.map((id, i) => [String(id), i]));
+    docs.sort((a, b) => (order.get(String(a._id)) ?? 0) - (order.get(String(b._id)) ?? 0));
 
-    // اگر شباهتی پیدا نشد → جدیدترین‌ها (بدون صفحه خالی)
-    if (related.length < 3) {
-      const exclude = [current._id, ...related.map(r => r._id)];
-      const extra = await Article.find({
-        $and: [{ _id: { $nin: exclude } }, publishedFilter()]
-      })
-        .select('title slug excerpt image imageAlt imageVariants type publishedAt readingTime')
-        .sort({ publishedAt: -1 })
-        .limit(3 - related.length)
-        .lean();
-      related = [...related, ...extra];
-    }
-
-    res.json({ success: true, data: related.map(a => localizeArticle(a, lang)) });
+    res.json({ success: true, data: docs.map(a => localizeArticle(a, lang)) });
   } catch (err) {
     console.error('Error fetching related articles:', err);
     res.status(500).json({ success: false, message: 'Server Error' });
