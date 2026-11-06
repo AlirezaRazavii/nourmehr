@@ -100,6 +100,9 @@ const articleSchema = new mongoose.Schema({
   relatedProducts: { type: [relatedProductSchema], default: [] },
   // مقالات مرتبط — فقط انتخاب دستی ادمین (حداکثر ۶)؛ ترتیب نمایش = ترتیب همین آرایه
   relatedArticles: { type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Article' }], default: [] },
+  // قبلی/بعدی — اورراید دستی ادمین؛ null یعنی خودکار (بر اساس تاریخ انتشار)
+  prevArticle: { type: mongoose.Schema.Types.ObjectId, ref: 'Article', default: null },
+  nextArticle: { type: mongoose.Schema.Types.ObjectId, ref: 'Article', default: null },
   revisions: { type: [revisionSchema], default: [] },
   seo: seoSchema({ priority: 0.8, changefreq: 'weekly' })
 }, { timestamps: true });

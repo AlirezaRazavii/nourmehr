@@ -102,6 +102,17 @@ const normalizeRelatedArticles = (list, selfId = null) => {
   return out;
 };
 
+// قبلی/بعدی: یک ObjectId معتبر یا null (خود مقاله پذیرفته نمی‌شود) — null یعنی خودکار
+const normalizeAdjacentRef = (value, selfId = null) => {
+  if (value === null || value === undefined || value === '') return null;
+  const ObjectId = require('mongoose').Types.ObjectId;
+  const id = String(value?._id || value?.id || value || '');
+  if (!ObjectId.isValid(id)) return null;
+  if (selfId && String(selfId) === id) return null;
+  return id;
+};
+
+
 // تاریخ انتشار طبق وضعیت
 const resolvePublishedAt = (data, existing = null) => {
   if (data.status === 'scheduled') {
@@ -177,7 +188,9 @@ exports.getArticleById = async (req, res) => {
     }
     const article = await Article.findById(req.params.id)
       .populate('relatedProducts.product', 'name slug mainImage status')
-      .populate('relatedArticles', 'title slug status publishedAt');
+      .populate('relatedArticles', 'title slug status publishedAt')
+      .populate('prevArticle', 'title slug status publishedAt')
+      .populate('nextArticle', 'title slug status publishedAt');
     if (!article) return res.status(404).json({ success: false, message: 'Article not found' });
     res.json({ success: true, data: article });
   } catch (err) {
@@ -212,6 +225,8 @@ exports.createArticle = async (req, res) => {
     data.faq = normalizeFaq(data.faq);
     data.relatedProducts = normalizeRelatedProducts(data.relatedProducts);
     data.relatedArticles = normalizeRelatedArticles(data.relatedArticles);
+    data.prevArticle = normalizeAdjacentRef(data.prevArticle);
+    data.nextArticle = normalizeAdjacentRef(data.nextArticle);
     data.publishedAt = resolvePublishedAt(data);
 
     if (req.user?._id) {
@@ -294,6 +309,8 @@ exports.updateArticle = async (req, res) => {
     if (data.faq !== undefined) data.faq = normalizeFaq(data.faq);
     if (data.relatedProducts !== undefined) data.relatedProducts = normalizeRelatedProducts(data.relatedProducts);
     if (data.relatedArticles !== undefined) data.relatedArticles = normalizeRelatedArticles(data.relatedArticles, article._id);
+    if (data.prevArticle !== undefined) data.prevArticle = normalizeAdjacentRef(data.prevArticle, article._id);
+    if (data.nextArticle !== undefined) data.nextArticle = normalizeAdjacentRef(data.nextArticle, article._id);
 
     data.publishedAt = resolvePublishedAt(data, article);
     if (data.status === 'published' && !data.publishedAt) data.publishedAt = article.publishedAt || new Date();

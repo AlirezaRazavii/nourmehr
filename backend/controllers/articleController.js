@@ -380,7 +380,7 @@ exports.getRelatedArticles = async (req, res) => {
 };
 
 /* ------------------------------ قبلی / بعدی ------------------------------- */
-// GET /api/articles/:slug/adjacent
+// GET /api/articles/:slug/adjacent — اورراید دستی ادمین؛ سمتِ خالی = خودکار (تاریخ انتشار)
 exports.getAdjacentArticles = async (req, res) => {
   try {
     const lang = req.lang || 'fa';
@@ -390,20 +390,39 @@ exports.getAdjacentArticles = async (req, res) => {
 
     // همان الگوی getArticleBySlug — بدون بازنویسی $or
     const [exactLang, exactOther, legacy] = await Promise.all([
-      Article.findOne({ [`slug.${lang}`]: slug, ...publishedFilter() }).select('publishedAt').lean(),
-      Article.findOne({ [`slug.${other}`]: slug, ...publishedFilter() }).select('publishedAt').lean(),
-      Article.findOne({ legacySlugs: slug, ...publishedFilter() }).select('publishedAt').lean()
+      Article.findOne({ [`slug.${lang}`]: slug, ...publishedFilter() }).select('publishedAt prevArticle nextArticle').lean(),
+      Article.findOne({ [`slug.${other}`]: slug, ...publishedFilter() }).select('publishedAt prevArticle nextArticle').lean(),
+      Article.findOne({ legacySlugs: slug, ...publishedFilter() }).select('publishedAt prevArticle nextArticle').lean()
     ]);
     const current = exactLang || exactOther || legacy;
     if (!current) return res.json({ success: true, data: { prev: null, next: null } });
 
     const select = 'title slug image publishedAt';
-    const [prev, next] = await Promise.all([
-      Article.findOne({ ...publishedFilter(), publishedAt: { $lt: current.publishedAt || new Date(0) } })
-        .sort({ publishedAt: -1 }).select(select).lean(),
-      Article.findOne({ ...publishedFilter(), publishedAt: { $gt: current.publishedAt || new Date(0) } })
-        .sort({ publishedAt: 1 }).select(select).lean()
+
+    // ۱) اورراید دستی — فقط اگر مقاله‌ی انتخاب‌شده منتشر شده باشد نمایش داده می‌شود؛
+    //    در غیر این صورت (پیش‌نویس/آرشیو) همان سمت به حالت خودکار برمی‌گردد
+    const manualIds = [current.prevArticle, current.nextArticle].filter(Boolean).map(String);
+    const manualDocs = manualIds.length
+      ? await Article.find({ _id: { $in: manualIds }, ...publishedFilter() }).select(select).lean()
+      : [];
+    const manualMap = new Map(manualDocs.map(d => [String(d._id), d]));
+
+    let prev = current.prevArticle ? (manualMap.get(String(current.prevArticle)) || null) : null;
+    let next = current.nextArticle ? (manualMap.get(String(current.nextArticle)) || null) : null;
+
+    // ۲) خودکار — فقط برای سمت‌هایی که دستی ست نشده‌اند
+    const [autoPrev, autoNext] = await Promise.all([
+      !prev
+        ? Article.findOne({ ...publishedFilter(), publishedAt: { $lt: current.publishedAt || new Date(0) } })
+            .sort({ publishedAt: -1 }).select(select).lean()
+        : null,
+      !next
+        ? Article.findOne({ ...publishedFilter(), publishedAt: { $gt: current.publishedAt || new Date(0) } })
+            .sort({ publishedAt: 1 }).select(select).lean()
+        : null
     ]);
+    if (!prev) prev = autoPrev;
+    if (!next) next = autoNext;
 
     const local = (a) => a ? localizeArticle(a, lang) : null;
     res.json({ success: true, data: { prev: local(prev), next: local(next) } });

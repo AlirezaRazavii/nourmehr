@@ -231,6 +231,42 @@
           </div>
         </div>
 
+                <!-- قبلی/بعدی (اورراید دستی — فاز ۲) -->
+        <div class="panel">
+          <div class="label-row">
+            <h2 class="panel-title">⏮️⏭️ مقاله قبلی / بعدی (دستی)</h2>
+          </div>
+          <p class="hint">اگر خالی بمانند، قبلی/بعدی خودکار بر اساس تاریخ انتشار انتخاب می‌شود. با انتخاب دستی، دقیقاً همان مقاله نمایش داده می‌شود.</p>
+
+          <div class="form-group" style="position:relative">
+            <input v-model="adjSearch.prevArticle" type="text" placeholder="جستجو برای مقاله قبلی…" @input="searchAdjacent('prevArticle')" />
+            <div v-if="adjResults.prevArticle.length" class="search-dropdown">
+              <button v-for="a in adjResults.prevArticle" :key="a.id" type="button" @click="pickAdjacent('prevArticle', a)">
+                {{ a.title }} <small v-if="a.slug" dir="ltr">{{ a.slug }}</small>
+              </button>
+            </div>
+            <div v-if="form.prevArticle" class="related-item">
+              <span>{{ form.prevArticle.title }}</span>
+              <button type="button" class="btn small danger" @click="clearAdjacent('prevArticle')">✕</button>
+            </div>
+          </div>
+
+          <div class="form-group" style="position:relative">
+            <input v-model="adjSearch.nextArticle" type="text" placeholder="جستجو برای مقاله بعدی…" @input="searchAdjacent('nextArticle')" />
+            <div v-if="adjResults.nextArticle.length" class="search-dropdown">
+              <button v-for="a in adjResults.nextArticle" :key="a.id" type="button" @click="pickAdjacent('nextArticle', a)">
+                {{ a.title }} <small v-if="a.slug" dir="ltr">{{ a.slug }}</small>
+              </button>
+            </div>
+            <div v-if="form.nextArticle" class="related-item">
+              <span>{{ form.nextArticle.title }}</span>
+              <button type="button" class="btn small danger" @click="clearAdjacent('nextArticle')">✕</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- تاریخچه نسخه‌ها -->
+
         <!-- تاریخچه نسخه‌ها -->
         <div v-if="isEdit && form.revisions?.length" class="panel">
           <h2 class="panel-title">🕘 تاریخچه نسخه‌ها</h2>
@@ -328,6 +364,10 @@ const productSearch = ref('')
 const productResults = ref([])
 const relatedSearch = ref('')
 const relatedResults = ref([])
+// قبلی/بعدی (اورراید دستی)
+const adjSearch = reactive({ prevArticle: '', nextArticle: '' })
+const adjResults = reactive({ prevArticle: [], nextArticle: [] })
+const adjTimers = { prevArticle: null, nextArticle: null }
 const linkQuery = ref('')
 const linkResults = ref([])
 const publishAtInput = ref('')
@@ -348,6 +388,8 @@ const form = reactive({
   faq: [],
   relatedProducts: [], // [{ product, title, note }]
   relatedArticles: [], // [{ _id, title }]
+  prevArticle: null, // { _id, title } — null یعنی خودکار
+  nextArticle: null, // { _id, title } — null یعنی خودکار
   revisions: [],
   seo: {
     fa: { title: '', description: '', focusKeyword: '', canonicalUrl: '', noIndex: false },
@@ -467,6 +509,8 @@ const collectPayload = (autosave) => {
     faq: form.faq,
     relatedProducts: form.relatedProducts.map(rp => ({ product: rp.product, note: { fa: '', en: '' } })),
     relatedArticles: form.relatedArticles.map(r => r._id),
+    prevArticle: form.prevArticle?._id || null,
+    nextArticle: form.nextArticle?._id || null,
     seo: form.seo,
     autosave
   }
@@ -591,6 +635,25 @@ const addRelated = (a) => {
   relatedResults.value = []
 }
 
+/* --------------------- قبلی/بعدی (اورراید دستی — فاز ۲) --------------------- */
+// which: 'prevArticle' یا 'nextArticle'
+const searchAdjacent = (which) => {
+  clearTimeout(adjTimers[which])
+  adjTimers[which] = setTimeout(async () => {
+    const q = adjSearch[which].trim()
+    if (q.length < 2) { adjResults[which] = []; return }
+    const res = await adminLinkSearch(q)
+    if (res.success) adjResults[which] = res.data.filter(x => x.type === 'article')
+  }, 300)
+}
+const pickAdjacent = (which, a) => {
+  // توجه: linkSearch فیلد را id برمی‌گرداند نه _id
+  form[which] = { _id: a.id, title: a.title }
+  adjSearch[which] = ''
+  adjResults[which] = []
+}
+const clearAdjacent = (which) => { form[which] = null }
+
 /* ------------------------------ FAQ / تگ‌ها ------------------------------ */
 const addFaq = () => {
   form.faq.push({ question: { fa: '', en: '' }, answer: { fa: '', en: '' } })
@@ -644,7 +707,15 @@ onMounted(async () => {
         relatedArticles: (a.relatedArticles || []).map(ra => ({
           _id: ra._id,
           title: (ra.title?.fa || ra.title?.en || 'مقاله') + (ra.status !== 'published' ? ' (پیش‌نویس)' : '')
-        }))
+        })),
+        prevArticle: a.prevArticle ? {
+          _id: a.prevArticle._id,
+          title: (a.prevArticle.title?.fa || a.prevArticle.title?.en || 'مقاله') + (a.prevArticle.status !== 'published' ? ' (پیش‌نویس)' : '')
+        } : null,
+        nextArticle: a.nextArticle ? {
+          _id: a.nextArticle._id,
+          title: (a.nextArticle.title?.fa || a.nextArticle.title?.en || 'مقاله') + (a.nextArticle.status !== 'published' ? ' (پیش‌نویس)' : '')
+        } : null
       })
       if (a.seo) {
         for (const lang of ['fa', 'en']) {
