@@ -139,16 +139,37 @@
 
          </div>
 
-        <!-- لینک‌های دستی (فاز ۳) -->
-        <section v-if="article.manualLinks?.length" class="nm-manual-links">
-          <h2>{{ $t('news_related_links') }}</h2>
-          <div class="nm-links-row">
+        <!-- لینک‌های دستی (فاز ۳) — باند ویژه -->
+        <section v-if="article.manualLinks?.length" class="nm-links-band">
+          <div class="nm-links-head">
+            <span class="nm-links-head-ico" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            </span>
+            <h2>{{ $t('news_related_links') }}</h2>
+            <span class="nm-links-head-line" aria-hidden="true"></span>
+          </div>
+          <div class="nm-links-grid">
             <template v-for="(l, i) in article.manualLinks" :key="i">
-              <a v-if="l.type === 'url' && l.external" class="nm-chip nm-link-chip" :href="l.url" target="_blank" rel="noopener noreferrer">
-                <span class="nm-link-ico">🔗</span>{{ l.title }}
+              <a v-if="l.type === 'url' && l.external" class="nm-link-card nm-link-url" :href="l.url" target="_blank" rel="noopener noreferrer">
+                <span class="nm-link-badge" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                </span>
+                <span class="nm-link-body">
+                  <b>{{ l.title }}</b>
+                  <small>{{ $t('news_link_type_url') }}</small>
+                </span>
+                <span class="nm-link-arrow" aria-hidden="true">↗</span>
               </a>
-              <router-link v-else class="nm-chip nm-link-chip" :to="manualLinkTo(l)">
-                <span class="nm-link-ico">{{ l.type === 'category' ? '📁' : '🛒' }}</span>{{ l.title }}
+              <router-link v-else class="nm-link-card" :class="l.type === 'category' ? 'nm-link-category' : 'nm-link-product'" :to="manualLinkTo(l)">
+                <span class="nm-link-badge" aria-hidden="true">
+                  <svg v-if="l.type === 'category'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
+                  <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+                </span>
+                <span class="nm-link-body">
+                  <b>{{ l.title }}</b>
+                  <small>{{ l.type === 'category' ? $t('news_link_type_category') : $t('news_link_type_product') }}</small>
+                </span>
+                <span class="nm-link-arrow" aria-hidden="true">{{ locale === 'fa' ? '‹' : '›' }}</span>
               </router-link>
             </template>
           </div>
