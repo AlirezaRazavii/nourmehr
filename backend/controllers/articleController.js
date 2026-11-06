@@ -78,7 +78,7 @@ const localizeArticle = (article, lang, { full = false } = {}) => {
       question: pick(f.question, lang),
       answer: pick(f.answer, lang)
     })).filter(f => f.question);
-    localized.relatedProducts = a.relatedProducts || [];
+    localized.manualLinks = a.manualLinks || [];
     localized.tags = (a.tags || []).map(t => ({ slug: t.slug, name: pick(t, lang) }));
   } else {
     // در لیست‌ها محتوای کامل و سئو ارسال نمی‌شود
@@ -86,7 +86,7 @@ const localizeArticle = (article, lang, { full = false } = {}) => {
     delete localized.revisions;
     delete localized.seo;
     delete localized.faq;
-    delete localized.relatedProducts;
+    delete localized.manualLinks;
   }
 
   return localized;
@@ -270,7 +270,6 @@ exports.getArticleBySlug = async (req, res) => {
     const other = lang === 'fa' ? 'en' : 'fa';
 
     // اولویت با تطابق دقیق اسلاگ زبان فعلی است؛ legacySlugs فقط fallback
-    const POPULATE = 'category name slug | author name | relatedProducts.product name slug mainImage price discountPercent status shortDesc';
     const [exactLang, exactOther, legacy] = await Promise.all([
       Article.findOne({ [`slug.${lang}`]: slug, ...publishedFilter() }),
       Article.findOne({ [`slug.${other}`]: slug, ...publishedFilter() }),
@@ -281,7 +280,8 @@ exports.getArticleBySlug = async (req, res) => {
       await article.populate([
         { path: 'category', select: 'name slug' },
         { path: 'author', select: 'name' },
-        { path: 'relatedProducts.product', select: 'name slug mainImage price discountPercent status shortDesc' }
+        { path: 'manualLinks.category', select: 'name slug status' },
+        { path: 'manualLinks.product', select: 'name slug status' }
       ]);
     }
 
@@ -309,21 +309,24 @@ exports.getArticleBySlug = async (req, res) => {
       };
     }
 
-    // محصولات مرتبط محلی‌شده (موتور لینک‌سازی داخلی)
+    // لینک‌های دستی (فاز ۳) — رزولوشن سمت سرور؛ مقصد حذف‌شده/غیرفعال نمایش داده نمی‌شود
     const PUBLIC_STATUSES = ['active', 'out_of_stock'];
-    localized.relatedProducts = (article.relatedProducts || [])
-      .filter(rp => rp.product && PUBLIC_STATUSES.includes(rp.product.status))
-      .slice(0, 6)
-      .map(rp => ({
-        _id: rp.product._id,
-        name: pick(rp.product.name, lang),
-        slug: rp.product.slug,
-        image: rp.product.mainImage || '',
-        shortDesc: pick(rp.product.shortDesc, lang),
-        price: rp.product.price,
-        discountPercent: rp.product.discountPercent,
-        note: pick(rp.note, lang)
-      }));
+    localized.manualLinks = (article.manualLinks || [])
+      .map(l => {
+        if (l.type === 'category') {
+          const c = l.category;
+          if (!c || !c.slug || c.status === 'inactive') return null;
+          return { type: 'category', title: pick(l.title, lang) || pick(c.name, lang), slug: c.slug };
+        }
+        if (l.type === 'product') {
+          const p = l.product;
+          if (!p || !p.slug || !PUBLIC_STATUSES.includes(p.status)) return null;
+          return { type: 'product', title: pick(l.title, lang) || pick(p.name, lang), slug: p.slug };
+        }
+        if (l.url) return { type: 'url', title: pick(l.title, lang), url: l.url, external: /^https?:\/\//i.test(l.url) };
+        return null;
+      })
+      .filter(Boolean);
 
     // اسلاگ نسخه دیگر زبان — برای hreflang سمت کلاینت
     localized.altSlug = (article.title?.[other] && article.content?.[other]?.html)

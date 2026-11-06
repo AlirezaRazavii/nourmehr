@@ -137,23 +137,22 @@
             </div>
           </article>
 
-          <!-- ستون ۳: محصولات مرتبط (موتور لینک‌سازی داخلی) -->
-          <aside class="nm-rail" v-if="article.relatedProducts?.length">
-            <p class="nm-rail-title">{{ $t('news_related_products') }}</p>
-            <router-link
-              v-for="p in article.relatedProducts" :key="p._id"
-              class="nm-mini-product"
-              :to="{ name: 'ProductDetails', params: { lang: locale, id: p.slug } }"
-            >
-              <img v-if="p.image" :src="getImageUrl(p.image)" :alt="p.name" loading="lazy" />
-              <div>
-                <b>{{ p.name }}</b>
-                <span v-if="finalPrice(p)">{{ fmtPrice(finalPrice(p)) }}</span>
-                <span v-else style="color:var(--nm-teal)">{{ $t('news_view_product') }}</span>
-              </div>
-            </router-link>
-          </aside>
-        </div>
+         </div>
+
+        <!-- لینک‌های دستی (فاز ۳) -->
+        <section v-if="article.manualLinks?.length" class="nm-manual-links">
+          <h2>{{ $t('news_related_links') }}</h2>
+          <div class="nm-links-row">
+            <template v-for="(l, i) in article.manualLinks" :key="i">
+              <a v-if="l.type === 'url' && l.external" class="nm-chip nm-link-chip" :href="l.url" target="_blank" rel="noopener noreferrer">
+                <span class="nm-link-ico">🔗</span>{{ l.title }}
+              </a>
+              <router-link v-else class="nm-chip nm-link-chip" :to="manualLinkTo(l)">
+                <span class="nm-link-ico">{{ l.type === 'category' ? '📁' : '🛒' }}</span>{{ l.title }}
+              </router-link>
+            </template>
+          </div>
+        </section>
 
         <!-- مقالات مرتبط -->
         <section v-if="related.length" style="margin-top:52px">
@@ -231,13 +230,13 @@ const typeLabel = (type) => {
 }
 const fmtDate = (d) => { try { return new Date(d).toLocaleDateString(locale.value === 'fa' ? 'fa-IR' : 'en-US') } catch { return '' } }
 const fmtCount = (n) => { const num = Number(n) || 0; return num >= 1000 ? `${(num / 1000).toFixed(1)}k` : String(num) }
-const fmtPrice = (n) => Number(n).toLocaleString(locale.value === 'fa' ? 'fa-IR' : 'en-US')
-const finalPrice = (p) => {
-  const base = Number(p.price) || 0
-  const d = Number(p.discountPercent) || 0
-  return d > 0 && d < 100 ? Math.round(base * (1 - d / 100)) : base
-}
 const articleRoute = (slug) => ({ name: 'ArticleView', params: { lang: locale.value, slug } })
+// مقصد لینک دستی: دسته‌بندی → صفحه مجموعه، محصول → صفحه محصول، URL → همان مسیر
+const manualLinkTo = (l) => {
+  if (l.type === 'category') return { name: 'Collection', params: { lang: locale.value, slug: l.slug } }
+  if (l.type === 'product') return { name: 'ProductDetails', params: { lang: locale.value, id: l.slug } }
+  return l.url
+}
 
 const truncatedTitle = computed(() => {
   const s = article.value?.title || ''

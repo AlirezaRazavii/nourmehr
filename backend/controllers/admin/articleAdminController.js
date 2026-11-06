@@ -13,6 +13,7 @@
 const Article = require('../../models/Article');
 const BlogCategory = require('../../models/BlogCategory');
 const Product = require('../../models/Product');
+const Category = require('../../models/Category');
 const { delByPrefix } = require('../../utils/cache');
 const { processArticleImage } = require('../../utils/imagePipeline');
 
@@ -68,20 +69,38 @@ const normalizeFaq = (faq) => {
   }));
 };
 
-// محصولات مرتبط: فقط ObjectIdهای معتبر و یکتا (حداکثر ۶)
-const normalizeRelatedProducts = (list) => {
+// لینک‌های دستی (فاز ۳): عنوان دوزبانه + مقصد دسته‌بندی/محصول/URL — حداکثر ۶
+const normalizeManualLinks = (list) => {
   if (!Array.isArray(list)) return [];
-  const seen = new Set();
-  const out = [];
   const ObjectId = require('mongoose').Types.ObjectId;
+  const out = [];
   for (const item of list.slice(0, 6)) {
-    const id = String(item?.product || item || '');
-    if (!ObjectId.isValid(id) || seen.has(id)) continue;
-    seen.add(id);
-    out.push({
-      product: id,
-      note: { fa: String(item?.note?.fa || ''), en: String(item?.note?.en || '') }
-    });
+    const raw = item || {};
+    const type = ['category', 'product', 'url'].includes(raw.type) ? raw.type : null;
+    if (!type) continue;
+    const link = {
+      title: {
+        fa: String(raw.title?.fa || '').trim().slice(0, 120),
+        en: String(raw.title?.en || '').trim().slice(0, 120)
+      },
+      type
+    };
+    if (!link.title.fa && !link.title.en) continue; // حداقل یکی از عنوان‌ها الزامی
+    if (type === 'category') {
+      const id = String(raw.category?._id || raw.category || '');
+      if (!ObjectId.isValid(id)) continue;
+      link.category = id;
+    } else if (type === 'product') {
+      const id = String(raw.product?._id || raw.product || '');
+      if (!ObjectId.isValid(id)) continue;
+      link.product = id;
+    } else {
+      const url = String(raw.url || '').trim();
+      // فقط http(s) یا مسیر نسبی داخل سایت پذیرفته می‌شود
+      if (!/^https?:\/\/[^\s]+$/i.test(url) && !/^\/(?!\/)[^\s]*$/.test(url)) continue;
+      link.url = url.slice(0, 500);
+    }
+    out.push(link);
   }
   return out;
 };
@@ -165,7 +184,7 @@ exports.getArticles = async (req, res) => {
         .sort({ updatedAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit)
-        .select('-content -revisions -relatedProducts -faq')
+        .select('-content -revisions -manualLinks -faq')
         .populate('category', 'name slug')
     ]);
 
@@ -187,7 +206,8 @@ exports.getArticleById = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Article not found' });
     }
     const article = await Article.findById(req.params.id)
-      .populate('relatedProducts.product', 'name slug mainImage status')
+      .populate('manualLinks.category', 'name slug status')
+      .populate('manualLinks.product', 'name slug status')
       .populate('relatedArticles', 'title slug status publishedAt')
       .populate('prevArticle', 'title slug status publishedAt')
       .populate('nextArticle', 'title slug status publishedAt');
@@ -223,7 +243,7 @@ exports.createArticle = async (req, res) => {
     data.content = normalizeContent(data.content);
     data.tags = normalizeTags(data.tags);
     data.faq = normalizeFaq(data.faq);
-    data.relatedProducts = normalizeRelatedProducts(data.relatedProducts);
+    data.manualLinks = normalizeManualLinks(data.manualLinks);
     data.relatedArticles = normalizeRelatedArticles(data.relatedArticles);
     data.prevArticle = normalizeAdjacentRef(data.prevArticle);
     data.nextArticle = normalizeAdjacentRef(data.nextArticle);
@@ -307,7 +327,7 @@ exports.updateArticle = async (req, res) => {
     if (data.content !== undefined) data.content = normalizeContent(data.content);
     if (data.tags !== undefined) data.tags = normalizeTags(data.tags);
     if (data.faq !== undefined) data.faq = normalizeFaq(data.faq);
-    if (data.relatedProducts !== undefined) data.relatedProducts = normalizeRelatedProducts(data.relatedProducts);
+    if (data.manualLinks !== undefined) data.manualLinks = normalizeManualLinks(data.manualLinks);
     if (data.relatedArticles !== undefined) data.relatedArticles = normalizeRelatedArticles(data.relatedArticles, article._id);
     if (data.prevArticle !== undefined) data.prevArticle = normalizeAdjacentRef(data.prevArticle, article._id);
     if (data.nextArticle !== undefined) data.nextArticle = normalizeAdjacentRef(data.nextArticle, article._id);
@@ -434,7 +454,7 @@ exports.linkSearch = async (req, res) => {
     const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
     const PUBLIC_STATUSES = ['active', 'out_of_stock'];
 
-    const [products, articles] = await Promise.all([
+    const [products, articles, categories] = await Promise.all([
       Product.find({
         status: { $in: PUBLIC_STATUSES },
         $or: [{ 'name.fa': rx }, { 'name.en': rx }, { slug: rx }]
@@ -442,12 +462,23 @@ exports.linkSearch = async (req, res) => {
       Article.find({
         status: 'published',
         $or: [{ 'title.fa': rx }, { 'title.en': rx }]
-      }).select('title slug').limit(8).lean()
+      }).select('title slug').limit(8).lean(),
+      Category.find({
+        status: 'active',
+        $or: [{ 'name.fa': rx }, { 'name.en': rx }, { slug: rx }]
+      }).select('name slug').limit(8).lean()
     ]);
 
     res.json({
       success: true,
       data: [
+        ...categories.map(c => ({
+          type: 'category',
+          id: c._id,
+          title: c.name?.fa || c.name?.en || c.slug,
+          slug: c.slug,
+          url: null
+        })),
         ...products.map(p => ({
           type: 'product',
           id: p._id,
@@ -475,7 +506,8 @@ exports.botPreview = async (req, res) => {
   try {
     const article = await Article.findById(req.params.id)
       .populate('category', 'name slug')
-      .populate('relatedProducts.product', 'name slug mainImage price discountPercent status');
+      .populate('manualLinks.category', 'name slug status')
+      .populate('manualLinks.product', 'name slug mainImage status');
     if (!article) return res.status(404).json({ success: false, message: 'Article not found' });
 
     // همان تابعی که ربات واقعی می‌بیند — منبع واحد، تضمین parity

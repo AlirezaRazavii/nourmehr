@@ -530,10 +530,10 @@ html[dir='rtl'] .nm-cover-cta svg { transform: rotate(180deg); }
 .nm-article-hero.no-img .nm-breadcrumb .sep,
 .nm-article-hero.no-img .nm-breadcrumb .current { color: var(--nm-text-faint); }
 
-/* ------------------------ چیدمان سه‌ستونه صفحه مقاله ------------------------ */
+/* ------------------------ چیدمان دوستونه صفحه مقاله ------------------------ */
 .nm-article-layout {
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr) 300px;
+  grid-template-columns: 240px minmax(0, 1fr);
   gap: 36px;
   align-items: start;
 }
@@ -615,8 +615,12 @@ html[dir='rtl'] .nm-cover-cta svg { transform: rotate(180deg); }
 .nm-prose figcaption { margin-top: 8px; text-align: center; color: var(--nm-text-faint); font-size: 0.82rem; }
 
 /* ستون کناری محصولات مرتبط */
-.nm-rail { position: sticky; top: 96px; display: flex; flex-direction: column; gap: 14px; }
-.nm-rail-title { font-size: 0.86rem; font-weight: 700; color: var(--nm-text-faint); margin: 0; }
+/* لینک‌های دستی مقاله (فاز ۳) */
+.nm-manual-links { margin-top: 44px; }
+.nm-manual-links h2 { font-size: 1.2rem; margin: 0 0 16px; }
+.nm-links-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.nm-link-chip { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; font-weight: 600; text-decoration: none; font-size: 0.88rem; }
+.nm-link-ico { font-size: 1rem; line-height: 1; }
 .nm-mini-product {
   display: flex; gap: 12px; align-items: center;
   padding: 10px; border-radius: 14px;
@@ -679,8 +683,7 @@ html[dir='rtl'] .nm-cover-cta svg { transform: rotate(180deg); }
 @media (max-width: 1100px) {
   .nm-article-layout { grid-template-columns: minmax(0, 1fr); }
   .nm-toc { display: none; }          /* موبایل/تبلت: TOC مخفی */
-  .nm-rail { position: static; flex-direction: row; flex-wrap: wrap; }
-  .nm-rail > * { flex: 1 1 240px; }
+  .nm-links-row { gap: 8px; }
 }
 @media (max-width: 900px) {
   .nm-cover-hero { min-height: 340px; }

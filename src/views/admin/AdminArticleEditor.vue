@@ -191,23 +191,51 @@
           <p v-if="form.imageVariants?.length" class="hint">✓ {{ form.imageVariants.length }} عرض WebP تولید شد (srcset)</p>
         </div>
 
-        <!-- محصولات مرتبط -->
+        <!-- لینک‌های دستی (فاز ۳) -->
         <div class="panel">
           <div class="label-row">
-            <h2 class="panel-title">🛍 محصولات مرتبط</h2>
+            <h2 class="panel-title">🔗 لینک‌های دستی</h2>
           </div>
-          <p class="hint">لینک داخلی مقاله ↔ محصول (موتور لینک‌سازی داخلی سئو)</p>
-          <div class="form-group" style="position:relative">
-            <input v-model="productSearch" type="text" placeholder="جستجوی محصول…" @input="searchProducts" />
-            <div v-if="productResults.length" class="search-dropdown">
-              <button v-for="p in productResults" :key="p._id" type="button" @click="addProduct(p)">
-                {{ p.title }} <small v-if="p.slug" dir="ltr">{{ p.slug }}</small>
+          <p class="hint">لینک‌هایی که زیر مقاله نمایش داده می‌شوند — با عنوان دوزبانه. مقصد: دسته‌بندی، محصول یا URL آزاد. (حداکثر ۶)</p>
+
+          <div class="form-group">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <input v-model="linkDraft.titleFa" type="text" dir="rtl" placeholder="عنوان فارسی — مثلاً: محصولات الماس‌تراش" />
+              <input v-model="linkDraft.titleEn" type="text" dir="ltr" placeholder="English title (اختیاری)" />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <select v-model="linkDraft.type">
+              <option value="category">📁 دسته‌بندی</option>
+              <option value="product">🛒 محصول</option>
+              <option value="url">🔗 URL آزاد</option>
+            </select>
+          </div>
+
+          <div v-if="linkDraft.type === 'url'" class="form-group">
+            <input v-model="linkDraft.url" type="text" dir="ltr" placeholder="https://nourmehr.ir/... یا /fa/collection/..." />
+          </div>
+
+          <div v-else class="form-group" style="position:relative">
+            <input v-model="targetSearch" type="text" :placeholder="linkDraft.type === 'category' ? 'جستجوی دسته‌بندی…' : 'جستجوی محصول…'" @input="searchTarget" />
+            <div v-if="targetResults.length" class="search-dropdown">
+              <button v-for="t in targetResults" :key="t.id" type="button" @click="pickTarget(t)">
+                {{ t.title }} <small v-if="t.slug" dir="ltr">{{ t.slug }}</small>
               </button>
             </div>
           </div>
-          <div v-for="(rp, i) in form.relatedProducts" :key="rp.product" class="related-item">
-            <span>{{ rp.title }}</span>
-            <button type="button" class="btn small danger" @click="form.relatedProducts.splice(i, 1)">✕</button>
+
+          <div v-if="linkDraft.category || linkDraft.product" class="related-item">
+            <span>🎯 {{ linkDraft.type === 'category' ? linkDraft.categoryTitle : linkDraft.productTitle }}</span>
+            <button type="button" class="btn small danger" @click="clearTarget">✕</button>
+          </div>
+
+          <button type="button" class="btn small primary" style="margin-top:10px" @click="addManualLink">+ افزودن لینک</button>
+
+          <div v-for="(l, i) in form.manualLinks" :key="i" class="related-item" style="margin-top:6px">
+            <span>{{ linkIcon(l.type) }} {{ l.title.fa || l.title.en || 'بدون عنوان' }}<small v-if="linkTargetLabel(l)" style="display:block;opacity:.55;font-size:.72rem;margin-top:2px">{{ linkTargetLabel(l) }}</small></span>
+            <button type="button" class="btn small danger" @click="form.manualLinks.splice(i, 1)">✕</button>
           </div>
         </div>
 
@@ -360,8 +388,14 @@ const botHtml = ref('')
 const activeLang = ref('fa')
 const categories = ref([])
 const tagsInput = ref('')
-const productSearch = ref('')
-const productResults = ref([])
+// لینک‌های دستی (فاز ۳)
+const linkDraft = reactive({
+  titleFa: '', titleEn: '', type: 'category',
+  category: null, categoryTitle: '', product: null, productTitle: '', url: ''
+})
+const targetSearch = ref('')
+const targetResults = ref([])
+let targetTimer = null
 const relatedSearch = ref('')
 const relatedResults = ref([])
 // قبلی/بعدی (اورراید دستی)
@@ -386,7 +420,7 @@ const form = reactive({
   publishedAt: null,
   featured: false,
   faq: [],
-  relatedProducts: [], // [{ product, title, note }]
+  manualLinks: [], // [{ title:{fa,en}, type, category, categoryTitle, product, productTitle, url }]
   relatedArticles: [], // [{ _id, title }]
   prevArticle: null, // { _id, title } — null یعنی خودکار
   nextArticle: null, // { _id, title } — null یعنی خودکار
@@ -507,7 +541,13 @@ const collectPayload = (autosave) => {
     publishedAt: form.publishedAt,
     featured: form.featured,
     faq: form.faq,
-    relatedProducts: form.relatedProducts.map(rp => ({ product: rp.product, note: { fa: '', en: '' } })),
+    manualLinks: form.manualLinks.map(l => ({
+      title: { fa: l.title.fa, en: l.title.en },
+      type: l.type,
+      category: l.type === 'category' ? l.category : null,
+      product: l.type === 'product' ? l.product : null,
+      url: l.type === 'url' ? l.url : ''
+    })),
     relatedArticles: form.relatedArticles.map(r => r._id),
     prevArticle: form.prevArticle?._id || null,
     nextArticle: form.nextArticle?._id || null,
@@ -600,21 +640,60 @@ const insertLink = (item) => {
   showLinkPicker.value = false
 }
 
-/* ------------------------------ محصولات مرتبط ------------------------------ */
-let productTimer = null
-const searchProducts = () => {
-  clearTimeout(productTimer)
-  productTimer = setTimeout(async () => {
-    if (productSearch.value.trim().length < 2) { productResults.value = []; return }
-    const res = await adminLinkSearch(productSearch.value.trim())
-    if (res.success) productResults.value = res.data.filter(x => x.type === 'product')
+/* ------------------------------ لینک‌های دستی (فاز ۳) ------------------------------ */
+const searchTarget = () => {
+  clearTimeout(targetTimer)
+  targetTimer = setTimeout(async () => {
+    if (targetSearch.value.trim().length < 2) { targetResults.value = []; return }
+    const res = await adminLinkSearch(targetSearch.value.trim())
+    if (res.success) targetResults.value = res.data.filter(x => x.type === linkDraft.type)
   }, 300)
 }
-const addProduct = (p) => {
-  if (form.relatedProducts.some(rp => rp.product === p._id)) return
-  form.relatedProducts.push({ product: p._id, title: p.title })
-  productSearch.value = ''
-  productResults.value = []
+const pickTarget = (t) => {
+  // توجه: linkSearch فیلد را id برمی‌گرداند نه _id
+  if (linkDraft.type === 'category') {
+    linkDraft.category = t.id
+    linkDraft.categoryTitle = t.title
+  } else {
+    linkDraft.product = t.id
+    linkDraft.productTitle = t.title
+  }
+  targetSearch.value = ''
+  targetResults.value = []
+}
+const clearTarget = () => {
+  linkDraft.category = null; linkDraft.categoryTitle = ''
+  linkDraft.product = null; linkDraft.productTitle = ''
+}
+const linkIcon = (t) => (t === 'category' ? '📁' : t === 'product' ? '🛒' : '🔗')
+const linkTargetLabel = (l) => {
+  if (l.type === 'category') return l.categoryTitle
+  if (l.type === 'product') return l.productTitle
+  return l.url
+}
+const addManualLink = () => {
+  if (form.manualLinks.length >= 6) return alert('حداکثر ۶ لینک مجاز است')
+  if (!linkDraft.titleFa.trim() && !linkDraft.titleEn.trim()) return alert('عنوان لینک (فارسی یا انگلیسی) الزامی است')
+  if (linkDraft.type === 'category' && !linkDraft.category) return alert('دسته‌بندی مقصد را از جستجو انتخاب کن')
+  if (linkDraft.type === 'product' && !linkDraft.product) return alert('محصول مقصد را از جستجو انتخاب کن')
+  if (linkDraft.type === 'url') {
+    const u = linkDraft.url.trim()
+    if (!u) return alert('URL مقصد را وارد کن')
+    if (!/^https?:\/\//i.test(u) && !u.startsWith('/')) return alert('URL باید با https:// یا http:// یا / شروع شود')
+  }
+  form.manualLinks.push({
+    title: { fa: linkDraft.titleFa.trim(), en: linkDraft.titleEn.trim() },
+    type: linkDraft.type,
+    category: linkDraft.type === 'category' ? linkDraft.category : null,
+    categoryTitle: linkDraft.type === 'category' ? linkDraft.categoryTitle : '',
+    product: linkDraft.type === 'product' ? linkDraft.product : null,
+    productTitle: linkDraft.type === 'product' ? linkDraft.productTitle : '',
+    url: linkDraft.type === 'url' ? linkDraft.url.trim() : ''
+  })
+  linkDraft.titleFa = ''
+  linkDraft.titleEn = ''
+  linkDraft.url = ''
+  clearTarget()
 }
 
 /* ------------------------------ مقالات مرتبط (دستی) ------------------------------ */
@@ -700,9 +779,14 @@ onMounted(async () => {
         featured: Boolean(a.featured),
         faq: a.faq || [],
         revisions: a.revisions || [],
-        relatedProducts: (a.relatedProducts || []).map(rp => ({
-          product: rp.product?._id || rp.product,
-          title: rp.product?.name?.fa || rp.product?.name?.en || 'محصول'
+        manualLinks: (a.manualLinks || []).map(l => ({
+          title: { fa: l.title?.fa || '', en: l.title?.en || '' },
+          type: l.type,
+          category: l.type === 'category' ? (l.category?._id || null) : null,
+          categoryTitle: l.category ? (l.category.name?.fa || l.category.name?.en || '') + (l.category.status === 'inactive' ? ' (غیرفعال)' : '') : '',
+          product: l.type === 'product' ? (l.product?._id || null) : null,
+          productTitle: l.product ? (l.product.name?.fa || l.product.name?.en || '') + (!['active', 'out_of_stock'].includes(l.product.status) ? ' (غیرفعال)' : '') : '',
+          url: l.url || ''
         })),
         relatedArticles: (a.relatedArticles || []).map(ra => ({
           _id: ra._id,

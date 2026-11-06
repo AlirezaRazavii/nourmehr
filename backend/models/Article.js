@@ -5,7 +5,7 @@
  *  ۱) اسلاگ مستقل برای هر زبان (slug.fa می‌تواند فارسی، slug.en لاتین باشد)
  *  ۲) محتوا = JSON تیپ‌تپ (منبع حقیقت) + HTML کش‌شده برای رندر سریع
  *  ۳) FAQ دوزبانه (برای JSON-LD FAQPage)
- *  ۴) relatedProducts — موتور لینک‌سازی داخلی مقاله ↔ محصول
+ *  ۴) manualLinks — لینک‌های دستی دوزبانه (دسته‌بندی / محصول / URL آزاد)
  *  ۵) revisions — تاریخچه نسخه‌ها (حداکثر ۲۰ نسخه) برای بازگردانی
  *  ۶) legacySlugs — اسلاگ‌های قدیمی برای ریدایرکت ۳۰۱ خودکار
  *
@@ -39,9 +39,13 @@ const faqSchema = new mongoose.Schema({
   answer: localizedText()
 }, { _id: false });
 
-const relatedProductSchema = new mongoose.Schema({
-  product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
-  note: localizedText()
+// لینک دستی مقاله — عنوان دوزبانه + مقصد (دسته‌بندی / محصول / URL آزاد)
+const manualLinkSchema = new mongoose.Schema({
+  title: localizedText(),
+  type: { type: String, enum: ['category', 'product', 'url'], default: 'url' },
+  category: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', default: null },
+  product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', default: null },
+  url: { type: String, default: '' }
 }, { _id: false });
 
 const revisionSchema = new mongoose.Schema({
@@ -97,7 +101,8 @@ const articleSchema = new mongoose.Schema({
   readingTime: { type: Number, default: 0 },
   viewsCount: { type: Number, default: 0 },
   faq: { type: [faqSchema], default: [] },
-  relatedProducts: { type: [relatedProductSchema], default: [] },
+  // لینک‌های دستی (فاز ۳) — حداکثر ۶؛ ترتیب نمایش = ترتیب همین آرایه
+  manualLinks: { type: [manualLinkSchema], default: [] },
   // مقالات مرتبط — فقط انتخاب دستی ادمین (حداکثر ۶)؛ ترتیب نمایش = ترتیب همین آرایه
   relatedArticles: { type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Article' }], default: [] },
   // قبلی/بعدی — اورراید دستی ادمین؛ null یعنی خودکار (بر اساس تاریخ انتشار)
