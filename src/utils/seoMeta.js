@@ -23,7 +23,7 @@ const DEFAULT_DESCRIPTION = {
 
 const absolute = (url) => {
   if (!url) return ''
-  return /^https?:\/\///i.test(url) ? url : `${SITE_URL}${url}`
+  return /^https?:\/\//i.test(url) ? url : `${SITE_URL}${url}`
 }
 
 const pick = (value, lang) => {

@@ -392,7 +392,9 @@ onBeforeUnmount(() => {
   resetSeoMeta()
 })
 watch(() => route.params.id, (id) => { if (id) loadProduct(id) })
-watch(locale, () => setProductSeo(product.value, locale.value))
+watch(locale, () => {
+  try { setProductSeo(product.value, locale.value) } catch (e) { console.error('SEO error:', e) }
+})
 </script>
 
 
