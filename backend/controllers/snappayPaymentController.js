@@ -69,8 +69,8 @@ const buildCartList = async (order) => {
     totalAmount: toRial(order.subtotal + order.shippingCost), // فرمول مستند: اقلام + ارسال + مالیات
     taxAmount: 0,
     shippingAmount: toRial(order.shippingCost), // پس‌کرایه = صفر (چون موقع تحویل پرداخت می‌شود)
-    isTaxIncluded: false,
-    isShipmentIncluded: false,
+    isTaxIncluded: true,
+    isShipmentIncluded: true,
     cartItems,
   }];
 };
@@ -205,8 +205,8 @@ const initiateSnappPayPayment = async (req, res) => {
       // ⚠️ forcedPaymentMethodTypes حذف شد — طبق مستند اختیاری است + نیاز به فعالسازی تیم دارد
       // (مقدار ONLINE_CREDIT مال ترب‌پی بود! معتبر در اسنپ‌پی: POSTPAID / INSTALLMENT / FINANCING)
       returnURL: returnUrl,
-      // ⭐ الزام مستند: ۵-۱۰ رقم؛ اگر بلندتر با حرف شروع شود (پیشوند NM)
-      transactionId: 'NM' + String(payment._id),
+      // ⭐ الزام پشتیبانی: حداکثر ۲۰ کاراکتر — ۱۸ کاراکتر آخر ObjectId + پیشوند NM
+      transactionId: 'NM' + String(payment._id).slice(-18),
     };
 
     const result = await createPurchaseToken(payload);
@@ -232,6 +232,8 @@ const initiateSnappPayPayment = async (req, res) => {
     }
 
     payment.authority = paymentToken;
+    // ⭐ شناسه کوتاه ۲۰ کاراکتری برای یافتن پرداخت در callback
+    payment.txnShort = payload.transactionId;
     payment.amount = order.total;
     payment.callbackUrl = returnUrl;
     payment.status = 'pending';
@@ -267,10 +269,16 @@ const snappPayCallback = async (req, res) => {
       (req.body && req.body.state) || req.query.state || ''
     ).trim().toUpperCase();
 
-    // پیشوند NM را جدا کن تا payment._id خالص بماند
-    const paymentId = transactionId.startsWith('NM') ? transactionId.slice(2) : transactionId;
-    if (!paymentId || !mongoose.isValidObjectId(paymentId)) return fail('InvalidCallback');
-    const payment = await Payment.findById(paymentId);
+    // یافتن پرداخت: اول شناسه کوتاه ۲۰ کاراکتری ذخیره‌شده، بعد فرمت قدیمی NM+ObjectId
+    let payment = null;
+    if (transactionId) {
+      payment = await Payment.findOne({ txnShort: transactionId }).catch(() => null);
+    }
+    if (!payment) {
+      const paymentId = transactionId.startsWith('NM') ? transactionId.slice(2) : transactionId;
+      if (!paymentId || !mongoose.isValidObjectId(paymentId)) return fail('InvalidCallback');
+      payment = await Payment.findById(paymentId);
+    }
     if (!payment || payment.provider !== 'snappay') return fail('PaymentNotFound');
 
     const order = await Order.findById(payment.order);
@@ -319,7 +327,7 @@ const snappPayCallback = async (req, res) => {
     // ⭐ الزام اسنپ‌پی: verify و settle به‌صورت سیستمی فراخوانی می‌شوند
     const verifyRes = await verifyPurchase(payment.authority);
     if (!verifyRes.success) {
-      // شاید پرداخت انجام شده ولی callback قبلی ناقص مانده → با status چک کن
+      // ⭐ مستند ۱۹-۲۱: بعد از خطای verify، استعلام وضعیت (Get Payment Status)
       const st = await getPurchaseStatus(payment.authority);
       if (st.success) {
         const stStatus = st.response && st.response.status;
@@ -328,6 +336,17 @@ const snappPayCallback = async (req, res) => {
           if (stStatus === 'VERIFY') await settlePurchase(payment.authority);
           await finalizePaidSnappPay(payment, order, refId);
           return ok(refId, order.orderRef);
+        }
+        // ⭐ مستند ۱۹-۲۱: اگر وضعیت PENDING بود → دوباره verify صدا بزن
+        if (stStatus === 'PENDING') {
+          const retryVerify = await verifyPurchase(payment.authority);
+          if (retryVerify.success) {
+            const refId = (retryVerify.response && retryVerify.response.transactionId) || transactionId;
+            const settleRetry = await settlePurchase(payment.authority);
+            if (!settleRetry.success) console.error('[snappay][callback] settle پس از verify مجدد ناموفق: payment=' + payment._id);
+            await finalizePaidSnappPay(payment, order, refId);
+            return ok(refId, order.orderRef);
+          }
         }
       }
       payment.status = 'failed';
@@ -338,10 +357,20 @@ const snappPayCallback = async (req, res) => {
     }
 
     // settle — تأیید نهایی
+    // ⭐ مستند ۱۹-۲۱: اگر settle ناموفق بود → استعلام وضعیت؛ VERIFY یعنی دوباره settle بزن، SETTLE یعنی از قبل موفق
     const settleRes = await settlePurchase(payment.authority);
     if (!settleRes.success) {
-      // verify موفق بوده یعنی پول گرفته شده؛ settle خودکار هم پس از چند دقیقه انجام می‌شود
       console.error('[snappay][callback] settle ناموفق (verify موفق بود): payment=' + payment._id, settleRes.code, settleRes.message);
+      const st2 = await getPurchaseStatus(payment.authority);
+      const s2 = st2.success ? String((st2.response && st2.response.status) || '').toUpperCase() : '';
+      if (s2 === 'VERIFY') {
+        const settleAgain = await settlePurchase(payment.authority);
+        console.error('[snappay][callback] تلاش مجدد settle: ' + (settleAgain.success ? 'موفق' : 'ناموفق'));
+      } else if (s2 === 'SETTLE') {
+        console.log('[snappay][callback] طبق استعلام، از قبل SETTLE شده: payment=' + payment._id);
+      } else {
+        console.error('[snappay][callback] وضعیت پس از settle ناموفق (' + (s2 || 'نامشخص') + ') — کرون بازیابی پیگیری می‌کند');
+      }
     }
 
     const refId = (verifyRes.response && verifyRes.response.transactionId) || transactionId;

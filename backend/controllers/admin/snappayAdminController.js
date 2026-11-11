@@ -139,16 +139,16 @@ const updateSnappayOrder = async (req, res) => {
         totalAmount: toRial(newSubtotal + Number(order.shippingCost || 0)),
         taxAmount: 0,
         shippingAmount: toRial(order.shippingCost || 0),
-        isTaxIncluded: false,
-        isShipmentIncluded: false,
+        isTaxIncluded: true,
+        isShipmentIncluded: true,
         cartItems,
       }],
       discountAmount: toRial(newDiscount),
       externalSourceAmount: 0,
     };
 
-mo    // ⭐ سرویس ما: updatePurchase(payload) — paymentToken داخل payload
-    const result = await updatePurchase({ paymentToken: payment.authority, ...payload });dule.exports = { getOrders, getOrderById, updateOrderStatus, updateOrderTracking };
+    // ⭐ سرویس ما: updatePurchase(payload) — paymentToken داخل payload
+    const result = await updatePurchase({ paymentToken: payment.authority, ...payload });
     if (!result.success) {
       console.error('[snappay][admin-update] ناموفق:', result.code, result.message,
         '| order=' + order.orderRef, 'payment=' + payment._id);

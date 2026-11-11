@@ -7,6 +7,7 @@ const paymentSchema = new mongoose.Schema({
   method: { type: String, enum: ['online', 'cod', 'wallet', 'torobpay','snappay'], required: true },
   provider: { type: String, enum: ['mock', 'zarinpal', 'torobpay', 'idpay', 'nextpay', 'cash_on_delivery', 'snappay'], default: 'mock' },
   authority: { type: String, unique: true, sparse: true },
+  txnShort: { type: String, index: true }, // شناسه کوتاه ۲۰ کاراکتری اسنپ‌پی برای callback
   refId: String,
   status: { type: String, enum: ['pending', 'processing', 'paid', 'failed', 'refunded'], default: 'pending' },
   callbackUrl: String,
