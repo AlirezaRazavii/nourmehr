@@ -44,7 +44,7 @@
               </svg>
             </button>
           </div>
-          <router-link :to="{ name: 'CollectionView', params: { lang: locale, slug: col.slug } }" class="head-link">
+          <router-link :to="{ name: 'Collection', params: { lang: locale, slug: col.slug } }" class="head-link">
             <span class="link-label">{{ $t('home_view_all') }}</span>
             <span class="link-arrow">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style="stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round;"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
