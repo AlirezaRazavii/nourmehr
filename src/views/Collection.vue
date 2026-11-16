@@ -7,6 +7,8 @@ import { getCollection } from '../services/collectionApi'
 import { getImageUrl } from '../utils/imageUrl'
 import { useCart } from '../stores/cart'
 import { useProductStore } from '../stores/products'
+import { useWishlist } from '../stores/wishlist'
+import { useAuth } from '../stores/auth'
 import { getProductPriceInfo } from '../utils/productPrice'
 
 const route = useRoute()
@@ -14,6 +16,8 @@ const router = useRouter()
 const { locale } = useI18n()
 const cartStore = useCart()
 const productStore = useProductStore()
+const wishlist = useWishlist()
+const auth = useAuth()
 
 const getPriceInfo = (p) => getProductPriceInfo(p)
 
@@ -23,6 +27,18 @@ const handleAddToCart = async (product) => {
   // اگر کاربر لاگین نباشد، اینترسپتور axios به /login هدایت می‌کند
   await cartStore.addToCart(product._id, 1, null)
 }
+
+// علاقه‌مندی‌ها — دقیقاً مثل صفحه محصولات
+const toggleWishlist = async (productId) => {
+  if (!auth.isAuthenticated) {
+    router.push({ name: 'Login', params: { lang: locale.value }, query: { redirect: route.fullPath } })
+    return
+  }
+  await wishlist.toggle(productId)
+}
+
+// تصویر محصول — مثل Products.vue
+const getProductImage = (product) => getImageUrl(product.mainImage || product.image)
 
 
 // ─────────────────────────────────────────────────────────────
@@ -84,7 +100,15 @@ const fetchProducts = async (slug) => {
 const currentSlug = computed(() => route.params.slug)
 // دسته‌بندی‌های واقعی از دیتابیس (شامل دسته‌هایی که ادمین اضافه می‌کند)
 const dbCategories = computed(() => productStore.categories || [])
-const tabCategories = computed(() => dbCategories.value.map(c => ({ slug: c.slug, title: loc(c.name), icon: c.icon || '◆' })))
+
+// آیکون دسته‌بندی برای بج روی کارت — مثل Products.vue
+const getCategoryIcon = (catSlugOrString) => {
+  let slug = catSlugOrString
+  if (typeof catSlugOrString === 'object' && catSlugOrString?.slug) slug = catSlugOrString.slug
+  else if (typeof catSlugOrString === 'string') slug = catSlugOrString.toLowerCase().replace(/\s+/g, '-')
+  const found = dbCategories.value.find(c => c.slug === slug)
+  return found ? (found.icon || '◆') : '◦'
+}
 
 const currentCategory = computed(() => {
   const slug = currentSlug.value
@@ -130,7 +154,6 @@ const sortOptions = [
 ]
 
 const selectedSort = ref('newest')
-const viewMode = ref('grid')
 
 const filteredProducts = computed(() => {
   let products = apiProducts.value
@@ -175,7 +198,6 @@ const handleSearchShortcut = (e) => {
 const mouseX = ref(0)
 const mouseY = ref(0)
 const isLoaded = ref(false)
-const activeCardIndex = ref(-1)
 
 const handleMouseMove = (e) => {
   mouseX.value = (e.clientX / window.innerWidth) * 100
@@ -199,7 +221,7 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleSearchShortcut)
 })
 
-const formatPrice = (n) => Number(n || 0).toLocaleString('fa-IR')
+const formatPrice = (n) => Number(n || 0).toLocaleString(locale.value === 'fa' ? 'fa-IR' : 'en-US')
 
 const goToProduct = (target) => {
   const id = typeof target === 'string'
@@ -207,11 +229,6 @@ const goToProduct = (target) => {
     : target?.slug || target?._id || target?.id
   if (!id) return
   router.push({ name: 'ProductDetails', params: { lang: locale.value, id } })
-}
-
-const goToCategory = (slug) => {
-  if (!slug) return
-  router.push({ name: 'Collection', params: { lang: locale.value, slug } })
 }
 
 const renderStars = (rating) => {
@@ -320,25 +337,6 @@ const renderStars = (rating) => {
       </div>
     </header>
 
-    <!-- ═══════ Category Tabs ═══════ -->
-    <div class="tabs-wrapper">
-      <div class="tabs-container">
-        <div class="tabs-track">
-          <button
-            v-for="cat in tabCategories"
-            :key="cat.slug"
-            class="tab-item"
-            :class="{ active: currentSlug === cat.slug }"
-            @click="goToCategory(cat.slug)"
-          >
-            <span class="tab-icon">{{ cat.icon }}</span>
-            <span class="tab-text">{{ cat.title }}</span>
-            <span class="tab-count">{{ cat.slug === currentSlug ? apiProducts.length : '' }}</span>
-          </button>
-        </div>
-      </div>
-    </div>
-
     <!-- ═══════ Products Section ═══════ -->
     <main class="products-section">
       <div class="section-container">
@@ -412,32 +410,6 @@ const renderStars = (rating) => {
           </div>
 
           <div class="toolbar-left">
-            <div class="view-toggle">
-              <button
-                :class="{ active: viewMode === 'grid' }"
-                @click="viewMode = 'grid'"
-                aria-label="نمایش شبکه‌ای"
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                  <rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
-                  <rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
-                  <rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
-                  <rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
-                </svg>
-              </button>
-              <button
-                :class="{ active: viewMode === 'list' }"
-                @click="viewMode = 'list'"
-                aria-label="نمایش لیستی"
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                  <line x1="3" y1="6" x2="21" y2="6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                  <line x1="3" y1="12" x2="21" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                  <line x1="3" y1="18" x2="21" y2="18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                </svg>
-              </button>
-            </div>
-
             <div class="sort-control">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                 <path d="M3 6h18M6 12h12M9 18h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
@@ -451,77 +423,88 @@ const renderStars = (rating) => {
           </div>
         </div>
 
-        <!-- Grid View -->
-        <div class="products-grid" :class="{ 'list-mode': viewMode === 'list' }">
+        <!-- Grid View — کارت‌ها دقیقاً مثل صفحه محصولات -->
+        <div class="products-grid">
           <article
             v-for="(product, i) in filteredProducts"
             :key="product._id"
             class="product-card"
-            :style="{ '--i': i }"
+            :style="{ '--delay': `${i * 0.05}s` }"
             @click="goToProduct(product._id)"
-            @mouseenter="activeCardIndex = i"
-            @mouseleave="activeCardIndex = -1"
           >
-            <div v-if="product.discountPercent" class="ribbon">
-              <span>{{ product.discountPercent }}٪ تخفیف</span>
-            </div>
+            <div class="card-inner">
+              <div class="card-image-wrapper">
+                <img
+                  class="card-image"
+                  :src="getProductImage(product)"
+                  :alt="loc(product.name)"
+                  loading="lazy"
+                />
+                <button
+                  class="wishlist-heart"
+                  :class="{ active: wishlist.isInWishlist(product._id || product.id) }"
+                  @click.stop.prevent="toggleWishlist(product._id || product.id)"
+                  aria-label="افزودن به علاقه‌مندی‌ها"
+                >
+                  <svg viewBox="0 0 24 24" width="18" height="18" :fill="wishlist.isInWishlist(product._id || product.id) ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2">
+                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                  </svg>
+                </button>
+                <div v-if="product.discountPercent" class="discount-tag">{{ formatPrice(product.discountPercent) }}%</div>
+                <div class="card-badge">
+                  <span class="badge-icon">{{ getCategoryIcon(product.category?.slug || product.category) }}</span>
+                  <span>{{ loc(product.category?.name || product.category) }}</span>
+                </div>
+              </div>
 
-            <div class="card-visual">
-              <div class="visual-bg"></div>
-              <div class="card-img-wrap">
-                <img :src="getImageUrl(product.mainImage || product.image)" :alt="loc(product.name)" loading="lazy" />
+              <div class="card-content">
+                <h2 class="product-title">{{ loc(product.name) }}</h2>
+                <div class="title-underline"></div>
+
+                <div class="desc-box">
+                  <span class="desc-label">توضیحات</span>
+                  <p class="short-desc">{{ loc(product.shortDesc) || 'بدون توضیحات' }}</p>
+                </div>
+
+                <div class="card-footer">
+                  <div class="card-price-box">
+                    <span v-if="getPriceInfo(product).oldPrice" class="price-old">
+                      {{ formatPrice(getPriceInfo(product).oldPrice) }}
+                    </span>
+                    <div class="price-current-wrap">
+                      <span v-if="getPriceInfo(product).hasMultipleSizes" class="price-prefix">از</span>
+                      <span class="price-amount">{{ formatPrice(getPriceInfo(product).minPrice) }}</span>
+                      <span class="price-currency">تومان</span>
+                    </div>
+                  </div>
+
+                  <router-link
+                    :to="{ name: 'ProductDetails', params: { lang: locale, id: product.slug || product._id || product.id } }"
+                    class="view-btn"
+                    @click.stop
+                  >
+                    <span class="view-text">مشاهده</span>
+                    <span class="view-arrow">
+                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                      </svg>
+                    </span>
+                  </router-link>
+                </div>
               </div>
             </div>
-
-
-<div class="card-content">
-  <h2 class="product-title">{{ loc(product.name) }}</h2>
-  <div class="title-underline"></div>
-
-  <div class="desc-box">
-    <span class="desc-label">توضیحات</span>
-    <p class="short-desc">{{ loc(product.shortDesc) || 'بدون توضیحات' }}</p>
-  </div>
-
-  <div class="card-footer">
-    <div class="card-price-box">
-      <span v-if="getPriceInfo(product).oldPrice" class="price-old">
-        {{ formatPrice(getPriceInfo(product).oldPrice) }}
-      </span>
-      <div class="price-current-wrap">
-        <span v-if="getPriceInfo(product).hasMultipleSizes" class="price-prefix">از</span>
-        <span class="price-amount">{{ formatPrice(getPriceInfo(product).minPrice) }}</span>
-        <span class="price-currency">تومان</span>
-      </div>
-    </div>
-
-    <router-link
-      :to="{ name: 'ProductDetails', params: { lang: locale, id: product.slug || product._id || product.id } }"
-      class="view-btn"
-      @click.stop
-    >
-      <span class="view-text">مشاهده</span>
-      <span class="view-arrow">
-        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5">
-          <path d="M5 12h14M12 5l7 7-7 7"/>
-        </svg>
-      </span>
-    </router-link>
-  </div>
-</div>
           </article>
         </div>
 
         <!-- Skeleton loading cards -->
         <div v-if="productsLoading" class="products-grid">
           <article v-for="n in 6" :key="n" class="product-card skeleton-card">
-            <div class="card-visual">
-              <div class="skeleton-image skeleton-pulse"></div>
-            </div>
-            <div class="card-body">
-              <div class="skeleton-line skeleton-pulse" style="width:60%;height:16px;margin-bottom:10px;border-radius:4px"></div>
-              <div class="skeleton-line skeleton-pulse" style="width:90%;height:12px;margin-bottom:6px;border-radius:4px"></div>
-              <div class="skeleton-line skeleton-pulse" style="width:45%;height:12px;border-radius:4px"></div>
+            <div class="card-inner">
+              <div class="card-image-wrapper"><div class="skeleton-image skeleton-pulse"></div></div>
+              <div class="card-content">
+                <div class="skeleton-line skeleton-pulse" style="width:70%;height:16px;margin-bottom:8px"></div>
+                <div class="skeleton-line skeleton-pulse" style="width:90%;height:11px"></div>
+              </div>
             </div>
           </article>
         </div>
@@ -1007,86 +990,6 @@ const renderStars = (rating) => {
 }
 
 /* ═══════════════════════════════════════
-   CATEGORY TABS
-   ═══════════════════════════════════════ */
-.tabs-wrapper {
-  position: relative;
-  z-index: 5;
-  padding: 0 clamp(20px, 4vw, 60px);
-  margin-bottom: 60px;
-}
-
-.tabs-container {
-  max-width: 1280px;
-  margin: 0 auto;
-}
-
-.tabs-track {
-  display: flex;
-  gap: 6px;
-  padding: 6px;
-  border-radius: var(--radius-lg);
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.tabs-track::-webkit-scrollbar { display: none; }
-
-.tab-item {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 14px 24px;
-  border-radius: calc(var(--radius-lg) - 4px);
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-  font-family: inherit;
-  cursor: pointer;
-  transition: all 0.35s var(--ease-out);
-  white-space: nowrap;
-  position: relative;
-}
-
-.tab-item:hover {
-  color: var(--text);
-  background: rgba(255,255,255,0.03);
-}
-
-.tab-item.active {
-  background: rgba(var(--accent-rgb), 0.1);
-  border-color: rgba(var(--accent-rgb), 0.2);
-  color: var(--accent);
-  font-weight: 600;
-}
-
-.tab-icon {
-  font-size: 1.15rem;
-}
-
-.tab-count {
-  width: 22px;
-  height: 22px;
-  border-radius: 7px;
-  background: rgba(255,255,255,0.06);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.72rem;
-  font-weight: 600;
-}
-
-.tab-item.active .tab-count {
-  background: rgba(var(--accent-rgb), 0.2);
-  color: var(--accent);
-}
-
-/* ═══════════════════════════════════════
    SEARCH BAR
    ═══════════════════════════════════════ */
 .search-bar-wrapper {
@@ -1320,32 +1223,6 @@ const renderStars = (rating) => {
   gap: 12px;
 }
 
-.view-toggle {
-  display: flex;
-  padding: 4px;
-  border-radius: var(--radius-sm);
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-}
-
-.view-toggle button {
-  padding: 8px 10px;
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
-  border-radius: 7px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-}
-
-.view-toggle button.active {
-  background: rgba(var(--accent-rgb), 0.12);
-  color: var(--accent);
-}
-
 .sort-control {
   display: flex;
   align-items: center;
@@ -1379,177 +1256,58 @@ const renderStars = (rating) => {
    ═══════════════════════════════════════ */
 .products-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 24px;
-}
-
-.products-grid.list-mode {
-  grid-template-columns: 1fr;
-}
-
-.products-grid.list-mode .product-card {
-  display: grid;
-  grid-template-columns: 280px 1fr;
-}
-
-.products-grid.list-mode .card-visual {
-  height: 100%;
-  min-height: 220px;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: clamp(14px, 1.6vw, 22px);
 }
 
 /* ═══════════════════════════════════════
-   PRODUCT CARD
+   PRODUCT CARD — دقیقاً مثل Products.vue
    ═══════════════════════════════════════ */
-.product-card {
+.product-card { position: relative; border-radius: 16px; opacity: 0; transform: translateY(30px); animation: cardReveal 0.6s cubic-bezier(0.16,1,0.3,1) forwards; animation-delay: var(--delay); }
+@keyframes cardReveal { to { opacity: 1; transform: translateY(0); } }
+
+.card-inner { position: relative; z-index: 1; border-radius: 16px; background: linear-gradient(165deg, rgba(18,22,36,0.95), rgba(8,10,18,0.98)); border: 1px solid rgba(255,255,255,0.05); overflow: hidden; display: flex; flex-direction: column; height: 100%; transition: transform 0.3s ease, border-color 0.3s, box-shadow 0.3s; }
+
+@media (hover: hover) {
+  .product-card:hover .card-inner { transform: translateY(-4px); border-color: rgba(197,160,89,0.15); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+  .product-card:hover .card-image { transform: scale(1.05); }
+  .product-card:hover .title-underline { width: 34px; }
+}
+
+/* رسانه‌ی تصویر: نسبت ۱:۱ حفظ می‌شود ولی عکس کامل و بدون بریدگی نمایش داده می‌شود (contain) */
+.card-image-wrapper {
   position: relative;
-  border-radius: var(--radius-lg);
-  background: var(--bg-card);
-  border: 1px solid var(--border);
   overflow: hidden;
-  cursor: pointer;
-  opacity: 0;
-  transform: translateY(40px);
-  animation: cardReveal 0.7s var(--ease-out) forwards;
-  animation-delay: calc(var(--i) * 0.12s);
-  transition: transform 0.5s var(--ease-out), border-color 0.3s, box-shadow 0.5s var(--ease-out);
+  aspect-ratio: 1/1;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+  background: radial-gradient(circle at 50% 35%, rgba(197,160,89,0.06), transparent 65%);
 }
-
-@keyframes cardReveal {
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.product-card:hover {
-  transform: translateY(-8px);
-  border-color: rgba(var(--accent-rgb), 0.3);
-  box-shadow:
-    0 30px 60px -12px rgba(0,0,0,0.5),
-    0 0 0 1px rgba(var(--accent-rgb), 0.1),
-    0 0 80px -20px rgba(var(--accent-rgb), 0.15);
-}
-
-.ribbon {
-  position: absolute;
-  top: 16px;
-  right: -8px;
-  z-index: 3;
-}
-
-.ribbon span {
-  display: block;
-  padding: 6px 16px 6px 12px;
-  background: linear-gradient(135deg, #ef4444, #b91c1c);
-  color: #fff;
-  font-size: 0.78rem;
-  font-weight: 700;
-  border-radius: 6px 0 0 6px;
-  box-shadow: 0 4px 20px rgba(239,68,68,0.4);
-  position: relative;
-}
-
-.ribbon span::after {
-  content: '';
-  position: absolute;
-  top: 100%;
-  right: 0;
-  border: 4px solid transparent;
-  border-top-color: #7f1d1d;
-  border-right-color: #7f1d1d;
-}
-
-.card-visual {
-  position: relative;
-  height: 260px;
-  overflow: hidden;
-}
-
-.visual-bg {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.03) 0%, transparent 100%);
-  transition: opacity 0.4s;
-}
-
-.product-card:hover .visual-bg {
-  opacity: 1;
-  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.08) 0%, transparent 100%);
-}
-
-.card-img-wrap {
+.card-image {
   width: 100%;
   height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-}
-
-.card-img-wrap img {
-  max-width: 100%;
-  max-height: 100%;
   object-fit: contain;
-  transition: transform 0.6s var(--ease-out);
-  filter: drop-shadow(0 8px 24px rgba(0,0,0,0.2));
+  filter: drop-shadow(0 12px 26px rgba(0,0,0,0.4));
+  transition: transform 0.5s ease;
 }
 
-.product-card:hover .card-img-wrap img {
-  transform: scale(1.08) translateY(-4px);
+.discount-tag { position: absolute; top: 10px; left: 10px; z-index: 3; padding: 4px 9px; border-radius: 9px; background: linear-gradient(135deg, #ef4444, #b91c1c); color: #fff; font-size: 0.7rem; font-weight: 800; box-shadow: 0 4px 14px rgba(239,68,68,0.4); }
+.wishlist-heart {
+  position: absolute; top: 10px; right: 10px; z-index: 4;
+  width: 36px !important; height: 36px !important; border-radius: 50% !important;
+  padding: 0 !important;
+  background: rgba(0,0,0,0.7) !important; border: 1px solid rgba(255,255,255,0.12) !important;
+  color: rgba(255,255,255,0.75) !important; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all 0.25s ease;
 }
-
-.card-actions {
-  position: absolute;
-  top: 16px;
-  left: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  opacity: 0;
-  transform: translateX(-10px);
-  transition: all 0.4s var(--ease-out);
-}
-
-.product-card:hover .card-actions {
-  opacity: 1;
-  transform: translateX(0);
-}
-
-.action-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: rgba(15,17,25,0.9);
-  backdrop-filter: blur(12px);
-  color: var(--text-secondary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.25s var(--ease-out);
-}
-
-.action-btn:hover {
-  background: var(--accent);
-  color: #000;
-  border-color: var(--accent);
-  transform: scale(1.1);
-}
-
-.heart-btn svg {
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
-}
-
-.heart-btn:hover svg {
-  stroke: #ef4444;
-  fill: #ef4444;
-}
-
-/* ✅ این استایل‌ها را جایگزین کنید (هماهنگ با Products.vue) */
-
+.wishlist-heart:hover { background: rgba(239,68,68,0.2) !important; color: #ff6b6b !important; border-color: rgba(239,68,68,0.4) !important; transform: scale(1.1); filter: none !important; }
+.wishlist-heart.active { color: #ef4444 !important; background: rgba(239,68,68,0.15) !important; border-color: rgba(239,68,68,0.5) !important; }
+.wishlist-heart svg { display: block; }
+.card-badge { position: absolute; bottom: 10px; right: 10px; z-index: 3; display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 9px; background: rgba(0,0,0,0.7); border: 1px solid rgba(255,255,255,0.08); font-size: 0.62rem; color: #f5d78e; font-weight: 500; max-width: calc(100% - 20px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.badge-icon { font-size: 0.7rem; flex-shrink: 0; }
 .card-content {
   padding: clamp(10px, 1.2vw, 14px);
   display: flex;
@@ -1705,11 +1463,10 @@ const renderStars = (rating) => {
 .skeleton-card { pointer-events: none; cursor: default; }
 .skeleton-image {
   width: 100%;
-  height: 200px;
-  border-radius: 12px 12px 0 0;
+  height: 100%;
+  border-radius: 12px;
 }
 .skeleton-line { display: block; }
-.skeleton-card .card-body { padding: 16px; display: flex; flex-direction: column; gap: 8px; }
 
 .empty-state {
   text-align: center;
@@ -1931,24 +1688,7 @@ const renderStars = (rating) => {
     text-align: center;
   }
 
-    @media (max-width: 768px) {
-    .products-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-    .card-bottom { flex-direction: column; align-items: flex-start; gap: 8px; }
-    .price-group { width: 100%; }
-    .add-cart-btn { width: 100%; justify-content: center; }
-    .card-title { font-size: 0.82rem; }
-    .card-desc { font-size: 0.7rem; }
-    .price-current { font-size: 0.85rem; }
-    .card-body { padding: 16px 16px 18px; }
-  }
-  
-  @media (max-width: 480px) {
-    .products-grid { grid-template-columns: 1fr; gap: 10px; }
-    .card-bottom { flex-direction: column; align-items: flex-start; gap: 8px; }
-    .add-cart-btn { width: 100%; justify-content: center; }
-  }
-
-  .hero-desc { max-width: 100%; }
+.hero-desc { max-width: 100%; }
   .hero-stats { justify-content: center; }
 
   .hero-features-list {
@@ -2005,19 +1745,6 @@ const renderStars = (rating) => {
   .hero-features-list { grid-template-columns: 1fr; }
   .hero-grid-lines { display: none; }
 
-  .tabs-track {
-    gap: 4px;
-    padding: 4px;
-  }
-
-  .tab-item {
-    padding: 10px 14px;
-    font-size: 0.82rem;
-  }
-
-  .tab-text { display: none; }
-  .tab-icon { font-size: 1.3rem; }
-
   .search-bar {
     height: 50px;
     padding: 0 16px;
@@ -2036,25 +1763,11 @@ const renderStars = (rating) => {
     justify-content: space-between;
   }
 
+  /* موبایل: دو ستون — دقیقاً مثل صفحه محصولات */
   .products-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
   }
-
-  .products-grid.list-mode .product-card {
-    grid-template-columns: 1fr;
-  }
-
-  .card-actions {
-    opacity: 1;
-    transform: translateX(0);
-    flex-direction: row;
-    top: auto;
-    bottom: 12px;
-    left: 50%;
-    transform: translateX(-50%);
-  }
-
-  .ribbon { right: -4px; }
 }
 
 @media (max-width: 480px) {
@@ -2067,16 +1780,8 @@ const renderStars = (rating) => {
   }
 
   .visual-icon { font-size: 2.5rem; }
-  .card-visual { height: 220px; }
-  .card-body { padding: 16px 18px 20px; }
 
-  .card-bottom {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
-  }
-
-  .add-cart-btn { justify-content: center; }
+  .products-grid { gap: 10px; }
 
   .empty-actions {
     flex-direction: column;
@@ -2100,19 +1805,14 @@ const renderStars = (rating) => {
   }
 }
 
-.tab-item:focus-visible,
-.action-btn:focus-visible,
-.add-cart-btn:focus-visible,
 .cta-btn-primary:focus-visible,
-.view-toggle button:focus-visible,
 .search-input:focus-visible,
 .search-clear:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-/* ✅ این را به بخش Responsive اضافه کنید */
-
+/* استایل موبایل کارت — مثل Products.vue */
 @media (max-width: 768px) {
   .card-footer {
     flex-direction: column;
@@ -2154,4 +1854,12 @@ const renderStars = (rating) => {
   }
 }
 
+/* موبایل/تاچ: انیمیشن ظاهرشدن کارت‌ها غیرفعال — مثل Products.vue */
+@media (hover: none) and (pointer: coarse) {
+  .product-card {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
 </style>
