@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import api from '../services/api'
+import { getCollection } from '../services/collectionApi'
 import { getImageUrl } from '../utils/imageUrl'
 import { useCart } from '../stores/cart'
 import { useProductStore } from '../stores/products'
@@ -24,16 +25,53 @@ const handleAddToCart = async (product) => {
 }
 
 
+// ─────────────────────────────────────────────────────────────
+// Helper های دوزبانه و رنگ
+// ─────────────────────────────────────────────────────────────
+// متن دوزبانه ({fa,en}) را به رشته‌ی زبان جاری تبدیل می‌کند
+const loc = (value) => {
+  if (!value) return ''
+  if (typeof value === 'string') return value
+  if (typeof value === 'object') return value[locale.value] || value.fa || value.en || ''
+  return ''
+}
+
+// '#ffd280' → '255,210,128' (برای متغیر CSS --accent-rgb)
+const hexToRgb = (hex) => {
+  const m = /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(String(hex || '').trim())
+  return m ? `${parseInt(m[1], 16)},${parseInt(m[2], 16)},${parseInt(m[3], 16)}` : '197,160,89'
+}
+
+// ⚠️ این آبجکت قبلاً تعریف نشده بود و صفحه با ReferenceError کرش می‌کرد
+// بازنویسی‌های اختیاری هر دسته — فعلاً خالی؛ در صورت نیاز اینجا اضافه شود
+const presets = {}
+
 const apiProducts = ref([])
 const productsLoading = ref(false)
 const loadError = ref('')
+// وقتی slug مربوط به یک «کالکشن» باشد اینجا پر می‌شود؛ null یعنی حالت دسته‌بندی
+const collectionData = ref(null)
 
 const fetchProducts = async (slug) => {
   productsLoading.value = true
   loadError.value = ''
+  collectionData.value = null
   try {
-    const res = await api.get(`/products?category=${slug}&limit=50`)
-    apiProducts.value = res.data.data || []
+    let list = null
+    // ۱) اول تلاش به‌عنوان «کالکشن» — دکمه‌های «مشاهده همه» صفحه اصلی به این‌ها لینک می‌دهند
+    try {
+      const data = await getCollection(encodeURIComponent(slug), { limit: 100 })
+      if (data?.collection) {
+        collectionData.value = data.collection
+        list = data.products || []
+      }
+    } catch { /* کالکشن نبود — به دسته‌بندی برمی‌گردیم */ }
+    // ۲) اگر کالکشن نبود، به‌عنوان «دسته‌بندی»
+    if (list === null) {
+      const res = await api.get(`/products?category=${encodeURIComponent(slug)}&limit=50`)
+      list = res.data.data || []
+    }
+    apiProducts.value = list
   } catch (e) {
     console.error('[Collection] خطا در دریافت محصولات:', e)
     apiProducts.value = []
@@ -46,18 +84,33 @@ const fetchProducts = async (slug) => {
 const currentSlug = computed(() => route.params.slug)
 // دسته‌بندی‌های واقعی از دیتابیس (شامل دسته‌هایی که ادمین اضافه می‌کند)
 const dbCategories = computed(() => productStore.categories || [])
-const tabCategories = computed(() => dbCategories.value.map(c => ({ slug: c.slug, title: c.name, icon: c.icon || '◆' })))
+const tabCategories = computed(() => dbCategories.value.map(c => ({ slug: c.slug, title: loc(c.name), icon: c.icon || '◆' })))
 
 const currentCategory = computed(() => {
   const slug = currentSlug.value
+  // حالت کالکشن: داده از /collections/:slug آمده است
+  const col = collectionData.value
+  if (col) {
+    return {
+      slug,
+      title: loc(col.title) || loc(col.name) || slug,
+      subtitle: loc(col.subtitle) || loc(col.name) || '',
+      icon: col.icon || '✦',
+      description: loc(col.description) || 'مجموعه‌ای از آثار دست‌ساز و اصیل نورمهر.',
+      features: [],
+      color: col.bgColor || '#c5a059',
+      colorRgb: hexToRgb(col.bgColor),
+    }
+  }
+  // حالت دسته‌بندی
   const db = dbCategories.value.find(c => c.slug === slug)
   const preset = presets[slug] || {}
   return {
     slug,
-    title: db?.name || preset.title || slug,
-    subtitle: preset.subtitle || db?.name || '',
+    title: loc(db?.name) || preset.title || slug,
+    subtitle: preset.subtitle || loc(db?.name) || '',
     icon: db?.icon || preset.icon || '◆',
-    description: db?.description || preset.description || 'مجموعه‌ای از آثار دست‌ساز و اصیل نورمهر.',
+    description: loc(db?.description) || preset.description || 'مجموعه‌ای از آثار دست‌ساز و اصیل نورمهر.',
     features: preset.features || [],
     color: preset.color || '#c5a059',
     colorRgb: preset.colorRgb || '197,160,89',
@@ -69,20 +122,40 @@ const searchQuery = ref('')
 const isSearchFocused = ref(false)
 const searchInput = ref(null)
 
+const sortOptions = [
+  { value: 'newest', label: 'جدیدترین' },
+  { value: 'price-low', label: 'ارزان‌ترین' },
+  { value: 'price-high', label: 'گران‌ترین' },
+  { value: 'popular', label: 'محبوب‌ترین' }
+]
+
+const selectedSort = ref('newest')
+const viewMode = ref('grid')
+
 const filteredProducts = computed(() => {
   let products = apiProducts.value
 
   if (searchQuery.value.trim()) {
     const q = searchQuery.value.trim().toLowerCase()
     products = products.filter(p =>
-      (p.name || '').toLowerCase().includes(q) ||
-      (p.shortDesc || '').toLowerCase().includes(q)
+      (loc(p.name) || '').toLowerCase().includes(q) ||
+      (loc(p.shortDesc) || '').toLowerCase().includes(q)
     )
   }
 
-  return products
+  // اعمال مرتب‌سازی دراپ‌داون (قبل از این انتخاب کاربر هیچ اثری نداشت)
+  const list = [...products]
+  if (selectedSort.value === 'price-low') {
+    list.sort((a, b) => (getPriceInfo(a)?.minPrice ?? 0) - (getPriceInfo(b)?.minPrice ?? 0))
+  } else if (selectedSort.value === 'price-high') {
+    list.sort((a, b) => (getPriceInfo(b)?.minPrice ?? 0) - (getPriceInfo(a)?.minPrice ?? 0))
+  } else if (selectedSort.value === 'popular') {
+    list.sort((a, b) => Number(b.ratingAverage || 0) - Number(a.ratingAverage || 0))
+  } else {
+    list.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+  }
+  return list
 })
-
 const clearSearch = () => {
   searchQuery.value = ''
   searchInput.value?.focus()
@@ -99,15 +172,6 @@ const handleSearchShortcut = (e) => {
   }
 }
 
-const sortOptions = [
-  { value: 'newest', label: 'جدیدترین' },
-  { value: 'price-low', label: 'ارزان‌ترین' },
-  { value: 'price-high', label: 'گران‌ترین' },
-  { value: 'popular', label: 'محبوب‌ترین' }
-]
-
-const selectedSort = ref('newest')
-const viewMode = ref('grid')
 const mouseX = ref(0)
 const mouseY = ref(0)
 const isLoaded = ref(false)
@@ -405,18 +469,18 @@ const renderStars = (rating) => {
             <div class="card-visual">
               <div class="visual-bg"></div>
               <div class="card-img-wrap">
-                <img :src="getImageUrl(product.mainImage || product.image)" :alt="product.name" loading="lazy" />
+                <img :src="getImageUrl(product.mainImage || product.image)" :alt="loc(product.name)" loading="lazy" />
               </div>
             </div>
 
 
 <div class="card-content">
-  <h2 class="product-title">{{ product.name }}</h2>
+  <h2 class="product-title">{{ loc(product.name) }}</h2>
   <div class="title-underline"></div>
 
   <div class="desc-box">
     <span class="desc-label">توضیحات</span>
-    <p class="short-desc">{{ product.shortDesc || 'بدون توضیحات' }}</p>
+    <p class="short-desc">{{ loc(product.shortDesc) || 'بدون توضیحات' }}</p>
   </div>
 
   <div class="card-footer">
