@@ -24,7 +24,7 @@ const CONTENT = {
     contactTitle: 'ارتباط با ما',
     contactIntro: 'برای هر سوال یا ابهامی درباره‌ی این قوانین، از راه‌های زیر در خدمت شما هستیم:',
     contact: [
-      { label: 'تلفن پشتیبانی', value: phoneDisplay, href: `tel:${phoneIntl}`, hint: 'همه‌روزه ۹ تا ۲۲ — جمعه‌ها تعطیل' },
+      { label: 'تلفن پشتیبانی', value: phoneDisplay, href: `tel:09132256121`, hint: 'همه‌روزه ۹ تا ۲۲  ' },
       { label: 'واتس‌اپ', value: 'گفتگوی مستقیم', href: whatsapp },
       { label: 'ایمیل', value: email, href: `mailto:${email}` },
       { label: 'اینستاگرام', value: '@' + SUPPORT_CONFIG.instagram.username, href: instagram },
@@ -177,7 +177,7 @@ const CONTENT = {
     contactTitle: 'Contact Us',
     contactIntro: 'For any question about these terms, we are available through the following channels:',
     contact: [
-      { label: 'Support Phone', value: phoneDisplay, href: `tel:${phoneIntl}`, hint: 'Daily 9:00–22:00 (Tehran time) — closed on Fridays' },
+      { label: 'Support Phone', value: phoneDisplay, href: `tel:09132256121`, hint: 'Daily 9:00–22:00 (Tehran time)' },
       { label: 'WhatsApp', value: 'Chat with us', href: whatsapp },
       { label: 'Email', value: email, href: `mailto:${email}` },
       { label: 'Instagram', value: '@' + SUPPORT_CONFIG.instagram.username, href: instagram },

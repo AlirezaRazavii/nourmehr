@@ -24,7 +24,7 @@ const CONTENT = {
     contactTitle: 'تمرین حق خود: درخواست و پرسش',
     contactIntro: 'برای هر سوال درباره داده‌های خود، یا برای مشاهده، اصلاح و حذف حساب، از راه‌های زیر اقدام کنید:',
     contact: [
-      { label: 'تلفن پشتیبانی', value: phoneDisplay, href: `tel:${phoneIntl}`, hint: 'همه‌روزه ۹ تا ۲۲ — جمعه‌ها تعطیل' },
+      { label: 'تلفن پشتیبانی', value: phoneDisplay, href: `tel:09132256121`, hint: 'همه‌روزه ۹ تا ۲۲ ' },
       { label: 'واتس‌اپ', value: 'گفتگوی مستقیم', href: whatsapp },
       { label: 'ایمیل', value: email, href: `mailto:${email}` },
       { label: 'اینستاگرام', value: '@' + SUPPORT_CONFIG.instagram.username, href: instagram },
@@ -150,7 +150,7 @@ const CONTENT = {
     contactTitle: 'Exercise Your Rights: Requests & Questions',
     contactIntro: 'For any question about your data, or to view, correct or delete your account, use the channels below:',
     contact: [
-      { label: 'Support Phone', value: phoneDisplay, href: `tel:${phoneIntl}`, hint: 'Daily 9:00–22:00 (Tehran time) — closed on Fridays' },
+      { label: 'Support Phone', value: phoneDisplay, href: `tel:09132256121`, hint: 'Daily 9:00–22:00 (Tehran time)' },
       { label: 'WhatsApp', value: 'Chat with us', href: whatsapp },
       { label: 'Email', value: email, href: `mailto:${email}` },
       { label: 'Instagram', value: '@' + SUPPORT_CONFIG.instagram.username, href: instagram },
