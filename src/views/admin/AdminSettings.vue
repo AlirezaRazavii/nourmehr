@@ -12,6 +12,8 @@ const settings = ref({
   enableRegistration: true,
   enableGoogleLogin: false,
   enableSmsLogin: false,
+  adminOrderSmsEnabled: true,
+  adminNotifyPhones: [],
   paymentMethods: [],
   shippingOptions: [],
   contactPhone: '',
@@ -63,7 +65,9 @@ const fetchSettings = async () => {
         },
         paymentMethods: res.data.paymentMethods || [],
         shippingMethods: res.data.shippingMethods || [],
-        shippingOptions: (res.data.shippingOptions || []).map(o => ({ ...o, postPaid: o.postPaid !== false }))
+        shippingOptions: (res.data.shippingOptions || []).map(o => ({ ...o, postPaid: o.postPaid !== false })),
+        adminOrderSmsEnabled: res.data.adminOrderSmsEnabled !== false,
+        adminNotifyPhones: Array.isArray(res.data.adminNotifyPhones) ? res.data.adminNotifyPhones : []
       }
     }
   } catch (err) {
@@ -83,7 +87,12 @@ const saveSettings = async () => {
       shippingOptions: (settings.value.shippingOptions || []).map(o => ({
         ...o,
         cost: o.postPaid ? 0 : (Number(o.cost) || 0)
-      }))
+      })),
+      // ⭐ فقط شماره‌های موبایل معتبر ذخیره شوند (ارقام فارسی/عربی خودکار به لاتین تبدیل می‌شوند)
+      adminNotifyPhones: (settings.value.adminNotifyPhones || [])
+        .map(p => String(p).replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
+        .map(p => p.replace(/\D/g, ''))
+        .filter(p => /^09\d{9}$/.test(p))
     }
     const res = await adminApi.updateSettings(payload)
     if (res.success) {
@@ -127,6 +136,18 @@ const addShippingOption = () => {
 const removeShippingOption = (idx) => {
   settings.value.shippingOptions.splice(idx, 1)
 }
+
+
+// ⭐ شماره‌های ادمین برای پیامک اطلاع‌رسانی سفارش
+const addAdminPhone = () => {
+  if (!Array.isArray(settings.value.adminNotifyPhones)) settings.value.adminNotifyPhones = []
+  settings.value.adminNotifyPhones.push('')
+}
+
+const removeAdminPhone = (idx) => {
+  settings.value.adminNotifyPhones.splice(idx, 1)
+}
+
 </script>
 
 <template>
@@ -294,6 +315,35 @@ const removeShippingOption = (idx) => {
           </div>
         </div>
       </div>
+
+      <!-- ⭐ پیامک اطلاع‌رسانی سفارش برای ادمین‌ها -->
+      <div class="settings-section glass-card">
+        <h3 class="section-title">پیامک اطلاع‌رسانی سفارش</h3>
+        <div class="toggle-group">
+          <div class="toggle-item">
+            <div class="toggle-info">
+              <span class="toggle-label">فعال‌سازی پیامک سفارش</span>
+              <span class="toggle-desc">وقتی سفارشی پرداخت و تایید می‌شود، برای شماره‌های زیر پیامک اطلاع‌رسانی ارسال شود</span>
+            </div>
+            <label class="toggle-switch">
+              <input v-model="settings.adminOrderSmsEnabled" type="checkbox" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="admin-phones-list">
+          <div v-for="(phone, idx) in settings.adminNotifyPhones" :key="idx" class="admin-phone-row">
+            <div class="form-group" style="flex: 1;">
+              <label class="form-label">شماره ادمین {{ idx + 1 }}</label>
+              <input v-model="settings.adminNotifyPhones[idx]" type="tel" class="form-input" placeholder="09123456789" dir="ltr" />
+            </div>
+            <button class="delete-shipping-btn" type="button" @click="removeAdminPhone(idx)" title="حذف این شماره">✕</button>
+          </div>
+          <button class="add-shipping-btn" type="button" @click="addAdminPhone">+ افزودن شماره ادمین</button>
+        </div>
+      </div>
+
 
       <div class="settings-section glass-card">
         <h3 class="section-title">شبکه‌های اجتماعی</h3>
@@ -632,6 +682,26 @@ const removeShippingOption = (idx) => {
 .add-shipping-btn:hover {
   background: rgba(197,160,89,0.2);
   border-color: #c5a059;
+}
+
+
+/* ⭐ شماره‌های ادمین برای پیامک اطلاع‌رسانی سفارش */
+.admin-phones-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.admin-phone-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.admin-phone-row .delete-shipping-btn {
+  flex-shrink: 0;
+  margin-bottom: 4px;
 }
 
 .empty-shipping {

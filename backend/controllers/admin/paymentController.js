@@ -1,6 +1,7 @@
 const Payment = require('../../models/Payment');
 const Order = require('../../models/Order');
 const { rollbackDiscount } = require('../../utils/discountEngine');
+const { sendAdminOrderSms } = require('../../services/smsService');
 
 const getPayments = async (req, res) => {
   try {
@@ -72,6 +73,9 @@ const verifyPaymentByAdmin = async (req, res) => {
     }
 
     await order.save();
+
+    //  پیامک اطلاع‌رسانی سفارش تاییدشده به ادمین‌ها (fire-and-forget)
+    sendAdminOrderSms(order._id);
 
     res.json({ success: true, message: 'پرداخت توسط ادمین تأیید شد' });
   } catch (error) {

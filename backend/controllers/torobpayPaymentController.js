@@ -11,6 +11,7 @@ const User = require('../models/User');
 const Product = require('../models/Product');
 const { consumeDiscount } = require('../utils/discountEngine');
 const { getClientUrl } = require('../utils/urlHelper');
+const { sendAdminOrderSms } = require('../services/smsService');
 const {
   isTorobPayConfigured, toRial, isAmountInRange,
   checkEligibility, createPurchaseToken, verifyPurchase, settlePurchase,
@@ -87,6 +88,9 @@ const finalizePaidTorobPay = async (payment, order, refId) => {
     if (consumed) order.discountConsumed = true;
   }
   await order.save();
+
+  // ⭐ پیامک اطلاع‌رسانی سفارش تاییدشده به ادمین‌ها (fire-and-forget)
+  sendAdminOrderSms(order._id);
 
   // سبد خرید پس از پرداخت موفق خالی می‌شود
   try {

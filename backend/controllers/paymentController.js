@@ -4,6 +4,7 @@ const Cart = require('../models/Cart');
 const { initiatePayment, verifyPayment, isZarinpalConfigured } = require('../services/zarinpalService');
 const { consumeDiscount } = require('../utils/discountEngine');
 const { getClientUrl } = require('../utils/urlHelper');
+const { sendAdminOrderSms } = require('../services/smsService');
 
 const NON_PAYABLE_STATUSES = ['cancelled', 'refunded'];
 
@@ -130,6 +131,10 @@ const verifyOnlinePayment = async (req, res) => {
         console.error('[verifyOnlinePayment] پرداخت موفق روی سفارش لغوشده — نیازمند عودت دستی: order=' + order._id);
         return fail('OrderCancelled');
       }
+
+      
+      // ⭐ پیامک اطلاع‌رسانی سفارش تاییدشده به ادمین‌ها (fire-and-forget — پرداخت منتظرش نمی‌ماند)
+      sendAdminOrderSms(finalized._id);
 
       if (order.discountCode && !order.discountConsumed) {
         const consumed = await consumeDiscount(order.discountCode);

@@ -106,6 +106,9 @@ const finalizePaidSnappPay = async (payment, order, refId) => {
   }
   await order.save();
 
+  // ⭐ پیامک اطلاع‌رسانی سفارش تاییدشده به ادمین‌ها (fire-and-forget)
+  sendAdminOrderSms(order._id);
+
   // پرداخت موفقِ نهایی‌شده: سبد خرید خالی شود
   try {
     await Cart.deleteOne({ user: order.user });
