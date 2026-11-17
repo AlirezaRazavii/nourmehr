@@ -6,9 +6,10 @@ import { SUPPORT_CONFIG } from '../config/support'
 
 const { locale } = useI18n()
 
-/* ───────── اطلاعات تماس واقعی از config (تک منبع حقیقت) ───────── */
-const phoneDisplay = SUPPORT_CONFIG.phone.display
-const phoneIntl = SUPPORT_CONFIG.phone.international
+/* ───────── شماره تماس اختصاصی همین صفحه (مستقل از دکمه پشتیبانی) ─────────
+   برای تغییر شماره این صفحه فقط همین دو خط را عوض کنید؛ support.js و دکمه شناور پشتیبانی تحت تاثیر نیست. */
+const phoneDisplay = '09132256121'   // شماره‌ای که کاربر می‌بیند
+const phoneIntl = '+989132256121'    // شماره‌ای که با کلیک زنگ می‌خورد (فرمت +98 را دست نزن)
 const email = SUPPORT_CONFIG.email.address
 const whatsapp = `https://wa.me/${SUPPORT_CONFIG.whatsapp.number}?text=${encodeURIComponent(SUPPORT_CONFIG.whatsapp.defaultMessage)}`
 const instagram = `https://www.instagram.com/${SUPPORT_CONFIG.instagram.username}/`
