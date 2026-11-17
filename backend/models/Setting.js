@@ -19,9 +19,10 @@ const settingSchema = new mongoose.Schema({
   enableRegistration: { type: Boolean, default: true },
   enableGoogleLogin: { type: Boolean, default: true },
   enableSmsLogin: { type: Boolean, default: true },
-    // ⭐ پیامک اطلاع‌رسانی سفارش جدید برای ادمین‌ها
   adminOrderSmsEnabled: { type: Boolean, default: true },
   adminNotifyPhones: { type: [String], default: [] },
+    // نام الگوی کاوه‌نگار برای پیامک سفارش (مثل order-notify)
+  adminSmsTemplate: { type: String, default: '' },
   paymentMethods: [String],
   shippingMethods: [String],
   shippingOptions: {

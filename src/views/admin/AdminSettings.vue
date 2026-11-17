@@ -14,6 +14,7 @@ const settings = ref({
   enableSmsLogin: false,
   adminOrderSmsEnabled: true,
   adminNotifyPhones: [],
+  adminSmsTemplate: '',
   paymentMethods: [],
   shippingOptions: [],
   contactPhone: '',
@@ -67,7 +68,8 @@ const fetchSettings = async () => {
         shippingMethods: res.data.shippingMethods || [],
         shippingOptions: (res.data.shippingOptions || []).map(o => ({ ...o, postPaid: o.postPaid !== false })),
         adminOrderSmsEnabled: res.data.adminOrderSmsEnabled !== false,
-        adminNotifyPhones: Array.isArray(res.data.adminNotifyPhones) ? res.data.adminNotifyPhones : []
+        adminNotifyPhones: Array.isArray(res.data.adminNotifyPhones) ? res.data.adminNotifyPhones : [],
+        adminSmsTemplate: res.data.adminSmsTemplate || ''
       }
     }
   } catch (err) {
@@ -329,6 +331,12 @@ const removeAdminPhone = (idx) => {
               <input v-model="settings.adminOrderSmsEnabled" type="checkbox" />
               <span class="toggle-slider"></span>
             </label>
+          </div>
+        </div>
+        <div class="settings-grid" style="margin-top: 16px;">
+          <div class="form-group full">
+            <label class="form-label">نام الگو در کاوه‌نگار</label>
+            <input v-model="settings.adminSmsTemplate" type="text" class="form-input" placeholder="مثلاً order-notify" dir="ltr" />
           </div>
         </div>
 

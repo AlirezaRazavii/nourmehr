@@ -101,23 +101,26 @@ const sendVerificationCode = async (phone, code) => {
 };
 
 // ------------------------------------------------------
-// ⭐ ارسال متن آزاد با کاوه‌نگار (sms/send.json)
-//    برای پیامک اطلاع‌رسانی ادمین — جدا از الگوی OTP
+// ⭐ ارسال با الگوی کاوه‌نگار (Verify/Lookup) برای پیامک ادمین
+//    برخلاف ارسال متن آزاد (sms/send.json) که به «خط ارسال تاییدشده»
+//    نیاز دارد، الگو بدون خط کار می‌کند — همان مسیر OTP
 // ------------------------------------------------------
-const kavenegarSendText = async (phone, message) => {
+const kavenegarSendTemplate = async (phone, template, token, token2, token3) => {
   const API_KEY = process.env.SMS_API_KEY;
   if (!API_KEY) {
     throw new Error('SMS_API_KEY برای کاوه‌نگار تنظیم نشده است');
   }
 
-  const url = `https://api.kavenegar.com/v1/${API_KEY}/sms/send.json`;
-  const params = { receptor: phone, message };
-  // خط ارسال اختصاصی (اختیاری): در .env بگذارید KAVENEGAR_SENDER=1xxxxxxxxx
-  if (process.env.KAVENEGAR_SENDER) {
-    params.sender = process.env.KAVENEGAR_SENDER;
-  }
-
-  const response = await axios.get(url, { params });
+  const url = `https://api.kavenegar.com/v1/${API_KEY}/verify/lookup.json`;
+  const response = await axios.get(url, {
+    params: {
+      receptor: phone,
+      token,
+      token2,
+      token3,
+      template,
+    },
+  });
   if (response.data?.return?.status === 200) {
     return { success: true };
   }
@@ -134,11 +137,17 @@ const toLatinDigits = (s) =>
 
 // ------------------------------------------------------
 // ⭐ پیامک اطلاع‌رسانی «سفارش تاییدشده» برای ادمین‌ها
-//    - شماره گیرنده‌ها از پنل ادمین (تنظیمات → پیامک اطلاع‌رسانی سفارش) خوانده می‌شود
-//    - اگر در پنل شماره‌ای ثبت نشده بود، از متغیر محیطی ADMIN_NOTIFY_PHONES
-//      (با کاما جدا: "09131112233,09132223344") استفاده می‌شود
-//    - قفل اتمیک adminSmsSent تضمین می‌کند هر سفارش فقط یک بار پیامک بگیرد،
-//      حتی اگر چند مسیر تایید (درگاه/کرون/تایید دستی) همزمان اجرا شوند
+//    - نام الگو از پنل ادمین (تنظیمات → پیامک اطلاع‌رسانی سفارش)
+//      خوانده می‌شود؛ اگر خالی بود از متغیر محیطی ADMIN_SMS_TEMPLATE
+//    - شماره گیرنده‌ها از پنل؛ اگر خالی بود از ADMIN_NOTIFY_PHONES
+//      (با کاما جدا: "09131112233,09132223344")
+//    - محدودیت مهم کاوه‌نگار: توکن‌ها نباید فاصله (space) یا
+//      آندرلاین داشته باشند و حداکثر ۱۰۰ کاراکترند — به همین دلیل
+//      به‌جای «نام خریدار» (که فاصله دارد)، «شماره موبایل مشتری»
+//      ارسال می‌شود
+//    - قفل اتمیک adminSmsSent تضمین می‌کند هر سفارش فقط یک بار
+//      پیامک بگیرد، حتی اگر چند مسیر تایید (درگاه/کرون/تایید دستی)
+//      همزمان اجرا شوند
 //    - هر خطا فقط لاگ می‌شود و هرگز جریان پرداخت را متوقف نمی‌کند
 // ------------------------------------------------------
 const sendAdminOrderSms = async (orderId) => {
@@ -155,6 +164,11 @@ const sendAdminOrderSms = async (orderId) => {
 
     const enabled = settings ? settings.adminOrderSmsEnabled !== false : true;
 
+    // نام الگو: اول از پنل ادمین، بعد از متغیر محیطی
+    const template =
+      String(settings?.adminSmsTemplate || '').trim() ||
+      String(process.env.ADMIN_SMS_TEMPLATE || '').trim();
+
     // شماره‌ها: اول از پنل ادمین (ارقام فارسی/عربی خودکار به لاتین تبدیل می‌شوند)
     let phones = (settings?.adminNotifyPhones || [])
       .map((p) => toLatinDigits(p).replace(/\D/g, ''))
@@ -168,7 +182,12 @@ const sendAdminOrderSms = async (orderId) => {
         .filter((p) => /^09\d{9}$/.test(p));
     }
 
-    if (!enabled || phones.length === 0) {
+    if (!enabled || phones.length === 0 || !template) {
+      if (enabled && phones.length > 0 && !template) {
+        console.warn(
+          '[SMS][admin] نام الگوی پیامک سفارش تنظیم نشده — ارسال انجام نشد (پنل ادمین → تنظیمات → پیامک اطلاع‌رسانی سفارش، یا ADMIN_SMS_TEMPLATE در .env)'
+        );
+      }
       return { success: false, skipped: true };
     }
 
@@ -181,14 +200,15 @@ const sendAdminOrderSms = async (orderId) => {
       return { success: true, alreadySent: true };
     }
 
-    const buyer = (order.shippingInfo?.fullName || '').trim() || 'نامشخص';
-    const total = (order.total || 0).toLocaleString('fa-IR');
-    const message = `نورمهر — سفارش جدید!\nکد: ${order.orderRef} | خریدار: ${buyer}\nمبلغ: ${total} تومان`;
+    // توکن‌ها — پاک‌سازی از فاصله/آندرلاین (محدودیت کاوه‌نگار)
+    const orderCode = String(order.orderRef || '').replace(/[\s_]/g, '') || 'NM';
+    const amount = (order.total || 0).toLocaleString('en-US'); // مثلاً 4,850,000 — بدون فاصله
+    const customerPhone = toLatinDigits(order.shippingInfo?.phone || '').replace(/\D/g, '') || '0';
 
     let sent = 0;
     for (const phone of phones) {
       try {
-        await kavenegarSendText(phone, message);
+        await kavenegarSendTemplate(phone, template, orderCode, amount, customerPhone);
         sent++;
       } catch (e) {
         console.error(
@@ -197,7 +217,9 @@ const sendAdminOrderSms = async (orderId) => {
         );
       }
     }
-    console.log(`[SMS][admin] سفارش ${order.orderRef} ← پیامک برای ${sent}/${phones.length} ادمین ارسال شد`);
+    console.log(
+      `[SMS][admin] سفارش ${order.orderRef} ← پیامک برای ${sent}/${phones.length} ادمین ارسال شد (الگو: ${template})`
+    );
     return { success: sent > 0, sent };
   } catch (error) {
     // خطای پیامک هرگز نباید جریان پرداخت/تایید سفارش را خراب کند
