@@ -52,7 +52,8 @@ const getProducts = async (req, res) => {
   try {
     const { category, search, sort = 'newest' } = req.query;
     const pageNum = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const limitNum = Math.min(60, Math.max(1, parseInt(req.query.limit, 10) || 12));
+    // باگ ۳: سقف ۶۰ → ۲۰۰ تا صفحه‌ی محصولات بتواند کل کاتالوگ را برای فیلتر سمت کلاینت بگیرد
+    const limitNum = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 12));
     const q = String(search || '').trim().slice(0, 80);
     const sortKey = SORTS[sort] ? sort : 'newest';
     const cat = String(category || 'all').trim().slice(0, 80);

@@ -57,14 +57,26 @@
 
           <div class="filter-group">
             <div class="filter-group-head"><span>{{ $t('products_categories') }}</span></div>
+            <!-- همه محصولات -->
             <button
-              v-for="cat in categories"
-              :key="cat.value"
-              :class="['cat-pill', { active: selectedCategory === cat.value }]"
-              @click="selectedCategory = cat.value"
+              :class="['cat-pill', { active: selectedCategory === 'all' }]"
+              @click="selectCategory('all')"
             >
-              <span>{{ cat.label }}</span>
-              <span v-if="cat.value !== 'all'" class="cat-count">{{ getCount(cat.value) }}</span>
+              <span class="cat-icon">◦</span>
+              <span class="cat-label">{{ $t('products_all_categories') }}</span>
+              <span class="cat-count">{{ getCount('all') }}</span>
+            </button>
+            <!-- درخت دسته‌بندی: والد + زیرمجموعه‌ها، همیشه باز -->
+            <button
+              v-for="cat in displayCategories"
+              :key="cat.path"
+              :class="['cat-pill', { active: selectedCategory === cat.value, 'is-child': cat.depth > 0 }]"
+              :style="{ '--depth': cat.depth }"
+              @click="selectCategory(cat.value)"
+            >
+              <span class="cat-icon">{{ cat.depth > 0 ? '◦' : cat.icon }}</span>
+              <span class="cat-label">{{ cat.label }}</span>
+              <span class="cat-count">{{ getCount(cat.value) }}</span>
             </button>
           </div>
 
@@ -245,6 +257,54 @@ const categories = computed(() => [
   })),
 ])
 
+/* ───────── درخت دسته‌بندی: والد → زیرمجموعه ───────── */
+const parentIdOf = (p) =>
+  String(typeof p === 'string' ? p : p?._id || p?.id || '')
+
+const categoryTree = computed(() => {
+  const cats = productStore.categories
+  if (!cats.length) return []
+
+  const idOf = (c) => String(c._id || c.id || '')
+  const knownIds = new Set(cats.map(idOf))
+
+  // ریشه‌ها: دسته‌های بدون والد + دسته‌های یتیم (والدشان حذف یا غیرفعال شده)
+  const roots = cats
+    .filter(c => !(c.parents || []).some(p => knownIds.has(parentIdOf(p))))
+    .map(c => ({ cat: c, children: [] }))
+
+  // اتصال بازگشتی فرزندها (چند والد و چند سطح پشتیبانی می‌شود)
+  const attach = (node) => {
+    node.children = cats
+      .filter(c => (c.parents || []).some(p => parentIdOf(p) === idOf(node.cat)))
+      .map(c => ({ cat: c, children: [] }))
+    node.children.forEach(attach)
+  }
+  roots.forEach(attach)
+
+  return roots
+})
+
+/* لیست تختِ نمایش با عمق — رندر همیشه‌بازِ درخت با یک v-for */
+const displayCategories = computed(() => {
+  const out = []
+  const walk = (nodes, depth, parentPath) => {
+    for (const n of nodes) {
+      const path = `${parentPath}/${n.cat.slug}`
+      out.push({
+        path,
+        value: n.cat.slug,
+        label: getLocalizedText(n.cat.name),
+        icon: n.cat.icon || '◆',
+        depth,
+      })
+      if (n.children.length) walk(n.children, depth + 1, path)
+    }
+  }
+  walk(categoryTree.value, 0, '')
+  return out
+})
+
 const products = computed(() => productStore.products)
 const isLoading = computed(() => productStore.isLoading)
 
@@ -271,6 +331,22 @@ watch(
   (v) => {
     const q = typeof v === 'string' ? v : ''
     if (q !== searchQuery.value) searchQuery.value = q
+  },
+  { immediate: true }
+)
+
+/* اگر دسته‌ی URL نامعتبر بود، بعد از رسیدن دسته‌ها به «همه محصولات» برگرد */
+watch(
+  () => productStore.categories,
+  (cats) => {
+    if (!cats || !cats.length) return
+    const slug = typeof route.query.category === 'string' ? route.query.category : ''
+    if (slug && !cats.some(c => c.slug === slug)) {
+      selectedCategory.value = 'all'
+      const query = { ...route.query }
+      delete query.category
+      router.replace({ name: 'Products', params: { lang: locale.value }, query }).catch(() => {})
+    }
   },
   { immediate: true }
 )
@@ -307,6 +383,12 @@ const sectionRef = ref(null)
 const catSlugOf = (p) =>
   p.category?.slug ||
   (typeof p.category === 'string' ? p.category.toLowerCase().replace(/\s+/g, '-') : null)
+
+/* کمترین قیمت نهایی برای مرتب‌سازی — سایزها هم لحاظ می‌شوند؛ بدون قیمت = ته لیست */
+const minPriceOf = (p) => {
+  const v = Number(getPriceInfo(p)?.minPrice)
+  return Number.isFinite(v) && v > 0 ? v : Number.POSITIVE_INFINITY
+}
 
 const isInStock = (p) => {
   if (typeof p.inStock === 'boolean') return p.inStock
@@ -359,8 +441,8 @@ const filteredProducts = computed(() => {
 
   if (onlyInStock.value) list = list.filter(isInStock)
 
-  if (sortBy.value === 'cheap') list.sort((a, b) => Number(a.price) - Number(b.price))
-  else if (sortBy.value === 'expensive') list.sort((a, b) => Number(b.price) - Number(a.price))
+  if (sortBy.value === 'cheap') list.sort((a, b) => minPriceOf(a) - minPriceOf(b))
+  else if (sortBy.value === 'expensive') list.sort((a, b) => minPriceOf(b) - minPriceOf(a))
   else if (sortBy.value === 'newest') list.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
 
   return list
@@ -385,9 +467,30 @@ watch([searchQuery, selectedCategory, onlyInStock, sortBy], () => {
 })
 
 /* ───────── UI helpers ───────── */
+/* شمارنده‌ی هر دسته = خودش + همه‌ی زیرمجموعه‌هایش — هماهنگ با منطق فیلتر */
+const categoryCounts = computed(() => {
+  const counts = {}
+  for (const c of productStore.categories) {
+    if (!c.slug) continue
+    const slugs = getAllSubCategorySlugs(c.slug, productStore.categories)
+    counts[c.slug] = products.value.filter(p => slugs.includes(catSlugOf(p))).length
+  }
+  return counts
+})
+
 const getCount = (catValue) => {
   if (catValue === 'all') return products.value.length
-  return products.value.filter(p => catSlugOf(p) === catValue).length
+  return categoryCounts.value[catValue] ?? 0
+}
+
+/* انتخاب دسته + هم‌گام‌سازی URL (مثل سرچ) */
+const selectCategory = (value) => {
+  if (selectedCategory.value === value) return
+  selectedCategory.value = value
+  const query = { ...route.query }
+  if (value === 'all') delete query.category
+  else query.category = value
+  router.replace({ name: 'Products', params: { lang: locale.value }, query }).catch(() => {})
 }
 
 const getCategoryIcon = (catSlugOrString) => {
@@ -502,6 +605,14 @@ onUnmounted(() => {
 .cat-pill.active { background: linear-gradient(135deg, rgba(197,160,89,0.25), rgba(197,160,89,0.1)); border-color: rgba(197,160,89,0.4); color: #f5d78e; }
 .cat-count { font-size: 0.68rem; padding: 1px 7px; border-radius: 999px; background: rgba(255,255,255,0.08); flex-shrink: 0; }
 .cat-pill.active .cat-count { background: rgba(197,160,89,0.3); }
+/* درخت دسته‌بندی: آیکون + لیبل + تورفتگی فرزندها (سازگار با RTL/LTR) */
+.cat-pill .cat-icon { flex-shrink: 0; width: 16px; text-align: center; font-size: 0.75rem; color: #c5a059; }
+.cat-pill .cat-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cat-pill.is-child { margin-inline-start: calc(var(--depth, 1) * 16px); width: calc(100% - var(--depth, 1) * 16px); background: rgba(255,255,255,0.02); border-style: dashed; }
+.cat-pill.is-child .cat-icon { color: rgba(197,160,89,0.55); }
+.cat-pill.is-child .cat-label { font-size: 0.78rem; }
+.cat-pill.is-child.active { border-style: solid; }
+.cat-pill.is-child.active .cat-label { color: #f5d78e; }
 .filter-divider { display: flex; align-items: center; justify-content: center; }
 .filter-divider span { color: rgba(197,160,89,0.5); font-size: 0.55rem; padding: 0 10px; }
 .filter-divider::before, .filter-divider::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent); }
@@ -643,11 +754,9 @@ onUnmounted(() => {
     cursor: pointer !important;
     font-size: 1.2rem !important;
   }
-  .filter-drawer.is-mobile .cat-pill,
+  .filter-drawer.is-mobile .cat-pill { width: calc(100% - var(--depth, 0) * 16px) !important; }
   .filter-drawer.is-mobile .apply-btn,
-  .filter-drawer.is-mobile .reset-btn {
-    width: 100% !important;
-  }
+  .filter-drawer.is-mobile .reset-btn { width: 100% !important; }
 }
 
 
