@@ -15,6 +15,8 @@ const CompleteProfile = () => import('./views/CompleteProfile.vue')
 const UserLayout = () => import('./views/user/UserLayout.vue')
 const UserDashboard = () => import('./views/user/UserDashboard.vue')
 const News = () => import('./views/News.vue')
+const Terms = () => import('./views/Terms.vue')
+const Privacy = () => import('./views/Privacy.vue')
 
 const Products = () => import('./components/Products.vue')
 const ProductDetails = () => import('./components/ProductDetails.vue')
@@ -44,6 +46,9 @@ const routes = [
   },
   { path: '/:lang/about', name: 'About', component: About },
   { path: '/:lang/contact', name: 'Contact', component: Contact },
+  // صفحات حقوقی فوتر (قوانین و مقررات / حریم خصوصی) — دوزبانه
+  { path: '/:lang/terms', name: 'Terms', component: Terms },
+  { path: '/:lang/privacy', name: 'Privacy', component: Privacy },
   // ماژول رسانه‌ای — سوییچ بیلد-تایم: در فایل .env سطر VITE_NEW_MEDIA=true
   // اضافه کنید و npm run build بگیرید (پیش‌فرض = ماژول قدیمی، بدون هیچ تغییری)
   ...(import.meta.env.VITE_NEW_MEDIA === 'true'
@@ -190,6 +195,8 @@ const routePathMap = {
   Collection: 'collection/:slug',
   About: 'about',
   Contact: 'contact',
+  Terms: 'terms',
+  Privacy: 'privacy',
   Cart: 'cart',
   Checkout: 'checkout',
   PaymentCallback: 'payment/callback',
