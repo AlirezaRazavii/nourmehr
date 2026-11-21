@@ -133,8 +133,24 @@ const router = createRouter({
 
 // سئوی کلاینت: اعمال robots متا از route.meta (noindex صفحات خصوصی)
 // نکته: لایه اصلی X-Robots-Tag سمت سرور است؛ این تگ برای حالت رندر JS گوگل ایمنی اضافی است
-router.afterEach((to) => {
+router.afterEach((to, from, failure) => {
+  if (failure) return
+
+  // اجرای تنظیمات سئو
   applyRouteSeo(to)
+
+  // صفحات مدیریت و خصوصی در آمار ثبت نشوند
+  const isAdminPage = to.path.startsWith('/admin')
+  const isNoIndexPage = to.matched.some(record => record.meta.noindex)
+
+  if (isAdminPage || isNoIndexPage) return
+
+  // ثبت بازدید صفحه در Matomo
+  if (window._paq) {
+    window._paq.push(['setCustomUrl', window.location.href])
+    window._paq.push(['setDocumentTitle', document.title])
+    window._paq.push(['trackPageView'])
+  }
 })
 
 let cachedUserRaw = null
