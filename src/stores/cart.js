@@ -111,6 +111,11 @@ export const useCart = defineStore('cart', () => {
       // ثبت وضعیت جدید سبد در Matomo
       trackMatomoCartUpdate()
 
+      // رویداد «افزودن به سبد» برای قیف فروش در Matomo
+      if (window._paq) {
+        window._paq.push(['trackEvent', 'Cart', 'add', String(productId)])
+      }
+
       openMiniCart()
       return { success: true }
     } catch (err) {
@@ -166,6 +171,11 @@ export const useCart = defineStore('cart', () => {
 
         // ثبت وضعیت جدید سبد در Matomo
         trackMatomoCartUpdate()
+
+        // رویداد «حذف از سبد» برای تحلیل رفتار در Matomo
+        if (window._paq) {
+          window._paq.push(['trackEvent', 'Cart', 'remove', String(productId)])
+        }
       }
 
       return { success: true }
@@ -246,6 +256,7 @@ export const useCart = defineStore('cart', () => {
     removeFromCart,
     clearCart,
     fetchCart,
+    trackMatomoCartUpdate,
     openMiniCart,
     closeMiniCart,
     toggleMiniCart,

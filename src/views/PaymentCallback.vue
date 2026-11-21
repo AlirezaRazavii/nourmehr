@@ -99,6 +99,62 @@ const goToOrders = () => {
   }
 }
 
+// ثبت سفارش موفق در Matomo — فقط یک بار برای هر orderRef
+// اسنپ‌شات سبد هنگام ثبت سفارش در Checkout ذخیره شده است.
+const trackMatomoOrder = () => {
+  try {
+    if (!window._paq || !orderRef.value) return
+
+    // لایهٔ ۱ ضدتکرار: در همین تب قبلاً ثبت شده است
+    const dedupeKey = 'matomo_order_' + orderRef.value
+    if (sessionStorage.getItem(dedupeKey)) return
+
+    // اسنپ‌شات سفارش (اگر قبلاً مصرف شده باشد، یعنی تکرار است — رد شو)
+    const raw = localStorage.getItem('matomo_pending_' + orderRef.value)
+    if (!raw) return
+    const snapshot = JSON.parse(raw)
+
+    window._paq.push(['clearEcommerceCart'])
+    ;(snapshot.items || []).forEach((item) => {
+      if (!item.productId) return
+      const sku = [item.productId, item.color || '', item.size || ''].join('::')
+      const name = (typeof item.name === 'string' && item.name)
+        ? item.name
+        : ((item.name && (item.name.fa || item.name.en)) || sku)
+      window._paq.push([
+        'addEcommerceItem',
+        sku,
+        name,
+        false,
+        Number(item.unitPrice) * 10,
+        Number(item.quantity),
+      ])
+    })
+
+    const t = snapshot.totals || {}
+    const grand = Number(t.total) || 0
+    const sub = Number(t.subtotal) || 0
+    const ship = Number(t.shipping) || 0
+    const disc = Number(t.discount) || 0
+
+    window._paq.push([
+      'trackEcommerceOrder',
+      orderRef.value,
+      grand * 10,
+      sub * 10,
+      0,
+      ship * 10,
+      disc * 10,
+    ])
+
+    // لایهٔ ۲ ضدتکرار: نشانه‌گذاری + پاک‌کردن اسنپ‌شات
+    sessionStorage.setItem(dedupeKey, '1')
+    localStorage.removeItem('matomo_pending_' + orderRef.value)
+  } catch (e) {
+    console.warn('[Matomo] order tracking failed:', e)
+  }
+}
+
 onMounted(() => {
   // بک‌اند پس از تأیید با زرین‌پال به این صفحه ریدایرکت می‌کند:
   //   موفق:   /payment/callback?status=success&refId=...&orderRef=...
@@ -111,6 +167,9 @@ onMounted(() => {
 
   if (status === 'success' || status === 'OK') {
     paymentSuccess.value = true
+    // ثبت سفارش در Matomo — حتماً قبل از fetchCart،
+    // چون بعد از پرداخت، سبد سرور خالی شده است
+    trackMatomoOrder()
     // بک‌اند بعد از پرداخت موفق سبد را پاک کرده — state فرانت را همگام کن
     // تا بج سبد در ناوبار فوراً صفر شود
     cartStore.fetchCart().catch(() => {})

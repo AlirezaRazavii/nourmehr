@@ -30,6 +30,7 @@ window._paq = window._paq || [];
 window._paq.push(['setTrackerUrl', 'https://analytics.nourmehr.ir/matomo.php']);
 window._paq.push(['setSiteId', '1']);
 window._paq.push(['enableLinkTracking']);
+window._paq.push(['enableHeartBeatTimer']);
 
 (function () {
   const u = 'https://analytics.nourmehr.ir/';

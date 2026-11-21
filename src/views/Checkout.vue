@@ -585,6 +585,10 @@ const isStep2Valid = computed(() =>
 const nextStep = () => {
   if (currentStep.value < 3) {
     currentStep.value++
+    // Matomo: پیشرفت مراحل پرداخت (گام ۲ = اطلاعات ارسال، گام ۳ = انتخاب پرداخت)
+    if (window._paq) {
+      window._paq.push(['trackEvent', 'Checkout', 'step', String(currentStep.value)])
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 }
@@ -673,6 +677,48 @@ const submitOrder = async () => {
 
     orderData.value = order
     orderNumber.value = order.orderRef || order._id || ('NM-' + Date.now())
+
+    // ---- Matomo: رویداد ثبت سفارش + اسنپ‌شات سبد برای صفحهٔ نتیجهٔ پرداخت ----
+    // بک‌اند بعد از پرداخت موفق سبد را خالی می‌کند، بنابراین اقلام سفارش را
+    // همین‌جا در localStorage ذخیره می‌کنیم تا PaymentCallback بتواند
+    // trackEcommerceOrder را با اقلام و مبالغ واقعی ارسال کند.
+    try {
+      const snapOrderRef = order.orderRef || order._id || ''
+      if (window._paq && snapOrderRef) {
+        window._paq.push(['trackEvent', 'Checkout', 'submit_order', selectedPayment.value])
+      }
+      // پاک‌کردن اسنپ‌شات‌های قدیمی — در هر لحظه فقط یک سفارش در انتظار پرداخت داریم
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i)
+        if (k && k.indexOf('matomo_pending_') === 0) localStorage.removeItem(k)
+      }
+      if (snapOrderRef) {
+        localStorage.setItem(
+          'matomo_pending_' + snapOrderRef,
+          JSON.stringify({
+            orderRef: snapOrderRef,
+            items: cartItems.value.map((i) => ({
+              productId: i.productId,
+              name: typeof i.name === 'string'
+                ? i.name
+                : ((i.name && (i.name.fa || i.name.en)) || ''),
+              color: i.color || '',
+              size: i.size || '',
+              unitPrice: Number(i.unitPrice) || 0,
+              quantity: Number(i.quantity) || 0,
+            })),
+            totals: {
+              subtotal: totalPrice.value,
+              shipping: shippingCost.value,
+              discount: discountAmount.value,
+              total: finalAmount.value,
+            },
+            paymentMethod: selectedPayment.value,
+            savedAt: Date.now(),
+          })
+        )
+      }
+    } catch (e) { /* خطای تحلیل نباید فرآیند پرداخت را متوقف کند */ }
 
     // پرداخت آنلاین (زرین‌پال) یا اقساطی (ترب‌پی / اسنپ‌پی)
     if (selectedPayment.value === 'online' || selectedPayment.value === 'torobpay' || selectedPayment.value === 'snappay') {
@@ -772,6 +818,15 @@ onMounted(async () => {
     router.push('/cart')
     return
   }
+
+  // Matomo: شروع فرآیند پرداخت + ثبت وضعیت فعلی سبد در همین بازدید
+  // (برای گزارش «سبد رهاشده»: بازدیدی که سبد داشت اما سفارشی ثبت نشد)
+  try {
+    if (window._paq && !isEmpty.value) {
+      window._paq.push(['trackEvent', 'Checkout', 'start', String(totalItems.value) + ' items'])
+      cartStore.trackMatomoCartUpdate()
+    }
+  } catch (e) { /* ignore */ }
 
   try {
     await addressesStore.fetchAddresses()
