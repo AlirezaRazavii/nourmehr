@@ -24,4 +24,22 @@ async function bootstrap() {
   if (splash) splash.remove()
 }
 
+// Matomo Analytics
+window._paq = window._paq || [];
+
+window._paq.push(['setTrackerUrl', 'https://analytics.nourmehr.ir/matomo.php']);
+window._paq.push(['setSiteId', '1']);
+window._paq.push(['enableLinkTracking']);
+
+(function () {
+  const u = 'https://analytics.nourmehr.ir/';
+  const d = document;
+  const g = d.createElement('script');
+  const s = d.getElementsByTagName('script')[0];
+
+  g.async = true;
+  g.src = u + 'matomo.js';
+  s.parentNode.insertBefore(g, s);
+})();
+
 bootstrap()
