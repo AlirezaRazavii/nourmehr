@@ -268,11 +268,19 @@ const trackMatomoProductView = () => {
     ? categories
     : fallbackCategory || false
 
+  const priceInToman = Number(displayUnitPrice.value)
+
+  // تبدیل تومان به ریال برای Matomo
+  const priceInRial = Number.isFinite(priceInToman)
+    ? priceInToman * 10
+    : false
+
   window._paq.push([
     'setEcommerceView',
     productSku,
     productName,
-    productCategory
+    productCategory,
+    priceInRial
   ])
 
   window._paq.push(['setCustomUrl', window.location.href])
