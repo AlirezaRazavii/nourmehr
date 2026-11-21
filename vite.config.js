@@ -1,13 +1,14 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
+
 const CSP_DIRECTIVES = [
   "default-src 'self'",
-  "script-src 'self'",
+  "script-src 'self' https://analytics.nourmehr.ir",
   "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
   "font-src 'self' https://cdn.jsdelivr.net data:",
-  "img-src 'self' data: blob:",
-  "connect-src 'self'",
+  "img-src 'self' data: blob: https://analytics.nourmehr.ir",
+  "connect-src 'self' https://analytics.nourmehr.ir",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -15,6 +16,7 @@ const CSP_DIRECTIVES = [
   "worker-src 'self' blob:",
   "upgrade-insecure-requests",
 ].join('; ')
+
 
 const cspPlugin = () => ({
   name: 'nourmehr-csp',
