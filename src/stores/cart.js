@@ -8,6 +8,62 @@ export const useCart = defineStore('cart', () => {
   const serverCart = ref({ subtotal: 0, shipping: 0, discount: 0, total: 0 })
   const isLoading = ref(false)
   const isOpen = ref(false)
+  // ثبت وضعیت کامل سبد خرید در Matomo
+  const trackMatomoCartUpdate = () => {
+    if (typeof window === 'undefined' || !Array.isArray(window._paq)) {
+      return
+    }
+
+    // پاک کردن اطلاعات قبلی سبد در Tracker
+    window._paq.push(['clearEcommerceCart'])
+
+    // ثبت تمام محصولات موجود در سبد
+    items.value.forEach((item) => {
+      if (!item.productId) return
+
+      const sku = [
+        item.productId,
+        item.color || '',
+        item.size || ''
+      ].join('::')
+
+      const rawName = item.name
+
+      const productName = typeof rawName === 'string'
+        ? rawName
+        : rawName && typeof rawName === 'object'
+          ? rawName.fa || rawName.en || sku
+          : sku
+
+      const priceInToman = Number(item.unitPrice)
+      const quantity = Number(item.quantity)
+
+      if (
+        !Number.isFinite(priceInToman) ||
+        !Number.isFinite(quantity) ||
+        quantity <= 0
+      ) return
+
+      window._paq.push([
+        'addEcommerceItem',
+        sku,
+        productName,
+        false,
+        priceInToman * 10,
+        quantity
+      ])
+    })
+
+    // مجموع سبد به ریال
+    const cartTotalInRial = Number(serverCart.value.total || 0) * 10
+
+    if (!Number.isFinite(cartTotalInRial)) return
+
+    window._paq.push([
+      'trackEcommerceCartUpdate',
+      cartTotalInRial
+    ])
+  }
 
   const safePrice = (n) => Number(n || 0).toLocaleString('fa-IR')
 
@@ -46,6 +102,10 @@ export const useCart = defineStore('cart', () => {
     try {
       await api.post('/cart/add', { productId, quantity, color, size })
       await fetchCart()
+
+      // ثبت وضعیت جدید سبد در Matomo
+      trackMatomoCartUpdate()
+
       openMiniCart()
       return { success: true }
     } catch (err) {
@@ -68,29 +128,48 @@ export const useCart = defineStore('cart', () => {
 
   const updateQuantity = async (productId, quantity, color = null, size = null) => {
     try {
-      let item = findLocalItem(productId, color, size)
+      const item = findLocalItem(productId, color, size)
+
       if (item?._id) {
         await api.put(`/cart/item/${item._id}`, { quantity })
         await fetchCart()
+
+        // ثبت وضعیت جدید سبد در Matomo
+        trackMatomoCartUpdate()
       } else {
-        await addToCart(productId, quantity, color, size)
+        // در صورت نبودن محصول، افزودن به سبد
+        return await addToCart(productId, quantity, color, size)
       }
+
       return { success: true }
     } catch (err) {
-      return { success: false, error: err.response?.data?.message, status: err.response?.status }
+      return {
+        success: false,
+        error: err.response?.data?.message,
+        status: err.response?.status
+      }
     }
   }
 
   const removeFromCart = async (productId, color = null, size = null) => {
     try {
       const item = findLocalItem(productId, color, size)
+
       if (item?._id) {
         await api.delete(`/cart/item/${item._id}`)
         await fetchCart()
+
+        // ثبت وضعیت جدید سبد در Matomo
+        trackMatomoCartUpdate()
       }
+
       return { success: true }
     } catch (err) {
-      return { success: false, error: err.response?.data?.message, status: err.response?.status }
+      return {
+        success: false,
+        error: err.response?.data?.message,
+        status: err.response?.status
+      }
     }
   }
 
@@ -98,6 +177,9 @@ export const useCart = defineStore('cart', () => {
     try {
       await api.delete('/cart/clear')
       await fetchCart()
+
+      // ثبت خالی شدن سبد در Matomo
+      trackMatomoCartUpdate()
     } catch (err) {
       console.error(err)
     }
