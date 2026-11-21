@@ -10,7 +10,12 @@ export const useCart = defineStore('cart', () => {
   const isOpen = ref(false)
   // ثبت وضعیت کامل سبد خرید در Matomo
   const trackMatomoCartUpdate = () => {
-    if (typeof window === 'undefined' || !Array.isArray(window._paq)) {
+    if (
+      typeof window === 'undefined' ||
+      !window._paq ||
+      typeof window._paq.push !== 'function'
+    ) {
+      console.warn('[Matomo] Tracker is not available')
       return
     }
 
