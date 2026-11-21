@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
@@ -243,24 +243,80 @@ const submitReview = async () => {
   }
 }
 
+// ثبت مشاهده محصول در Matomo Ecommerce
+const trackMatomoProductView = () => {
+  const p = product.value
+
+  if (!p || !window._paq) return
+
+  const productSku = String(p.sku || p._id || p.id || route.params.id)
+  const productName = getLocalizedText(p.name)
+
+  if (!productName || !productSku) return
+
+  const categories = categoryPath.value
+    .map(category => getLocalizedText(category.name))
+    .filter(Boolean)
+    .slice(0, 5)
+
+  const fallbackCategory =
+    p.category && typeof p.category === 'object'
+      ? getLocalizedText(p.category.name)
+      : ''
+
+  const productCategory = categories.length
+    ? categories
+    : fallbackCategory || false
+
+  window._paq.push([
+    'setEcommerceView',
+    productSku,
+    productName,
+    productCategory
+  ])
+
+  window._paq.push(['setCustomUrl', window.location.href])
+  window._paq.push(['setDocumentTitle', document.title])
+  window._paq.push(['trackPageView'])
+}
+
 const loadProduct = async (idOrSlug) => {
   isLoading.value = true
   activeImage.value = 0
-  await productStore.fetchProduct(idOrSlug)
-  if (productStore.products.length === 0) productStore.fetchProducts()
+
+  // دریافت هم‌زمان اطلاعات محصول و دسته‌بندی‌ها
+  await Promise.all([
+    productStore.fetchProduct(idOrSlug),
+    productStore.fetchCategories()
+  ])
+
+  if (productStore.products.length === 0) {
+    productStore.fetchProducts()
+  }
+
   isLoading.value = false
+
   setProductSeo(product.value, locale.value)
 
-  if (product.value?.colors?.length > 0) selectedColor.value = product.value.colors[0]
+  if (product.value?.colors?.length > 0) {
+    selectedColor.value = product.value.colors[0]
+  }
+
   if (product.value?.sizes?.length > 0) {
-    // از خود sizeList می‌خوانیم تا کلید انتخاب با کلید دکمه‌های سایز ۱۰۰٪ یکی باشد
     selectedSize.value = sizeList.value[0]?.name || ''
   }
+
   if (product.value?._id || product.value?.id) {
     fetchReviews(product.value._id || product.value.id)
   } else {
     isLoadingReviews.value = false
   }
+
+  // صبر برای به‌روزرسانی عنوان صفحه
+  await nextTick()
+
+  // ثبت مشاهده محصول
+  trackMatomoProductView()
 }
 
 const changeImage = (index) => { activeImage.value = index }
@@ -383,7 +439,6 @@ const handleKeydown = (e) => {
 }
 
 onMounted(() => {
-  productStore.fetchCategories()
   loadProduct(route.params.id)
   window.addEventListener('keydown', handleKeydown)
 })

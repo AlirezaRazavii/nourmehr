@@ -142,8 +142,9 @@ router.afterEach((to, from, failure) => {
   // صفحات مدیریت و خصوصی در آمار ثبت نشوند
   const isAdminPage = to.path.startsWith('/admin')
   const isNoIndexPage = to.matched.some(record => record.meta.noindex)
+  const isProductDetailsPage = to.name === 'ProductDetails'
 
-  if (isAdminPage || isNoIndexPage) return
+  if (isAdminPage || isNoIndexPage || isProductDetailsPage) return
 
   // ثبت بازدید صفحه در Matomo
   if (window._paq) {
