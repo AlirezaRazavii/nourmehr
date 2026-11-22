@@ -78,6 +78,8 @@ const resumePayment = async (order) => {
       ? await paymentApi.initiateTorobPayPayment(order._id)
       : order.paymentMethod === 'snappay'
       ? await paymentApi.initiateSnappPayPayment(order._id)
+      : order.paymentMethod === 'digipay'
+      ? await paymentApi.initiateDigipayPayment(order._id)
       : await paymentApi.initiatePayment(order._id)
 
     const url = res.paymentUrl || res.paymentPageUrl

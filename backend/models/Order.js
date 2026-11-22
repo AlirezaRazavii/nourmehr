@@ -27,7 +27,7 @@ const orderSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   items: [orderItemSchema],
   shippingInfo: shippingInfoSchema,
-  paymentMethod: { type: String, enum: ['online', 'cod', 'wallet', 'torobpay', 'snappay'], required: true },
+  paymentMethod: { type: String, enum: ['online', 'cod', 'wallet', 'torobpay', 'snappay', 'digipay'], required: true },
   paymentStatus: { type: String, enum: ['pending', 'processing', 'paid', 'failed', 'refunded'], default: 'pending' },
   subtotal: { type: Number, default: 0 },
   discountAmount: { type: Number, default: 0, min: 0 },
@@ -43,9 +43,7 @@ const orderSchema = new mongoose.Schema({
   tracking: { code: String, carrier: String },
   paymentAuthority: String,
   paymentRefId: String,
-  paymentToken: String,
-  // ⭐ قفل ضد ارسال تکراری پیامک اطلاع‌رسانی ادمین (هر سفارش فقط یک بار)
-  adminSmsSent: { type: Boolean, default: false },
+  paymentToken: String
 }, { timestamps: true });
 
 orderSchema.index({ user: 1, createdAt: -1 });

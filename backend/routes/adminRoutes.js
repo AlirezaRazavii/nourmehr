@@ -9,6 +9,7 @@ const uploadHero = require('../middleware/uploadHero');
 const { getDashboardStats } = require('../controllers/admin/dashboardController');
 const { getOrders, getOrderById, updateOrderStatus, updateOrderTracking } = require('../controllers/admin/orderController');
 const { updateSnappayOrder, cancelSnappayOrder } = require('../controllers/admin/snappayAdminController');
+const { refundDigipayOrder } = require('../controllers/admin/digipayAdminController');
 const {
   getUsers,
   updateUserStatus,
@@ -189,6 +190,7 @@ router.put('/orders/:id/tracking', hasPermission(PERMISSIONS.ORDERS), updateOrde
 // اسنپ‌پی — مرجوع جزئی/کل (الزامات پشتیبانی)
 router.put('/orders/:id/snappay/update', hasPermission(PERMISSIONS.ORDERS), updateSnappayOrder);
 router.post('/orders/:id/snappay/cancel', hasPermission(PERMISSIONS.ORDERS), cancelSnappayOrder);
+router.post('/orders/:id/digipay/refund', hasPermission(PERMISSIONS.ORDERS), refundDigipayOrder);
 
 /* --------------------------------- کاربران --------------------------------- */
 router.get('/users', hasPermission(PERMISSIONS.USERS), getUsers);

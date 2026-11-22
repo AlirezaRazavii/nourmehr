@@ -251,7 +251,7 @@ const changeOrderStatus = async (newStatus) => {
 
 /* ---------- برچسب درگاه پرداخت ---------- */
 const paymentMethodLabel = (m) => ({
-  online: 'زرین‌پال', cod: 'پس کرایه', wallet: 'کیف پول', torobpay: 'توروب‌پی', snappay: 'اسنپ‌پی',
+  online: 'زرین‌پال', cod: 'پس کرایه', wallet: 'کیف پول', torobpay: 'توروب‌پی', snappay: 'اسنپ‌پی', digipay: 'دیجی‌پی',
 }[m] || m || '—')
 
 /* ---------- کپی (کد تراکنش / paymentToken) ---------- */
@@ -275,6 +275,45 @@ const isSnappayPaid = (o) =>
   o?.paymentMethod === 'snappay' &&
   o?.paymentStatus === 'paid' &&
   !['cancelled', 'refunded'].includes(o?.status)
+
+/* ---------- دیجی‌پی: بازپرداخت کامل ---------- */
+const isDigipayPaid = (o) =>
+  o?.paymentMethod === 'digipay' &&
+  o?.paymentStatus === 'paid' &&
+  !['cancelled', 'refunded'].includes(o?.status)
+
+const askDigipayRefund = () => {
+  const o = selectedOrder.value
+  confirmBox.value = {
+    open: true,
+    step: 1,
+    title: 'تأیید بازپرداخت کامل دیجی‌پی (Refund)',
+    message: `کل مبلغ ${(o.total || 0).toLocaleString('fa-IR')} تومان به کیف پول/اعتبار مشتری در دیجی‌پی بازگردانده می‌شود و سفارش «عودت داده شده» می‌شود.\n\n⚠️ این عملیات غیرقابل بازگشت است. ادامه می‌دهید؟`,
+    action: applyDigipayRefund,
+  }
+  confirmAgreed.value = false
+}
+
+const applyDigipayRefund = async () => {
+  const o = selectedOrder.value
+  if (!o) return
+  snappayBusy.value = true
+  try {
+    const res = await adminApi.refundDigipayOrder(o._id || o.id)
+    if (!res.success) throw new Error(res.message || 'بازپرداخت دیجی‌پی ناموفق بود')
+    if (res.data) {
+      selectedOrder.value = res.data
+      const idx = orders.value.findIndex((x) => (x._id || x.id) === (o._id || o.id))
+      if (idx !== -1) orders.value[idx] = res.data
+    }
+    resetConfirm()
+    alert(res.message || 'بازپرداخت کامل انجام شد ✅')
+  } catch (err) {
+    alert('خطا: ' + (err.response?.data?.message || err.message || 'عملیات ناموفق بود'))
+  } finally {
+    snappayBusy.value = false
+  }
+}
 
 const clampedQty = (item, idx) =>
   Math.max(0, Math.min(item.quantity, Number(refundQty.value[idx] ?? item.quantity) || 0))
@@ -565,6 +604,17 @@ const applySnappayCancel = async () => {
                   {{ snappayBusy ? 'در حال ارسال...' : 'ارسال تغییرات (Update)' }}
                 </button>
                 <button class="snappay-cancel-btn" :disabled="snappayBusy" @click="askSnappayCancel">بازپرداخت کامل (Cancel)</button>
+              </div>
+            </div>
+
+            <!-- دیجی‌پی: بازپرداخت کامل (Refund) -->
+            <div v-if="isDigipayPaid(selectedOrder)" class="snappay-actions">
+              <strong class="tracking-title">👛 بازپرداخت دیجی‌پی</strong>
+              <span class="snappay-hint">کل مبلغ سفارش به کیف پول یا اعتبار مشتری در دیجی‌پی بازگردانده می‌شود (Refund).</span>
+              <div class="snappay-btns">
+                <button class="snappay-cancel-btn" :disabled="snappayBusy" @click="askDigipayRefund">
+                  {{ snappayBusy ? 'در حال ارسال...' : 'بازپرداخت کامل (Refund)' }}
+                </button>
               </div>
             </div>
 

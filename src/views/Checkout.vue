@@ -350,6 +350,7 @@ import { useAuth } from '../stores/auth'
 import { useAddresses } from '../stores/addresses'
 import torobpayLogo from '../assests/logo/torobpay.jpg'
 import snappayLogo from '../assests/logo/snappay.png'
+import digipayLogo from '../assests/logo/digipay.png'
 
 const { t, locale } = useI18n()
 
@@ -423,6 +424,46 @@ const SNAPPAY_METHOD = {
 }
 let snappayLastCheckedAmount = null
 let snappayTimer = null
+/* ---------- دیجی‌پی (کیف پول و اعتبار — UPG) ---------- */
+// برخلاف اسنپ‌پی، دیجی‌پی API بررسی صلاحیت مبلغ ندارد؛
+// فقط بررسی می‌کنیم درگاه روی سرور پیکربندی شده باشد یا نه
+const DIGIPAY_METHOD = {
+  id: 'digipay',
+  nameKey: 'checkout_payment_online_name',
+  descKey: 'checkout_payment_online_desc',
+  icon: '👛',
+  logo: digipayLogo,
+  title: 'پرداخت با دیجی‌پی',
+  description: 'کیف پول و اعتبار دیجی‌پی — نقدی و اقساطی',
+}
+
+const checkDigipayAvailability = async () => {
+  try {
+    const { paymentApi } = await import('../services/paymentApi')
+    const res = await paymentApi.checkDigipayAvailability()
+    const list = paymentMethods.value
+    const idx = list.findIndex((m) => m.id === 'digipay')
+
+    if (res && res.success && res.available) {
+      if (idx === -1) {
+        // بعد از اسنپ‌پی (اگر باشد) وگرنه بعد از ترب‌پی/پرداخت اینترنتی
+        const snappIdx = list.findIndex((m) => m.id === 'snappay')
+        const torobIdx = list.findIndex((m) => m.id === 'torobpay')
+        const insertAt = snappIdx !== -1
+          ? snappIdx + 1
+          : torobIdx !== -1
+          ? torobIdx + 1
+          : list.findIndex((m) => m.id === 'online') + 1
+        list.splice(insertAt, 0, { ...DIGIPAY_METHOD })
+      }
+    } else {
+      if (idx !== -1) list.splice(idx, 1)
+      if (selectedPayment.value === 'digipay') selectedPayment.value = 'online'
+    }
+  } catch (e) {
+    // خطای بررسی دیجی‌پی نباید فرآیند checkout را متوقف کند — گزینه فقط نمایش داده نمی‌شود
+  }
+}
 
 // پرسش از سرور: آیا برای این مبلغ، گزینه اقساطی نمایش داده شود؟
 const checkTorobpayEligibility = async () => {

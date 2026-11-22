@@ -45,4 +45,18 @@ export const paymentApi = {
     const res = await api.post('/payments/snappay/initiate', { orderId })
     return res.data
   },
+
+  // ---------- دیجی‌پی (کیف پول و اعتبار — درگاه یکپارچه UPG) ----------
+
+  // آیا درگاه دیجی‌پی روی سرور پیکربندی شده؟ (برای نمایش/پنهان‌کردن دکمه)
+  async checkDigipayAvailability() {
+    const res = await api.get('/payments/digipay/available')
+    return res.data
+  },
+
+  // شروع پرداخت دیجی‌پی — خروجی: paymentPageUrl که کاربر باید به آن هدایت شود
+  async initiateDigipayPayment(orderId) {
+    const res = await api.post('/payments/digipay/initiate', { orderId })
+    return res.data
+  },
 }

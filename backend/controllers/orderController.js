@@ -15,7 +15,7 @@ const generateOrderRef = () => 'NM-' + Date.now();
 const Setting = require('../models/Setting');
 
 // روش‌های پرداخت مجاز
-const ALLOWED_PAYMENT_METHODS = ['online', 'torobpay', 'snappay'];
+const ALLOWED_PAYMENT_METHODS = ['online', 'torobpay', 'snappay', 'digipay'];
 
 // نام فارسی محصول به‌صورت رشته ساده — برای ذخیره در سفارش
 const getLocalizedName = (name) => {

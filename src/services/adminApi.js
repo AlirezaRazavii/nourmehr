@@ -38,6 +38,12 @@ export const adminApi = {
     return res.data
   },
 
+  /* --------- دیجی‌پی: بازپرداخت کامل (Refund) --------- */
+  async refundDigipayOrder(id) {
+    const res = await api.post(`/admin/orders/${id}/digipay/refund`)
+    return res.data
+  },
+
   async getUsers(params = {}) {
     const query = new URLSearchParams(params).toString()
     const res = await api.get(`/admin/users${query ? '?' + query : ''}`)
