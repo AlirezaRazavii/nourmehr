@@ -761,14 +761,16 @@ const submitOrder = async () => {
       }
     } catch (e) { /* خطای تحلیل نباید فرآیند پرداخت را متوقف کند */ }
 
-    // پرداخت آنلاین (زرین‌پال) یا اقساطی (ترب‌پی / اسنپ‌پی)
-    if (selectedPayment.value === 'online' || selectedPayment.value === 'torobpay' || selectedPayment.value === 'snappay') {
+    // پرداخت آنلاین (زرین‌پال) یا اقساطی (ترب‌پی / اسنپ‌پی / دیجی‌پی)
+    if (selectedPayment.value === 'online' || selectedPayment.value === 'torobpay' || selectedPayment.value === 'snappay' || selectedPayment.value === 'digipay') {
       try {
         const { paymentApi } = await import('../services/paymentApi')
         const paymentRes = selectedPayment.value === 'torobpay'
           ? await paymentApi.initiateTorobPayPayment(order._id)
           : selectedPayment.value === 'snappay'
           ? await paymentApi.initiateSnappPayPayment(order._id)
+          : selectedPayment.value === 'digipay'
+          ? await paymentApi.initiateDigipayPayment(order._id)
           : await paymentApi.initiatePayment(order._id)
 
         const gatewayUrl = paymentRes.paymentPageUrl || paymentRes.paymentUrl
@@ -914,6 +916,7 @@ onMounted(async () => {
   // بررسی صلاحیت ترب‌پی و اسنپ‌پی برای مبلغ فعلی سبد (پس از همگام‌سازی سبد با سرور)
   scheduleTorobpayCheck()
   scheduleSnappayCheck()
+  checkDigipayAvailability()
 })
 </script>
 

@@ -16,6 +16,7 @@ const {
   checkEligibility, createPurchaseToken, verifyPurchase, settlePurchase,
   revertPurchase, getPurchaseStatus,
 } = require('../services/snappayService');
+const { sendAdminOrderSms } = require('../services/smsService');
 
 const NON_PAYABLE_STATUSES = ['cancelled', 'refunded'];
 
