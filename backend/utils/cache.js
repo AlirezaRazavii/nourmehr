@@ -87,6 +87,11 @@ const invalidateHeroCache = () => {
   delByPrefix(KEYS.HERO);
 };
 
+// ⭐ رفع باگ کش کهنه: تغییرات ادمین روی کدها بلافاصله صفحه عمومی را به‌روز کند
+const invalidateDiscountCache = () => {
+  del(KEYS.DISCOUNTS);
+};
+
 const invalidateSeoCache = () => {
   delByPrefix(KEYS.SEO);
 };
@@ -99,5 +104,5 @@ const flushAll = () => {
 module.exports = {
   cache, KEYS, getOrSet, del, delByPrefix,
   invalidateProductCache, invalidateCategoryCache,
-  invalidateHeroCache, invalidateSeoCache, flushAll,
+  invalidateHeroCache, invalidateSeoCache, invalidateDiscountCache, flushAll,
 };
