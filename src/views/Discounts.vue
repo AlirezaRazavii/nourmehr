@@ -28,6 +28,36 @@ const discountLabel = (d) => {
   return t('discounts_type_fixed', { value: formatPrice(d.value) })
 }
 
+// ⭐ برچسب روش‌های پرداخت برای نمایش محدودیت درگاه
+const PAYMENT_LABELS = {
+  online: { fa: 'درگاه آنلاین', en: 'Online gateway' },
+  cod: { fa: 'پرداخت در محل', en: 'Cash on delivery' },
+  wallet: { fa: 'کیف پول', en: 'Wallet' },
+  torobpay: { fa: 'ترب‌پی', en: 'TorobPay' },
+  snappay: { fa: 'اسنپ‌پی', en: 'SnappPay' },
+  digipay: { fa: 'دیجی‌پی', en: 'DigiPay' },
+}
+
+// ⭐ چیپ‌های محدودیت هر کد — «فقط الماس‌تراش‌ها | ۳ محصول | درگاه‌های مجاز»
+const restrictionChips = (d) => {
+  const r = d.restrictions || {}
+  const chips = []
+  if (r.hasCategories && Array.isArray(r.categoryNames) && r.categoryNames.length) {
+    chips.push(t('discounts_only_categories', { cats: r.categoryNames.join('، ') }))
+  }
+  if (r.productCount > 0) {
+    chips.push(t('discounts_only_products', { count: r.productCount }))
+  }
+  if (Array.isArray(r.allowedPaymentMethods) && r.allowedPaymentMethods.length) {
+    const labels = r.allowedPaymentMethods.map((m) => {
+      const l = PAYMENT_LABELS[m]
+      return l ? (locale.value === 'en' ? l.en : l.fa) : m
+    })
+    chips.push(t('discounts_allowed_gateways', { methods: labels.join('، ') }))
+  }
+  return chips
+}
+
 // روش fallback برای موبایل و مرورگرهای قدیمی یا کانتکست غیر امن (HTTP)
 const fallbackCopy = (text) => {
   try {
@@ -127,6 +157,11 @@ onMounted(fetchDiscounts)
 
           <p v-if="getLocalizedDesc(d.description)" class="card-desc">{{ getLocalizedDesc(d.description) }}</p>
 
+          <!-- ⭐ محدودیت‌های کد: دسته‌ها / محصولات / درگاه‌ها -->
+          <div v-if="restrictionChips(d).length" class="restriction-chips">
+            <span v-for="(chip, i) in restrictionChips(d)" :key="i" class="restriction-chip">{{ chip }}</span>
+          </div>
+
           <div class="card-info">
             <div v-if="d.minPurchase" class="info-row">
               <span>{{ $t('discounts_min_purchase') }}</span>
@@ -207,6 +242,15 @@ onMounted(fetchDiscounts)
 
 .card-info { display: flex; flex-direction: column; gap: 8px; }
 .info-row { display: flex; justify-content: space-between; font-size: 0.85rem; color: rgba(255,255,255,0.6); }
+
+/* ⭐ چیپ‌های محدودیت: دسته‌ها / محصولات / درگاه‌ها */
+.restriction-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.restriction-chip {
+  font-size: 0.72rem; padding: 4px 10px; border-radius: 999px;
+  color: #facc6b; background: rgba(197,160,89,0.1);
+  border: 1px solid rgba(197,160,89,0.35);
+  line-height: 1.6;
+}
 
 .code-box {
   display: flex; flex-direction: column; align-items: center; gap: 4px;

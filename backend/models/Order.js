@@ -43,7 +43,11 @@ const orderSchema = new mongoose.Schema({
   tracking: { code: String, carrier: String },
   paymentAuthority: String,
   paymentRefId: String,
-  paymentToken: String
+  paymentToken: String,
+  // ⭐ قفل اتمیک پیامک ادمین — هر سفارش فقط یک بار پیامک اطلاع‌رسانی می‌گیرد
+  //    (بدون این فیلد، Mongoose در strict mode مقدار $set را نادیده می‌گیرد
+  //    و تایید دستی ادمین بعد از callback درگاه، پیامک تکراری می‌فرستد)
+  adminSmsSent: { type: Boolean, default: false }
 }, { timestamps: true });
 
 orderSchema.index({ user: 1, createdAt: -1 });

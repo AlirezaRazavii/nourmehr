@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminApi } from '../../services/adminApi'
 
@@ -9,13 +9,33 @@ const loading = ref(true)
 const discounts = ref([])
 const showModal = ref(false)
 const editingDiscount = ref(null)
+// ⭐ حالت مودال: 'single' = ساخت/ویرایش یک کد — 'bulk' = تولید گروهی
+const modalMode = ref('single')
 
 const form = ref({
   code: '', type: 'percent', value: '', minPurchase: '', maxDiscount: '',
   usageLimit: '', perUserLimit: '', firstPurchaseOnly: false,
   startDate: '', endDate: '', descriptionFa: '',
   descriptionEn: '', status: 'active', isPublic: false,
+  // ⭐ محدودیت‌ها — خالی = نامحدود
+  products: [],
+  categories: [],
+  allowedPaymentMethods: [],
 })
+
+// ⭐ تنظیمات تولید گروهی
+const bulkExtra = ref({ count: 50, prefix: 'NM-', codeLength: 8 })
+const bulkResults = ref(null)
+
+// ⭐ روش‌های پرداخت قابل محدودکردن (لیست سفید — هیچ تیک = همه مجاز)
+const PAYMENT_METHOD_OPTIONS = [
+  { id: 'online', label: 'پرداخت آنلاین (زرین‌پال)' },
+  { id: 'cod', label: 'پرداخت در محل' },
+  { id: 'wallet', label: 'کیف پول' },
+  { id: 'torobpay', label: 'ترب‌پی' },
+  { id: 'snappay', label: 'اسنپ‌پی' },
+  { id: 'digipay', label: 'دیجی‌پی' },
+]
 
 const statusColors = {
   active: { bg: 'rgba(34,197,94,0.15)', color: '#22c55e', text: 'فعال' },
@@ -23,11 +43,99 @@ const statusColors = {
   expired: { bg: 'rgba(156,163,175,0.15)', color: '#9ca3af', text: 'منقضی شده' },
 }
 
-// تابع کمکی: توضیحات را بر اساس زبان فعال برمی‌گرداند (هم آبجکت دوزبانه و هم رشته‌ی قدیمی)
+// تابع کمکی: نام دوزبانه → رشته‌ی زبان فعال
+const localName = (n) => {
+  if (!n) return ''
+  if (typeof n === 'string') return n
+  return (locale.value === 'en' && n.en) || n.fa || n.en || ''
+}
+
 const getLocalizedDesc = (desc) => {
   if (!desc) return ''
   if (typeof desc === 'string') return desc
   return desc[locale.value] || desc.fa || desc.en || ''
+}
+
+/* ---------- دسته‌ها (برای انتخاب محدودیت) ---------- */
+const categories = ref([])
+
+const fetchCategories = async () => {
+  try {
+    const res = await adminApi.getCategories()
+    categories.value = res.data || []
+  } catch { /* بدون دسته‌ها هم فرم کار می‌کند */ }
+}
+
+/* ---------- جستجوی چندانتخابی محصولات ---------- */
+const productQuery = ref('')
+const productResults = ref([])
+const productSearching = ref(false)
+let productSearchTimer = null
+// نام محصولاتِ انتخاب‌شده برای نمایش chips (حتی بعد از بستن نتایج جستجو)
+const productMeta = ref(new Map())
+
+const onProductSearch = () => {
+  clearTimeout(productSearchTimer)
+  const q = productQuery.value.trim()
+  if (!q) { productResults.value = []; return }
+  productSearching.value = true
+  productSearchTimer = setTimeout(async () => {
+    try {
+      const res = await adminApi.getProducts({ search: q, limit: 20, sort: 'newest' })
+      productResults.value = res.data || []
+    } catch {
+      productResults.value = []
+    } finally {
+      productSearching.value = false
+    }
+  }, 350)
+}
+
+const addProduct = (p) => {
+  const id = String(p._id)
+  if (!form.value.products.includes(id)) {
+    form.value.products.push(id)
+  }
+  productMeta.value.set(id, localName(p.name) || 'محصول')
+  productQuery.value = ''
+  productResults.value = []
+}
+
+const removeProduct = (id) => {
+  form.value.products = form.value.products.filter((x) => x !== id)
+}
+
+const productName = (id) => productMeta.value.get(String(id)) || 'محصول انتخاب‌شده'
+
+const isCategorySelected = (id) => form.value.categories.includes(String(id))
+const toggleCategory = (id) => {
+  const sid = String(id)
+  if (form.value.categories.includes(sid)) {
+    form.value.categories = form.value.categories.filter((x) => x !== sid)
+  } else {
+    form.value.categories.push(sid)
+  }
+}
+
+const togglePaymentMethod = (id) => {
+  if (form.value.allowedPaymentMethods.includes(id)) {
+    form.value.allowedPaymentMethods = form.value.allowedPaymentMethods.filter((x) => x !== id)
+  } else {
+    form.value.allowedPaymentMethods.push(id)
+  }
+}
+
+// خلاصه‌ی محدودیت‌های یک کد — برای نمایش روی کارت
+const restrictionSummary = (d) => {
+  const parts = []
+  const cats = (d.categories || []).map((c) => localName(c.name)).filter(Boolean)
+  if (cats.length) parts.push(`دسته‌ها: ${cats.join('، ')}`)
+  if (d.products && d.products.length) parts.push(`${d.products.length} محصول منتخب`)
+  if (d.allowedPaymentMethods && d.allowedPaymentMethods.length) {
+    const labels = d.allowedPaymentMethods.map((m) => (PAYMENT_METHOD_OPTIONS.find((o) => o.id === m) || {}).label || m)
+    parts.push(`درگاه‌ها: ${labels.join('، ')}`)
+  }
+  return parts.join(' | ')
 }
 
 /* ---------- کپی کد تخفیف ---------- */
@@ -36,7 +144,6 @@ const copyToClipboard = async (text) => {
     if (navigator.clipboard && window.isSecureContext) {
       await navigator.clipboard.writeText(text)
     } else {
-      // سازگاری با http یا مرورگرهای قدیمی
       const ta = document.createElement('textarea')
       ta.value = text
       ta.style.position = 'fixed'
@@ -52,7 +159,6 @@ const copyToClipboard = async (text) => {
   }
 }
 
-// کپی از روی کارت (با فیدبیک سبز)
 const copiedId = ref(null)
 let copyTimer = null
 
@@ -69,7 +175,6 @@ const copyCode = async (discount) => {
   }
 }
 
-// کپی از داخل فرم ساخت/ویرایش
 const copiedFormCode = ref(false)
 
 const copyFormCode = async () => {
@@ -87,6 +192,7 @@ const copyFormCode = async () => {
   }
 }
 
+/* ---------- لیست ---------- */
 const fetchDiscounts = async () => {
   loading.value = true
   const res = await adminApi.getDiscounts()
@@ -102,23 +208,50 @@ const fetchDiscounts = async () => {
   loading.value = false
 }
 
-onMounted(fetchDiscounts)
+onMounted(() => { fetchDiscounts(); fetchCategories() })
+
+/* ---------- مودال ---------- */
+const modalTitle = computed(() => {
+  if (modalMode.value === 'bulk') return 'تولید گروهی کد تخفیف'
+  return editingDiscount.value ? 'ویرایش کد تخفیف' : 'کد تخفیف جدید'
+})
 
 const openCreate = () => {
   editingDiscount.value = null
+  modalMode.value = 'single'
+  bulkResults.value = null
   form.value = {
     code: '', type: 'percent', value: '', minPurchase: '', maxDiscount: '',
     usageLimit: '', perUserLimit: '', firstPurchaseOnly: false,
     startDate: '', endDate: '', descriptionFa: '',
     descriptionEn: '', status: 'active', isPublic: false,
+    products: [], categories: [], allowedPaymentMethods: [],
   }
+  productMeta.value = new Map()
+  showModal.value = true
+}
+
+const openBulk = () => {
+  editingDiscount.value = null
+  modalMode.value = 'bulk'
+  bulkResults.value = null
+  form.value = {
+    code: '', type: 'percent', value: '', minPurchase: '', maxDiscount: '',
+    usageLimit: '', perUserLimit: '', firstPurchaseOnly: false,
+    startDate: '', endDate: '', descriptionFa: '',
+    descriptionEn: '', status: 'active', isPublic: false,
+    products: [], categories: [], allowedPaymentMethods: [],
+  }
+  bulkExtra.value = { count: 50, prefix: 'NM-', codeLength: 8 }
+  productMeta.value = new Map()
   showModal.value = true
 }
 
 const openEdit = (discount) => {
   editingDiscount.value = discount
+  modalMode.value = 'single'
+  bulkResults.value = null
 
-  // مدیریت سازگاری: توضیحات قدیمی ممکن است رشته باشد
   let descFa = ''
   let descEn = ''
   if (discount.description) {
@@ -129,6 +262,16 @@ const openEdit = (discount) => {
       descEn = discount.description.en || ''
     }
   }
+
+  // نام محصولاتِ محدودشده (populate شده از بک‌اند) برای chips
+  productMeta.value = new Map()
+  const productIds = []
+  for (const p of (discount.products || [])) {
+    const id = String(p._id || p)
+    productIds.push(id)
+    productMeta.value.set(id, localName(p.name) || 'محصول')
+  }
+  const categoryIds = (discount.categories || []).map((c) => String(c._id || c))
 
   form.value = {
     code: discount.code || '',
@@ -145,33 +288,45 @@ const openEdit = (discount) => {
     descriptionEn: descEn,
     status: discount.status || 'active',
     isPublic: discount.isPublic ?? false,
+    products: productIds,
+    categories: categoryIds,
+    allowedPaymentMethods: [...(discount.allowedPaymentMethods || [])],
   }
   showModal.value = true
 }
 
+// بدنه‌ی مشترک ارسالی به بک‌اند (بدون code)
+const buildSharedData = () => ({
+  type: form.value.type,
+  value: form.value.value === '' ? 0 : Number(form.value.value),
+  minPurchase: form.value.minPurchase === '' ? 0 : Number(form.value.minPurchase),
+  maxDiscount: form.value.maxDiscount === '' ? null : Number(form.value.maxDiscount),
+  usageLimit: form.value.usageLimit === '' ? 1 : Number(form.value.usageLimit),
+  perUserLimit: form.value.perUserLimit === '' ? 1 : Number(form.value.perUserLimit),
+  firstPurchaseOnly: !!form.value.firstPurchaseOnly,
+  startDate: form.value.startDate,
+  endDate: form.value.endDate === '' ? null : form.value.endDate,
+  status: form.value.status,
+  isPublic: !!form.value.isPublic,
+  description: {
+    fa: form.value.descriptionFa || '',
+    en: form.value.descriptionEn || '',
+  },
+  products: form.value.products,
+  categories: form.value.categories,
+  allowedPaymentMethods: form.value.allowedPaymentMethods,
+})
+
 const saveDiscount = async () => {
   try {
-    const id = editingDiscount.value?._id || editingDiscount.value?.id
-
-    // آبجکت data را صریح می‌سازیم تا فیلدهای اضافه (descriptionFa/En) به بک‌اند نروند
-    const data = {
-      code: form.value.code,
-      type: form.value.type,
-      value: form.value.value === '' ? 0 : Number(form.value.value),
-      minPurchase: form.value.minPurchase === '' ? 0 : Number(form.value.minPurchase),
-      maxDiscount: form.value.maxDiscount === '' ? null : Number(form.value.maxDiscount),
-      usageLimit: form.value.usageLimit === '' ? 1 : Number(form.value.usageLimit),
-      perUserLimit: form.value.perUserLimit === '' ? 1 : Number(form.value.perUserLimit),
-      firstPurchaseOnly: !!form.value.firstPurchaseOnly,
-      startDate: form.value.startDate,
-      endDate: form.value.endDate,
-      status: form.value.status,
-      isPublic: !!form.value.isPublic,
-      description: {
-        fa: form.value.descriptionFa || '',
-        en: form.value.descriptionEn || '',
-      },
+    if (modalMode.value === 'bulk') {
+      // اگر نتایج نمایش داده شده، دکمه یعنی «بازگشت به لیست»
+      if (bulkResults.value) { showModal.value = false; return }
+      await saveBulk()
+      return
     }
+    const id = editingDiscount.value?._id || editingDiscount.value?.id
+    const data = { ...buildSharedData(), code: form.value.code }
 
     if (editingDiscount.value) {
       const res = await adminApi.updateDiscount(id, data)
@@ -185,6 +340,56 @@ const saveDiscount = async () => {
   } catch (err) {
     alert('خطا: ' + (err.response?.data?.message || err.message || 'عملیات ناموفق بود'))
   }
+}
+
+/* ---------- تولید گروهی + CSV ---------- */
+const saveBulk = async () => {
+  try {
+    const count = Number(bulkExtra.value.count)
+    if (!Number.isInteger(count) || count < 1 || count > 500) {
+      alert('تعداد باید بین ۱ تا ۵۰۰ باشد')
+      return
+    }
+    const data = {
+      ...buildSharedData(),
+      count,
+      prefix: String(bulkExtra.value.prefix || '').trim().toUpperCase(),
+      codeLength: Number(bulkExtra.value.codeLength) || 8,
+    }
+    const res = await adminApi.createDiscountsBulk(data)
+    if (!res.success) throw new Error(res.message || 'خطا در تولید کدها')
+    bulkResults.value = res.data
+    await fetchDiscounts()
+  } catch (err) {
+    alert('خطا: ' + (err.response?.data?.message || err.message || 'عملیات ناموفق بود'))
+  }
+}
+
+const csvCopied = ref(false)
+
+const copyAllCodes = async () => {
+  if (!bulkResults.value?.created?.length) return
+  const ok = await copyToClipboard(bulkResults.value.created.map((d) => d.code).join('\n'))
+  if (ok) {
+    csvCopied.value = true
+    setTimeout(() => { csvCopied.value = false }, 2000)
+  }
+}
+
+// CSV با BOM تا اکسل فارسی را درست باز کند
+const downloadCsv = () => {
+  if (!bulkResults.value?.created?.length) return
+  const rows = bulkResults.value.created.map((d) => [d.code, d.type, String(d.value)])
+  const csv = '\uFEFF' + ['code,type,value', ...rows.map((r) => r.join(','))].join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `nourmehr-discounts-${Date.now()}.csv`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
 }
 
 const deleteDiscount = async (id) => {
@@ -204,12 +409,18 @@ const deleteDiscount = async (id) => {
     <div class="page-header">
       <div>
         <h1 class="page-title">مدیریت تخفیف‌ها</h1>
-        <p class="page-subtitle">ایجاد و مدیریت کدهای تخفیف و کوپن</p>
+        <p class="page-subtitle">ایجاد و مدیریت کدهای تخفیف با محدودیت محصول / دسته / درگاه</p>
       </div>
-      <button class="create-btn" @click="openCreate">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-        کد تخفیف جدید
-      </button>
+      <div class="header-actions">
+        <button class="create-btn secondary" @click="openBulk">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+          تولید گروهی
+        </button>
+        <button class="create-btn" @click="openCreate">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          کد تخفیف جدید
+        </button>
+      </div>
     </div>
 
     <div v-if="loading" class="loading-state">
@@ -240,11 +451,16 @@ const deleteDiscount = async (id) => {
 
         <p class="discount-desc">{{ getLocalizedDesc(discount.description) }}</p>
 
+        <!-- ⭐ خلاصه محدودیت‌ها -->
+        <div v-if="restrictionSummary(discount)" class="discount-restrictions">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          <span>{{ restrictionSummary(discount) }}</span>
+        </div>
+
         <div class="discount-details">
           <div class="detail-item">
             <span class="detail-label">نوع:</span>
             <span class="detail-value">{{ discount.type === 'percent' ? 'درصدی' : 'ثابت' }}</span>
-
           </div>
           <div class="detail-item">
             <span class="detail-label">مقدار:</span>
@@ -258,7 +474,7 @@ const deleteDiscount = async (id) => {
           </div>
           <div class="detail-item">
             <span class="detail-label">بازه:</span>
-            <span class="detail-value">{{ discount.startDate ? new Date(discount.startDate).toLocaleDateString('fa-IR') : '—' }} تا {{ discount.endDate ? new Date(discount.endDate).toLocaleDateString('fa-IR') : '—' }}</span>
+            <span class="detail-value">{{ discount.startDate ? new Date(discount.startDate).toLocaleDateString('fa-IR') : '—' }} تا {{ discount.endDate ? new Date(discount.endDate).toLocaleDateString('fa-IR') : 'بدون پایان' }}</span>
           </div>
         </div>
 
@@ -281,12 +497,12 @@ const deleteDiscount = async (id) => {
       </div>
     </div>
 
-    <!-- Create/Edit Modal -->
+    <!-- Create/Edit/Bulk Modal -->
     <Transition name="modal">
       <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
         <div class="modal-content glass">
           <div class="modal-header">
-            <h2>{{ editingDiscount ? 'ویرایش کد تخفیف' : 'کد تخفیف جدید' }}</h2>
+            <h2>{{ modalTitle }}</h2>
             <button class="modal-close" @click="showModal = false">
               <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
             </button>
@@ -294,20 +510,33 @@ const deleteDiscount = async (id) => {
 
           <div class="modal-body">
             <div class="form-grid">
-              <div class="form-group">
+              <!-- حالت تکی: کد -->
+              <div v-if="modalMode === 'single'" class="form-group">
                 <label class="form-label">کد تخفیف</label>
                 <div class="code-input-row">
                   <input v-model="form.code" type="text" class="form-input" placeholder="مثال: NOURMEHR" />
-                  <button
-                    type="button"
-                    class="copy-btn"
-                    :class="{ copied: copiedFormCode }"
-                    @click="copyFormCode"
-                  >
+                  <button type="button" class="copy-btn" :class="{ copied: copiedFormCode }" @click="copyFormCode">
                     {{ copiedFormCode ? 'کپی شد!' : 'کپی' }}
                   </button>
                 </div>
               </div>
+
+              <!-- حالت گروهی: تعداد/پیشوند/طول -->
+              <template v-else>
+                <div class="form-group">
+                  <label class="form-label">تعداد کدها (۱ تا ۵۰۰)</label>
+                  <input v-model="bulkExtra.count" type="number" min="1" max="500" class="form-input" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">پیشوند کدها (اختیاری)</label>
+                  <input v-model="bulkExtra.prefix" type="text" class="form-input" placeholder="مثال: NM-" dir="ltr" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">طول بخش تصادفی کد</label>
+                  <input v-model="bulkExtra.codeLength" type="number" min="4" max="16" class="form-input" />
+                </div>
+              </template>
+
               <div class="form-group">
                 <label class="form-label">نوع تخفیف</label>
                 <select v-model="form.type" class="form-select">
@@ -320,7 +549,7 @@ const deleteDiscount = async (id) => {
                 <input v-model="form.value" type="number" class="form-input" placeholder="مقدار" />
               </div>
               <div class="form-group">
-                <label class="form-label">حداقل خرید (تومان)</label>
+                <label class="form-label">حداقل خرید (تومان — از اقلام مجاز)</label>
                 <input v-model="form.minPurchase" type="number" class="form-input" placeholder="۰" />
               </div>
               <div class="form-group">
@@ -347,16 +576,91 @@ const deleteDiscount = async (id) => {
                 <input v-model="form.startDate" type="date" class="form-input" />
               </div>
               <div class="form-group">
-                <label class="form-label">تاریخ پایان</label>
+                <label class="form-label">تاریخ پایان (خالی = بی‌پایان)</label>
                 <input v-model="form.endDate" type="date" class="form-input" />
               </div>
-              <div class="form-group">
+              <div v-if="modalMode === 'single'" class="form-group">
                 <label class="form-label">وضعیت</label>
                 <select v-model="form.status" class="form-select">
                   <option value="active">فعال</option>
                   <option value="inactive">غیرفعال</option>
                   <option value="expired">منقضی شده</option>
                 </select>
+              </div>
+            </div>
+
+            <!-- ⭐⭐ محدودیت‌ها ⭐⭐ -->
+            <div class="restrictions-section">
+              <h4 class="restrictions-title">
+                محدودیت‌های اعمال کد
+                <span class="restrictions-hint">هر سه خالی = بدون محدودیت (همه محصولات / همه درگاه‌ها)</span>
+              </h4>
+
+              <!-- محصولات مجاز -->
+              <div class="restriction-block">
+                <label class="form-label">فقط برای محصولات خاص (جستجو و انتخاب)</label>
+                <div class="chips" v-if="form.products.length">
+                  <span v-for="pid in form.products" :key="pid" class="chip">
+                    {{ productName(pid) }}
+                    <button type="button" class="chip-remove" @click="removeProduct(pid)">✕</button>
+                  </span>
+                </div>
+                <div class="product-search">
+                  <input
+                    v-model="productQuery"
+                    type="text"
+                    class="form-input"
+                    placeholder="نام محصول را جستجو کن..."
+                    @input="onProductSearch"
+                  />
+                  <span v-if="productSearching" class="search-hint">در حال جستجو...</span>
+                  <div v-if="productResults.length" class="product-results">
+                    <button
+                      v-for="p in productResults"
+                      :key="p._id"
+                      type="button"
+                      class="product-result"
+                      :class="{ selected: form.products.includes(String(p._id)) }"
+                      @click="addProduct(p)"
+                    >
+                      <span>{{ localName(p.name) || p.slug }}</span>
+                      <span class="result-price">{{ (p.price ?? 0).toLocaleString('fa-IR') }} تومان</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- دسته‌های مجاز -->
+              <div class="restriction-block">
+                <label class="form-label">فقط برای این دسته‌بندی‌ها</label>
+                <div class="chips categories">
+                  <button
+                    v-for="cat in categories"
+                    :key="cat._id"
+                    type="button"
+                    class="chip toggle"
+                    :class="{ active: isCategorySelected(cat._id) }"
+                    @click="toggleCategory(cat._id)"
+                  >
+                    {{ localName(cat.name) || cat.slug || 'دسته' }}
+                  </button>
+                </div>
+              </div>
+
+              <!-- درگاه‌های مجاز -->
+              <div class="restriction-block">
+                <label class="form-label">فقط با این روش‌های پرداخت قابل استفاده</label>
+                <div class="payment-checks">
+                  <label v-for="opt in PAYMENT_METHOD_OPTIONS" :key="opt.id" class="payment-check">
+                    <input
+                      type="checkbox"
+                      :checked="form.allowedPaymentMethods.includes(opt.id)"
+                      @change="togglePaymentMethod(opt.id)"
+                    />
+                    <span>{{ opt.label }}</span>
+                  </label>
+                </div>
+                <span class="checkbox-hint">هیچ تیکی نخورده = با همه‌ی روش‌های پرداخت قابل استفاده</span>
               </div>
             </div>
 
@@ -378,9 +682,26 @@ const deleteDiscount = async (id) => {
               <span class="checkbox-hint">اگر فعال باشد، همه‌ی کاربران این کد را در صفحه‌ی تخفیف‌ها می‌بینند.</span>
             </div>
 
+            <!-- ⭐ نتایج تولید گروهی -->
+            <div v-if="modalMode === 'bulk' && bulkResults" class="bulk-results">
+              <h4>
+                {{ bulkResults.created.length }} کد ساخته شد
+                <span v-if="bulkResults.failed">— {{ bulkResults.failed }} کد یکتا نماند (دوباره تلاش کنید)</span>
+              </h4>
+              <div class="bulk-codes">
+                <span v-for="d in bulkResults.created" :key="d._id" class="chip code-chip">{{ d.code }}</span>
+              </div>
+              <div class="bulk-actions">
+                <button type="button" class="action-btn edit" @click="downloadCsv">دانلود CSV</button>
+                <button type="button" class="action-btn edit" @click="copyAllCodes">{{ csvCopied ? 'کپی شد!' : 'کپی همه کدها' }}</button>
+              </div>
+            </div>
+
             <div class="modal-actions">
               <button class="cancel-btn" @click="showModal = false">انصراف</button>
-              <button class="submit-btn" @click="saveDiscount">ذخیره</button>
+              <button class="submit-btn" @click="saveDiscount">
+                {{ modalMode === 'bulk' ? (bulkResults ? 'بازگشت به لیست' : 'تولید کدها') : 'ذخیره' }}
+              </button>
             </div>
           </div>
         </div>
@@ -400,6 +721,11 @@ const deleteDiscount = async (id) => {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+}
+
+.header-actions {
+  display: flex;
+  gap: 10px;
 }
 
 .page-title {
@@ -428,6 +754,12 @@ const deleteDiscount = async (id) => {
   cursor: pointer;
   transition: all 0.3s ease;
   font-family: inherit;
+}
+
+.create-btn.secondary {
+  background: rgba(197,160,89,0.12);
+  color: #facc6b;
+  border: 1px solid rgba(197,160,89,0.35);
 }
 
 .create-btn:hover {
@@ -493,7 +825,6 @@ const deleteDiscount = async (id) => {
   min-width: 0;
 }
 
-/* دکمه کپی */
 .copy-btn {
   display: inline-flex;
   align-items: center;
@@ -517,7 +848,6 @@ const deleteDiscount = async (id) => {
   color: #22c55e;
 }
 
-/* ردیف فیلد کد در فرم */
 .code-input-row { display: flex; gap: 8px; }
 .code-input-row .form-input { flex: 1; min-width: 0; }
 
@@ -544,6 +874,21 @@ const deleteDiscount = async (id) => {
   margin: 0;
 }
 
+/* ⭐ خط محدودیت‌ها روی کارت */
+.discount-restrictions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(197,160,89,0.08);
+  border: 1px dashed rgba(197,160,89,0.35);
+  color: #facc6b;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  flex-wrap: wrap;
+}
+
 .discount-details {
   display: flex;
   flex-direction: column;
@@ -556,17 +901,10 @@ const deleteDiscount = async (id) => {
   font-size: 0.85rem;
 }
 
-.detail-label {
-  opacity: 0.5;
-}
+.detail-label { opacity: 0.5; }
 
-.detail-value {
-  font-weight: 500;
-}
-
-.detail-value.highlight {
-  color: #facc6b;
-}
+.detail-value { font-weight: 500; }
+.detail-value.highlight { color: #facc6b; }
 
 .discount-usage {
   display: flex;
@@ -614,18 +952,14 @@ const deleteDiscount = async (id) => {
   color: #facc6b;
 }
 
-.action-btn.edit:hover {
-  background: rgba(197,160,89,0.25);
-}
+.action-btn.edit:hover { background: rgba(197,160,89,0.25); }
 
 .action-btn.delete {
   background: rgba(239,68,68,0.15);
   color: #ef4444;
 }
 
-.action-btn.delete:hover {
-  background: rgba(239,68,68,0.25);
-}
+.action-btn.delete:hover { background: rgba(239,68,68,0.25); }
 
 .empty-state {
   text-align: center;
@@ -654,7 +988,7 @@ const deleteDiscount = async (id) => {
 
 .modal-content {
   width: 100%;
-  max-width: 600px;
+  max-width: 640px;
   max-height: 85vh;
   overflow-y: auto;
   border-radius: 20px;
@@ -688,9 +1022,7 @@ const deleteDiscount = async (id) => {
   transition: all 0.2s ease;
 }
 
-.modal-close:hover {
-  background: rgba(255,255,255,0.1);
-}
+.modal-close:hover { background: rgba(255,255,255,0.1); }
 
 .modal-body {
   padding: 24px;
@@ -732,13 +1064,9 @@ const deleteDiscount = async (id) => {
   transition: border-color 0.2s ease;
 }
 
-.form-input:focus {
-  border-color: rgba(197,160,89,0.5);
-}
+.form-input:focus { border-color: rgba(197,160,89,0.5); }
 
-.form-input::placeholder {
-  color: rgba(255,255,255,0.3);
-}
+.form-input::placeholder { color: rgba(255,255,255,0.3); }
 
 .form-select {
   padding: 10px 14px;
@@ -781,9 +1109,7 @@ const deleteDiscount = async (id) => {
   font-family: inherit;
 }
 
-.cancel-btn:hover {
-  background: rgba(255,255,255,0.06);
-}
+.cancel-btn:hover { background: rgba(255,255,255,0.06); }
 
 .submit-btn {
   padding: 10px 24px;
@@ -834,4 +1160,183 @@ const deleteDiscount = async (id) => {
   opacity: 0.5;
 }
 
+/* ⭐⭐ بخش محدودیت‌ها ⭐⭐ */
+.restrictions-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.restrictions-title {
+  font-size: 0.95rem;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.restrictions-hint {
+  font-size: 0.75rem;
+  font-weight: 400;
+  opacity: 0.5;
+}
+
+.restriction-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(197,160,89,0.12);
+  border: 1px solid rgba(197,160,89,0.35);
+  color: #facc6b;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.chip-remove {
+  background: none;
+  border: none;
+  color: rgba(250,204,107,0.7);
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.75rem;
+  font-family: inherit;
+}
+.chip-remove:hover { color: #ef4444; }
+
+.chip.toggle {
+  cursor: pointer;
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.65);
+  font-family: inherit;
+  transition: all 0.15s ease;
+}
+.chip.toggle.active {
+  background: rgba(197,160,89,0.15);
+  border-color: rgba(197,160,89,0.5);
+  color: #facc6b;
+}
+
+.product-search {
+  position: relative;
+}
+
+.search-hint {
+  font-size: 0.75rem;
+  opacity: 0.5;
+  margin-top: 4px;
+  display: block;
+}
+
+.product-results {
+  margin-top: 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(5,8,20,0.95);
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.product-result {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.85);
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-align: right;
+  font-family: inherit;
+  transition: background 0.15s ease;
+}
+.product-result:last-child { border-bottom: none; }
+.product-result:hover { background: rgba(197,160,89,0.08); }
+.product-result.selected { opacity: 0.45; }
+
+.result-price {
+  font-size: 0.75rem;
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.payment-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+}
+
+.payment-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.payment-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: #c5a059;
+  cursor: pointer;
+}
+
+/* ⭐ نتایج تولید گروهی */
+.bulk-results {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 14px;
+  background: rgba(34,197,94,0.06);
+  border: 1px solid rgba(34,197,94,0.25);
+}
+
+.bulk-results h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #22c55e;
+}
+
+.bulk-codes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.code-chip {
+  font-family: ui-monospace, monospace;
+  letter-spacing: 0.05em;
+}
+
+.bulk-actions {
+  display: flex;
+  gap: 10px;
+}
 </style>

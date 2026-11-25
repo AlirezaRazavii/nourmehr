@@ -63,7 +63,11 @@ const recoverOne = async (payment) => {
     }
     if (s === 'VERIFY') {
       const set = await settlePurchase(payment.authority);
-      if (!set.success) console.error('[snappay][recovery] settle ناموفق: payment=' + payment._id, set.code, set.message);
+      if (!set.success) {
+        // ⭐ الزام مستند: ستل ناموفق → سفارش موفق فرض نشود؛ ران بعدی دوباره Status چک می‌کند
+        console.error('[snappay][recovery] settle ناموفق — ران بعدی دوباره بررسی می‌کند: payment=' + payment._id, set.code, set.message);
+        return;
+      }
     }
     const refId = (st.response && st.response.transactionId) || '';
     const done = await finalizePaidSnappPay(payment, order, refId);

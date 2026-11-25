@@ -177,8 +177,8 @@
 
                 <div class="payment-methods">
                   <label v-for="method in paymentMethods" :key="method.id" class="payment-card"
-                    :class="{ selected: selectedPayment === method.id, disabled: method.disabled }">
-                    <input type="radio" :value="method.id" v-model="selectedPayment" :disabled="method.disabled" />
+                    :class="{ selected: selectedPayment === method.id, disabled: isMethodDisabled(method) }">
+                    <input type="radio" :value="method.id" v-model="selectedPayment" :disabled="isMethodDisabled(method)" />
                     <span class="payment-icon">
                       <img v-if="method.logo" :src="method.logo" :alt="method.title || 'TorobPay'" class="payment-logo" />
                       <template v-else>{{ method.icon }}</template>
@@ -191,7 +191,8 @@
                   </label>
                 </div>
 
-                <!-- کد تخفیف -->
+                <!-- ⭐ هشدار زنده: درگاه انتخابی با کد اعمال‌شده مجاز نیست -->
+                <p v-if="discountGatewayHint" class="discount-info error gateway-warning">{{ discountGatewayHint }}</p>
                 <div class="discount-section">
                   <h3>{{ $t('checkout_discount_code') }}</h3>
                   <div class="discount-form">
@@ -200,7 +201,9 @@
                       <span>{{ $t('checkout_discount_applied', { code: appliedDiscount.code, amount: formatPrice(appliedDiscount.amount) }) }}</span>
                       <button type="button" class="remove-discount-btn" @click="removeDiscount">✕</button>
                     </div>
-                    <div v-else class="discount-input-wrapper">
+                    <!-- ⭐ نوت اعمال جزئی: فقط بخشی از اقلام سبد مشمول کد است -->
+                    <div v-if="partialNote" class="discount-info partial-note">{{ partialNote }}</div>
+                    <div v-if="!appliedDiscount" class="discount-input-wrapper">
                       <input v-model="discountCode" type="text" :placeholder="$t('checkout_placeholder_discount')" :disabled="isApplyingDiscount" />
                       <button type="button" class="apply-btn" @click="applyDiscount" :disabled="isApplyingDiscount">
                         <span v-if="isApplyingDiscount">...</span>
@@ -648,13 +651,18 @@ const applyDiscount = async () => {
   isApplyingDiscount.value = true
   try {
     const { default: api } = await import('../services/api')
+    // ⭐ درگاه انتخابی هم ارسال می‌شود — کد ممکن است فقط با بعضی درگاه‌ها مجاز باشد
     const res = await api.post('/orders/validate-discount', {
       code: discountCode.value.trim(),
-      subtotal: totalPrice.value
+      paymentMethod: selectedPayment.value
     })
     appliedDiscount.value = {
       code: discountCode.value.trim().toUpperCase(),
       amount: res.data.discountAmount,
+      // null = همه درگاه‌ها مجاز — آرایه = لیست سفید
+      allowedPaymentMethods: res.data.allowedPaymentMethods || null,
+      eligibleCount: res.data.eligibleCount,
+      totalItems: res.data.totalItems
     }
     discountSuccess.value = res.data.message
   } catch (err) {
@@ -664,6 +672,38 @@ const applyDiscount = async () => {
     isApplyingDiscount.value = false
   }
 }
+
+// ⭐ آیا درگاه با کدِ اعمال‌شده مجاز است؟ (درگاه‌های مسدود خاکستری می‌شوند)
+const isMethodDisabled = (method) => {
+  if (method.disabled) return true
+  const allowed = appliedDiscount.value?.allowedPaymentMethods
+  if (!allowed || !allowed.length) return false
+  return !allowed.includes(method.id)
+}
+
+const discountGatewayHint = computed(() => {
+  const allowed = appliedDiscount.value?.allowedPaymentMethods
+  if (!allowed || !allowed.length) return ''
+  if (!allowed.includes(selectedPayment.value)) {
+    return t('checkout_discount_gateway_blocked')
+  }
+  return ''
+})
+
+const partialNote = computed(() => {
+  const d = appliedDiscount.value
+  if (!d || !d.totalItems || d.eligibleCount == null) return ''
+  if (d.eligibleCount >= d.totalItems) return ''
+  return t('checkout_discount_partial', { eligible: d.eligibleCount, total: d.totalItems })
+})
+
+// ⭐ با تغییر درگاه، کد اعمال‌شده با درگاه جدید دوباره اعتبارسنجی می‌شود —
+//    اگر درگاه جدید مجاز نباشد، کد حذف و خطای واضح نمایش داده می‌شود
+watch(selectedPayment, () => {
+  if (appliedDiscount.value && discountCode.value.trim()) {
+    applyDiscount()
+  }
+})
 
 const removeDiscount = () => {
   appliedDiscount.value = null
@@ -676,6 +716,14 @@ const submitOrder = async () => {
   if (isProcessing.value) return
   isProcessing.value = true
   errorMessage.value = ''
+
+  // ⭐ گارد کد تخفیف × درگاه (سرور هم در createOrder مستقل چک می‌کند — دفاع دوم)
+  const allowed = appliedDiscount.value?.allowedPaymentMethods
+  if (allowed && allowed.length && !allowed.includes(selectedPayment.value)) {
+    errorMessage.value = t('checkout_discount_gateway_blocked')
+    isProcessing.value = false
+    return
+  }
 
   try {
     let order = createdOrder.value
@@ -974,6 +1022,8 @@ onMounted(async () => {
 }
 .order-detail-row { display: flex; justify-content: space-between; font-size: .92rem; color: rgba(255,255,255,.75); flex-wrap: wrap; gap: 5px; }
 .order-detail-row.discount span:last-child { color: #5cbe7d; }
+.gateway-warning { margin: 8px 0 0; }
+.partial-note { margin: 6px 0 0; color: #facc6b; }
 .order-detail-row.total { padding-top: 10px; border-top: 1px solid rgba(255,255,255,.08); font-size: 1.05rem; font-weight: 700; color: #facc6b; }
 .order-desc { font-size: .88rem; line-height: 1.9; color: rgba(255,255,255,.55); margin-bottom: 30px; }
 .success-actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
