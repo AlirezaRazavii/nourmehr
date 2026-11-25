@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const Payment = require('../models/Payment');
 const Order = require('../models/Order');
 const Product = require('../models/Product');
-const { rollbackDiscount } = require('../utils/discountEngine');
+const { rollbackDiscountForOrder } = require('../utils/discountEngine');
 
 (async () => {
   await mongoose.connect(process.env.MONGODB_URI || process.env.MONGO_URI);
@@ -14,7 +14,7 @@ const { rollbackDiscount } = require('../utils/discountEngine');
     if (!order || order.status !== 'pending') continue;
     order.status = 'cancelled';
     if (order.discountCode && order.discountConsumed) {
-      await rollbackDiscount(order.discountCode);
+      await rollbackDiscountForOrder(order);
       order.discountConsumed = false;
     }
     await order.save();
@@ -24,7 +24,6 @@ const { rollbackDiscount } = require('../utils/discountEngine');
     n++;
     console.log('لغو شد:', order.orderRef);
   }
-  console.log('تعداد کل:', n);
+  console.log('مجموع:', n);
   await mongoose.disconnect();
-  process.exit(0);
 })();
