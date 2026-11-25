@@ -3,7 +3,7 @@ const Order = require('../../models/Order');
 const Product = require('../../models/Product');
 const User = require('../../models/User');
 const Payment = require('../../models/Payment');
-const { rollbackDiscount } = require('../../utils/discountEngine');
+const { rollbackDiscountForOrder } = require('../../utils/discountEngine');
 const { cancelPurchase, revertPurchase } = require('../../services/snappayService');
 
 // وضعیت‌های جریان ارسال — فقط برای سفارش‌های «پرداخت‌شده» مجاز
@@ -194,7 +194,7 @@ const updateOrderStatus = async (req, res) => {
         await Product.findByIdAndUpdate(item.product, { $inc: { stock: item.quantity } });
       }
       if (order.discountCode && order.discountConsumed) {
-        await rollbackDiscount(order.discountCode);
+        await rollbackDiscountForOrder(order);
         await Order.updateOne({ _id: order._id }, { $set: { discountConsumed: false } });
       }
       console.log(`[admin] سفارش ${order.orderRef} → ${status} | موجودی و تخفیف برگشت داده شد`);

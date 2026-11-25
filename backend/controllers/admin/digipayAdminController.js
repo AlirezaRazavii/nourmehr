@@ -11,7 +11,7 @@ const mongoose = require('mongoose');
 const Order = require('../../models/Order');
 const Payment = require('../../models/Payment');
 const Product = require('../../models/Product');
-const { rollbackDiscount } = require('../../utils/discountEngine');
+const { rollbackDiscountForOrder } = require('../../utils/discountEngine');
 const {
   toRial, refundTypeForPurchase, refundPurchase, refundInquiry,
 } = require('../../services/digipayService');
@@ -111,7 +111,7 @@ const refundDigipayOrder = async (req, res) => {
       if (item.product) await Product.findByIdAndUpdate(item.product, { $inc: { stock: item.quantity } });
     }
     if (order.discountCode && order.discountConsumed) {
-      await rollbackDiscount(order.discountCode);
+      await rollbackDiscountForOrder(order);
       order.discountConsumed = false;
     }
     await order.save();

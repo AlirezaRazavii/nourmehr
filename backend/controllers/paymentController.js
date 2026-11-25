@@ -2,7 +2,7 @@ const Order = require('../models/Order');
 const Payment = require('../models/Payment');
 const Cart = require('../models/Cart');
 const { initiatePayment, verifyPayment, isZarinpalConfigured } = require('../services/zarinpalService');
-const { consumeDiscount } = require('../utils/discountEngine');
+const { consumeDiscountForOrder } = require('../utils/discountEngine');
 const { getClientUrl } = require('../utils/urlHelper');
 const { sendAdminOrderSms } = require('../services/smsService');
 
@@ -137,8 +137,14 @@ const verifyOnlinePayment = async (req, res) => {
       sendAdminOrderSms(finalized._id);
 
       if (order.discountCode && !order.discountConsumed) {
-        const consumed = await consumeDiscount(order.discountCode);
-        if (consumed) await Order.updateOne({ _id: order._id }, { $set: { discountConsumed: true } });
+        // ⭐ اعتبارسنجی مجدد کامل (درگاه/اقلام/سهم کاربر/ظرفیت) بعد از پرداخت موفق
+        const r = await consumeDiscountForOrder(order);
+        if (r.success) {
+          await Order.updateOne({ _id: order._id }, { $set: { discountConsumed: true } });
+        } else {
+          // پول گرفته شده — سفارش با همان مبلغ معتبر می‌ماند؛ فقط ظرفیت کد مصرف نشد
+          console.error('[discount] مصرف کد تخفیف ناموفق (پس از پرداخت موفق): order=' + order._id + ' code=' + order.discountCode + ' reason=' + (r.reason || 'unknown'));
+        }
       }
 
       // پرداخت موفقِ نهایی‌شده: سبد خرید کاربر خالی می‌شود

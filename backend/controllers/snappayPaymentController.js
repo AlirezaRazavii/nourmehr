@@ -9,7 +9,7 @@ const Payment = require('../models/Payment');
 const Cart = require('../models/Cart');
 const User = require('../models/User');
 const Product = require('../models/Product');
-const { consumeDiscount } = require('../utils/discountEngine');
+const { consumeDiscountForOrder } = require('../utils/discountEngine');
 const { getClientUrl } = require('../utils/urlHelper');
 const {
   isSnappPayConfigured, toRial, isAmountInRange,
@@ -102,8 +102,13 @@ const finalizePaidSnappPay = async (payment, order, refId) => {
   if (payment.authority) order.paymentToken = String(payment.authority);
 
   if (order.discountCode && !order.discountConsumed) {
-    const consumed = await consumeDiscount(order.discountCode);
-    if (consumed) order.discountConsumed = true;
+    // ⭐ اعتبارسنجی مجدد کامل (درگاه/اقلام/سهم کاربر/ظرفیت) بعد از پرداخت موفق
+    const r = await consumeDiscountForOrder(order);
+    if (r.success) {
+      order.discountConsumed = true;
+    } else {
+      console.error('[discount] مصرف کد تخفیف ناموفق (پس از پرداخت موفق): order=' + order._id + ' code=' + order.discountCode + ' reason=' + (r.reason || 'unknown'));
+    }
   }
   await order.save();
 
@@ -329,39 +334,78 @@ const snappPayCallback = async (req, res) => {
     if (!claimed) return fail('PaymentProcessing');
 
     // ⭐ الزام اسنپ‌پی: verify و settle به‌صورت سیستمی فراخوانی می‌شوند
+    //    timeout هر دو ۴۵ ثانیه است (الزام پشتیبانی: ۳۰ ثانیه تا ۱ دقیقه)
     const verifyRes = await verifyPurchase(payment.authority);
     if (!verifyRes.success) {
-      // ⭐ مستند ۱۹-۲۱: بعد از خطای verify، استعلام وضعیت (Get Payment Status)
+      // ⭐ الزام مستند ۱۹-۲۱: وریفای خطا داد/timeout خورد → سرویس Status کال شود
       const st = await getPurchaseStatus(payment.authority);
-      if (st.success) {
-        const stStatus = st.response && st.response.status;
-        if (stStatus === 'SETTLE' || stStatus === 'VERIFY' || stStatus === 'ONGOING' || stStatus === 'UPDATED') {
+      const s = st.success ? String((st.response && st.response.status) || '').toUpperCase() : '';
+
+      // Status = SETTLE/UPDATED → سمت اسنپ‌پی نهایی شده؛ سفارش موفق فرض شود
+      if (s === 'SETTLE' || s === 'UPDATED') {
+        const refId = (st.response && st.response.transactionId) || transactionId;
+        await finalizePaidSnappPay(payment, order, refId);
+        return ok(refId, order.orderRef);
+      }
+
+      // Status = VERIFY → طبق مستند: سفارش را ستل کن
+      if (s === 'VERIFY') {
+        const settleAfterStatus = await settlePurchase(payment.authority);
+        if (settleAfterStatus.success) {
           const refId = (st.response && st.response.transactionId) || transactionId;
-          if (stStatus === 'VERIFY') await settlePurchase(payment.authority);
           await finalizePaidSnappPay(payment, order, refId);
           return ok(refId, order.orderRef);
         }
-        // ⭐ مستند ۱۹-۲۱: اگر وضعیت PENDING بود → دوباره verify صدا بزن
-        if (stStatus === 'PENDING') {
-          const retryVerify = await verifyPurchase(payment.authority);
-          if (retryVerify.success) {
-            const refId = (retryVerify.response && retryVerify.response.transactionId) || transactionId;
-            const settleRetry = await settlePurchase(payment.authority);
-            if (!settleRetry.success) console.error('[snappay][callback] settle پس از verify مجدد ناموفق: payment=' + payment._id);
+        // ستل هم شکست خورد → موفق فرض نشود؛ کرون بازیابی (هر ۵ دقیقه) با Status پیگیری می‌کند
+        payment.failureReason = 'SettleFailedAfterVerifyStatus';
+        await payment.save();
+        console.error('[snappay][callback] settle پس از Status(VERIFY) ناموفق — کرون پیگیری می‌کند: payment=' + payment._id);
+        return fail('SettleFailed');
+      }
+
+      // ⭐ Status = PENDING → دوباره verify بزن (مستند ۱۹-۲۱)
+      if (s === 'PENDING') {
+        const retryVerify = await verifyPurchase(payment.authority);
+        if (retryVerify.success) {
+          const refId = (retryVerify.response && retryVerify.response.transactionId) || transactionId;
+          const settleRetry = await settlePurchase(payment.authority);
+          if (settleRetry.success) {
             await finalizePaidSnappPay(payment, order, refId);
             return ok(refId, order.orderRef);
           }
+          // ستل پس از verify مجدد شکست خورد → دوباره Status (الزام مستند)
+          const st3 = await getPurchaseStatus(payment.authority);
+          const s3 = st3.success ? String((st3.response && st3.response.status) || '').toUpperCase() : '';
+          if (s3 === 'VERIFY') {
+            const settleAgain3 = await settlePurchase(payment.authority);
+            if (settleAgain3.success) {
+              await finalizePaidSnappPay(payment, order, refId);
+              return ok(refId, order.orderRef);
+            }
+          } else if (s3 === 'SETTLE' || s3 === 'UPDATED') {
+            await finalizePaidSnappPay(payment, order, refId);
+            return ok(refId, order.orderRef);
+          }
+          payment.failureReason = 'SettleFailedAfterPendingVerify';
+          await payment.save();
+          console.error('[snappay][callback] settle پس از verify مجدد (PENDING) ناموفق — کرون پیگیری می‌کند: payment=' + payment._id);
+          return fail('SettleFailed');
         }
       }
-      payment.status = 'failed';
-      payment.failureReason = verifyRes.message || 'VerifyFailed';
-      payment.failedAt = new Date();
+
+      // وضعیت نامشخص (Status هم جواب نداد / ONGOING / re-verify ناموفق)
+      // → payment را failed نکن؛ processing بماند تا کرون بازیابی با Status تکلیفش را روشن کند
+      //    (اگر اینجا failed می‌شد، وریفایِ موفقِ سمت اسنپ‌پی برای همیشه گم می‌شد)
+      payment.failureReason = ('VerifyUnresolved: ' + (verifyRes.message || 'VerifyFailed')).slice(0, 250);
       await payment.save();
-      return fail('VerifyFailed');
+      console.error('[snappay][callback] verify نامشخص — کرون بازیابی پیگیری می‌کند: payment=' + payment._id,
+        verifyRes.code, verifyRes.message, '| status:', s || 'N/A');
+      return fail('VerifyPending');
     }
 
     // settle — تأیید نهایی
-    // ⭐ مستند ۱۹-۲۱: اگر settle ناموفق بود → استعلام وضعیت؛ VERIFY یعنی دوباره settle بزن، SETTLE یعنی از قبل موفق
+    // ⭐ الزام مستند: settle خطا داد/جواب نداد → Status کال شود؛
+    //    VERIFY → دوباره settle، SETTLE → از قبل موفق؛ در غیر این صورت موفق فرض نشود
     const settleRes = await settlePurchase(payment.authority);
     if (!settleRes.success) {
       console.error('[snappay][callback] settle ناموفق (verify موفق بود): payment=' + payment._id, settleRes.code, settleRes.message);
@@ -369,11 +413,21 @@ const snappPayCallback = async (req, res) => {
       const s2 = st2.success ? String((st2.response && st2.response.status) || '').toUpperCase() : '';
       if (s2 === 'VERIFY') {
         const settleAgain = await settlePurchase(payment.authority);
-        console.error('[snappay][callback] تلاش مجدد settle: ' + (settleAgain.success ? 'موفق' : 'ناموفق'));
-      } else if (s2 === 'SETTLE') {
+        if (!settleAgain.success) {
+          // ستل مجدد هم شکست خورد → سفارش موفق فرض نشود؛ کرون با Status پیگیری می‌کند
+          payment.failureReason = 'SettleRetryFailed';
+          await payment.save();
+          console.error('[snappay][callback] تلاش مجدد settle ناموفق — کرون بازیابی پیگیری می‌کند: payment=' + payment._id);
+          return fail('SettleFailed');
+        }
+        console.log('[snappay][callback] settle در تلاش مجدد موفق شد: payment=' + payment._id);
+      } else if (s2 === 'SETTLE' || s2 === 'UPDATED') {
         console.log('[snappay][callback] طبق استعلام، از قبل SETTLE شده: payment=' + payment._id);
       } else {
-        console.error('[snappay][callback] وضعیت پس از settle ناموفق (' + (s2 || 'نامشخص') + ') — کرون بازیابی پیگیری می‌کند');
+        payment.failureReason = 'SettleStatusUnresolved: ' + (s2 || 'UNKNOWN');
+        await payment.save();
+        console.error('[snappay][callback] وضعیت پس از settle ناموفق (' + (s2 || 'نامشخص') + ') — کرون بازیابی پیگیری می‌کند: payment=' + payment._id);
+        return fail('SettlePending');
       }
     }
 

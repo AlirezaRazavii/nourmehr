@@ -5,8 +5,8 @@ const Payment = require('../models/Payment');
 const Notification = require('../models/Notification');
 const {
   validateDiscount: validateDiscountEngine,
-  consumeDiscount,
-  rollbackDiscount,
+  consumeDiscountForOrder,
+  rollbackDiscountForOrder,
 } = require('../utils/discountEngine');
 
 const generateOrderRef = () => 'NM-' + Date.now();
@@ -82,27 +82,39 @@ const calculateShippingCost = async (methodId) => {
 // اعتبارسنجی کد تخفیف (بدون مصرف) — برای فرم Checkout
 const validateDiscount = async (req, res) => {
   try {
-    const { code } = req.body;
+    const { code, paymentMethod } = req.body;
     const userId = req.user._id;
 
     // سبد از خود سرور محاسبه می‌شود (امن‌تر — کلاینت عدد دلخواه نفرستد):
     // payable  = مبلغ قابل پرداخت (با تخفیف محصول)
     // original = قیمت اصلی (بدون تخفیف محصول) — پایه درصد کد تخفیف
-    let payable = 0;
-    let original = 0;
     const cart = await Cart.findOne({ user: userId }).populate('items.product');
+    const engineItems = [];
     for (const item of (cart?.items || [])) {
       const product = item.product;
       if (!product) continue;
-      payable += getUnitPrice(product, item.size) * item.quantity;
-      original += getOriginalUnitPrice(product, item.size) * item.quantity;
+      engineItems.push({
+        productId: String(product._id),
+        quantity: item.quantity,
+        unitPrice: getUnitPrice(product, item.size),
+        originalUnitPrice: getOriginalUnitPrice(product, item.size),
+        categories: [String(product.category)].filter(Boolean),
+      });
     }
 
+    const payable = engineItems.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
     if (payable <= 0) {
       return res.status(400).json({ success: false, message: 'سبد خرید خالی است' });
     }
 
-    const { discount, amount } = await validateDiscountEngine(code, payable, userId, original);
+    // ⭐ درگاه انتخابی هم پاس می‌شود — کد ممکن است فقط با بعضی درگاه‌ها مجاز باشد
+    const result = await validateDiscountEngine({
+      code,
+      items: engineItems,
+      userId,
+      paymentMethod: paymentMethod || null,
+    });
+    const { discount, amount, eligibility } = result;
 
     const message = discount.type === 'percent'
       ? `کد تخفیف ${discount.value}٪ روی قیمت اصلی اعمال شد`
@@ -115,6 +127,13 @@ const validateDiscount = async (req, res) => {
       discountValue: discount.value,
       description: discount.description || '',
       message,
+      // ⭐ اطلاعات محدودیت برای UI (قفل درگاه‌ها و نوت «روی چند قلم اعمال شد»)
+      eligibleCount: eligibility.eligibleCount,
+      totalItems: eligibility.totalCount,
+      restricted: eligibility.restricted,
+      categoryNames: result.categoryNames,
+      productCount: (discount.products || []).length,
+      allowedPaymentMethods: result.allowedPaymentMethods, // null = همه مجاز
     });
   } catch (error) {
     return res.status(error.statusCode || 500).json({
@@ -145,8 +164,9 @@ const createOrder = async (req, res) => {
     }
 
     let subtotal = 0;
-    let originalSubtotal = 0; // قیمت اصلی (قبل از تخفیف محصول) — پایه درصد کد تخفیف
+    let originalSubtotal = 0; // قیمت اصلی (قبل از تخفیف محصول) — گزارش/دیتا
     const orderItems = [];
+    const engineItems = []; // ⭐ اقلام به زبان موتور تخفیف (دسته‌ها + قیمت‌ها)
     for (const item of cart.items) {
       const product = item.product;
       if (!product) continue;
@@ -156,6 +176,13 @@ const createOrder = async (req, res) => {
       const unitPrice = getUnitPrice(product, item.size);
       subtotal += unitPrice * item.quantity;
       originalSubtotal += getOriginalUnitPrice(product, item.size) * item.quantity;
+      engineItems.push({
+        productId: String(product._id),
+        quantity: item.quantity,
+        unitPrice,
+        originalUnitPrice: getOriginalUnitPrice(product, item.size),
+        categories: [String(product.category)].filter(Boolean),
+      });
       orderItems.push({
         product: product._id,
         // نام به‌صورت رشته ساده ذخیره شود (نه آبجکت دوزبانه)
@@ -172,12 +199,18 @@ const createOrder = async (req, res) => {
       return res.status(400).json({ success: false, message: 'سبد خرید خالی است' });
     }
 
-    // اعتبارسنجی کد تخفیف بدون مصرف کردن آن
+    // اعتبارسنجی کد تخفیف بدون مصرف کردن آن — با درگاه انتخابی
+    // (کد ممکن است فقط با بعضی درگاه‌ها یا فقط روی بعضی اقلام مجاز باشد)
     let discountAmount = 0;
     let validDiscountCode = null;
     if (discountCode) {
       try {
-        const result = await validateDiscountEngine(discountCode, subtotal, userId, originalSubtotal);
+        const result = await validateDiscountEngine({
+          code: discountCode,
+          items: engineItems,
+          userId,
+          paymentMethod,
+        });
         discountAmount = result.amount;
         validDiscountCode = result.discount.code;
       } catch (err) {
@@ -220,7 +253,7 @@ const createOrder = async (req, res) => {
       }
       // اگر به هر دلیلی تخفیف مصرف شده بود، برگردان
       if (order.discountCode && order.discountConsumed) {
-        await rollbackDiscount(order.discountCode);
+        await rollbackDiscountForOrder(order);
         order.discountConsumed = false;
       }
       // توکن‌های درگاهِ معلق قبلی باطل شوند (تا پرداخت قدیمی با مبلغ قدیمی نگیرد)
@@ -369,7 +402,7 @@ const cancelOrder = async (req, res) => {
 
     // اگر تخفیف قبلاً مصرف شده بود، برگردان
     if (order.discountCode && order.discountConsumed) {
-      await rollbackDiscount(order.discountCode);
+      await rollbackDiscountForOrder(order);
       order.discountConsumed = false;
     }
 

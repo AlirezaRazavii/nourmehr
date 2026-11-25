@@ -15,8 +15,9 @@ const Payment = require('../models/Payment');
 const Cart = require('../models/Cart');
 const User = require('../models/User');
 const Product = require('../models/Product');
-const { consumeDiscount } = require('../utils/discountEngine');
+const { consumeDiscountForOrder } = require('../utils/discountEngine');
 const { getClientUrl } = require('../utils/urlHelper');
+const { sendAdminOrderSms } = require('../services/smsService');
 const {
   isDigipayConfigured, toRial, isDeliveryRequired, PURCHASE_TYPE,
   createTicket, verifyPurchase, deliverPurchase,
@@ -81,10 +82,19 @@ const finalizePaidDigipay = async (payment, order, trackingCode, purchaseType, d
   order.paymentToken = String(trackingCode);
 
   if (order.discountCode && !order.discountConsumed) {
-    const consumed = await consumeDiscount(order.discountCode);
-    if (consumed) order.discountConsumed = true;
+    // ⭐ اعتبارسنجی مجدد کامل (درگاه/اقلام/سهم کاربر/ظرفیت) بعد از پرداخت موفق
+    const r = await consumeDiscountForOrder(order);
+    if (r.success) {
+      order.discountConsumed = true;
+    } else {
+      console.error('[discount] مصرف کد تخفیف ناموفق (پس از پرداخت موفق): order=' + order._id + ' code=' + order.discountCode + ' reason=' + (r.reason || 'unknown'));
+    }
   }
   await order.save();
+
+  // ⭐ پیامک اطلاع‌رسانی سفارش تاییدشده به ادمین‌ها (fire-and-forget)
+  //    مثل اسنپ‌پی/ترب/درگاه اصلی — خطای پیامک هرگز جریان پرداخت را متوقف نمی‌کند
+  sendAdminOrderSms(order._id);
 
   // پرداخت موفقِ نهایی‌شده: سبد خرید خالی شود
   try {

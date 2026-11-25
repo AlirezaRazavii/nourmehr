@@ -28,6 +28,9 @@ const EP = {
 };
 
 const TOMAN_TO_RIAL = 10;
+// ⭐ الزام پشتیبانی اسنپ‌پی: timeout سرویس‌های verify/settle/status باید
+//    ۳۰ ثانیه تا ۱ دقیقه باشد — ۴۵ ثانیه انتخاب شد (وسط بازه)
+const VERIFY_SETTLE_TIMEOUT = 45000;
 // بازه مبلغ (ریال) — با env قابل تنظیم؛ طبق ایمیل اسنپ‌پی سفارش تست تا ۱۰۰ هزار تومان
 const MIN_AMOUNT_RIAL = Number(process.env.SNAPPAY_MIN_RIAL) || 200000;      // ۲۰,۰۰۰ تومان
 const MAX_AMOUNT_RIAL = Number(process.env.SNAPPAY_MAX_RIAL) || 1000000000; // ۱۰۰,۰۰۰,۰۰۰ تومان
@@ -97,7 +100,8 @@ const callApi = async (method, path, opts) => {
         data: body,
         params: params,
         headers: { Authorization: 'Bearer ' + token },
-        timeout: 25000,
+        // ⭐ سرویس‌های verify/settle/status با opts.timeout = ۴۵ ثانیه صدا زده می‌شوند؛ بقیه ۲۵ ثانیه
+        timeout: (opts && opts.timeout) || 25000,
       });
 
       if (data && data.successful) return { success: true, response: data.response };
@@ -173,11 +177,11 @@ const checkEligibility = async (amountToman) => {
 
 /* ------------------------------ عملیات پرداخت ------------------------------ */
 const createPurchaseToken = async (payload) => callApi('POST', EP.token, { body: payload });
-const verifyPurchase = async (paymentToken) => callApi('POST', EP.verify, { body: { paymentToken: paymentToken } });
-const settlePurchase = async (paymentToken) => callApi('POST', EP.settle, { body: { paymentToken: paymentToken } });
+const verifyPurchase = async (paymentToken) => callApi('POST', EP.verify, { body: { paymentToken: paymentToken }, timeout: VERIFY_SETTLE_TIMEOUT });
+const settlePurchase = async (paymentToken) => callApi('POST', EP.settle, { body: { paymentToken: paymentToken }, timeout: VERIFY_SETTLE_TIMEOUT });
 const revertPurchase = async (paymentToken) => callApi('POST', EP.revert, { body: { paymentToken: paymentToken } });
 const cancelPurchase = async (paymentToken) => callApi('POST', EP.cancel, { body: { paymentToken: paymentToken } });
-const getPurchaseStatus = async (paymentToken) => callApi('GET', EP.status, { params: { paymentToken: paymentToken } });
+const getPurchaseStatus = async (paymentToken) => callApi('GET', EP.status, { params: { paymentToken: paymentToken }, timeout: VERIFY_SETTLE_TIMEOUT });
 // ⭐ جدید — مخصوص اسنپ‌پی: مرجوعی جزئی (آپدیت اقلام سفارش پس از پرداخت)
 const updatePurchase = async (payload) => callApi('POST', EP.update, { body: payload });
 

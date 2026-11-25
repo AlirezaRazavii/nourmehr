@@ -1,6 +1,6 @@
 const Payment = require('../../models/Payment');
 const Order = require('../../models/Order');
-const { rollbackDiscount } = require('../../utils/discountEngine');
+const { rollbackDiscountForOrder } = require('../../utils/discountEngine');
 const { sendAdminOrderSms } = require('../../services/smsService');
 
 const getPayments = async (req, res) => {
@@ -65,11 +65,15 @@ const verifyPaymentByAdmin = async (req, res) => {
     order.paymentStatus = 'paid';
     order.status = 'confirmed';
 
-    // مصرف کد تخفیف فقط یک بار (هماهنگ با جریان پرداخت آنلاین)
+    // مصرف کد تخفیف فقط یک بار (هماهنگ با جریان پرداخت آنلاین) — با اعتبارسنجی مجدد کامل
     if (order.discountCode && !order.discountConsumed) {
-      const { consumeDiscount } = require('../../utils/discountEngine');
-      const consumed = await consumeDiscount(order.discountCode);
-      if (consumed) order.discountConsumed = true;
+      const { consumeDiscountForOrder } = require('../../utils/discountEngine');
+      const r = await consumeDiscountForOrder(order);
+      if (r.success) {
+        order.discountConsumed = true;
+      } else {
+        console.error('[discount] مصرف کد تخفیف ناموفق (تایید دستی): order=' + order._id + ' code=' + order.discountCode + ' reason=' + (r.reason || 'unknown'));
+      }
     }
 
     await order.save();
@@ -105,7 +109,7 @@ const refundPaymentByAdmin = async (req, res) => {
 
       // اگر تخفیف مصرف شده بود، برگردان
       if (order.discountCode && order.discountConsumed) {
-        await rollbackDiscount(order.discountCode);
+        await rollbackDiscountForOrder(order);
         order.discountConsumed = false;
       }
 
