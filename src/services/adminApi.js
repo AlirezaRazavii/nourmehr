@@ -117,6 +117,12 @@ export const adminApi = {
     return res.data
   },
 
+  // ⭐ تولید گروهی کد تخفیف یکتا (کمپین‌ها) — CSV در فرانت ساخته می‌شود
+  async createDiscountsBulk(data) {
+    const res = await api.post('/admin/discounts/bulk', data)
+    return res.data
+  },
+
   async getProducts(params = {}) {
     const query = new URLSearchParams(params).toString()
     const res = await api.get(`/admin/products${query ? '?' + query : ''}`)

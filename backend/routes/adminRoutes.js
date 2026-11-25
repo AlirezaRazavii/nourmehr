@@ -21,7 +21,7 @@ const {
 
 const { getPayments, verifyPaymentByAdmin, refundPaymentByAdmin } = require('../controllers/admin/paymentController');
 const { getTickets, getTicketById, replyToTicket, updateTicketStatus } = require('../controllers/admin/ticketController');
-const { getDiscounts, createDiscount, updateDiscount, deleteDiscount } = require('../controllers/admin/discountController');
+const { getDiscounts, createDiscount, updateDiscount, deleteDiscount, createDiscountsBulk } = require('../controllers/admin/discountController');
 const { getProducts, getProductById, createProduct, updateProduct, deleteProduct, uploadProductImage, deleteProductImage } = require('../controllers/admin/productController');
 const {
   getCategories,
@@ -214,6 +214,7 @@ router.put('/tickets/:id/status', hasPermission(PERMISSIONS.TICKETS), updateTick
 /* -------------------------------- تخفیف‌ها --------------------------------- */
 router.get('/discounts', hasPermission(PERMISSIONS.DISCOUNTS), getDiscounts);
 router.post('/discounts', hasPermission(PERMISSIONS.DISCOUNTS), createDiscount);
+router.post('/discounts/bulk', hasPermission(PERMISSIONS.DISCOUNTS), createDiscountsBulk);
 router.put('/discounts/:id', hasPermission(PERMISSIONS.DISCOUNTS), updateDiscount);
 router.delete('/discounts/:id', hasPermission(PERMISSIONS.DISCOUNTS), deleteDiscount);
 

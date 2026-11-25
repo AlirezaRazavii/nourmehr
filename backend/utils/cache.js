@@ -23,6 +23,7 @@ const KEYS = {
   CATEGORY_SLUG: 'public:category:slug:',
   HERO: 'public:hero:',
   SEO: 'public:seo:',
+  DISCOUNTS: 'public:discounts',
 };
 
 /**

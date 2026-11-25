@@ -6,7 +6,7 @@
 const Order = require('../models/Order');
 const Payment = require('../models/Payment');
 const Product = require('../models/Product');
-const { rollbackDiscount } = require('../utils/discountEngine');
+const { rollbackDiscountForOrder } = require('../utils/discountEngine');
 
 const EXPIRY_HOURS = 24;
 const BATCH_LIMIT = 100;
@@ -31,7 +31,7 @@ const cancelExpiredUnpaidOrders = async () => {
 
       order.status = 'cancelled';
       if (order.discountCode && order.discountConsumed) {
-        await rollbackDiscount(order.discountCode);
+        await rollbackDiscountForOrder(order);
         order.discountConsumed = false;
       }
       await order.save();
