@@ -4,6 +4,9 @@ const Product = require('../models/Product');
 const { getOrSet } = require('../utils/cache');
 const { getPriceInfo, withCampaignView } = require('../utils/pricing');
 
+// ⭐ هم‌فیلتر با صفحهٔ محصولات: ناموجود هم دیده شود، فقط غیرفعال پنهان بماند
+const PUBLIC_PRODUCT_STATUSES = ['active', 'out_of_stock'];
+
 // قیمت سایز-آگاه: ارزان‌ترین سایزِ تخفیف‌خورده (مطابق کارت محصولات و سبد)
 const formatProduct = (raw) => {
   const p = withCampaignView(raw);
@@ -84,7 +87,7 @@ const getHomeCollections = async (req, res) => {
         .lean();
 
       return Promise.all(collections.map(async (col) => {
-        const products = await Product.find({ collections: col._id, status: 'active' })
+        const products = await Product.find({ collections: col._id, status: { $in: PUBLIC_PRODUCT_STATUSES } })
           .populate('category')
           .sort({ createdAt: -1 })
           .limit(previewLimit)
@@ -139,7 +142,7 @@ const getCollectionBySlugOrId = async (req, res) => {
     const limitNum = Math.min(200, Math.max(1, parseInt(limit) || 100));
     const skip = (pageNum - 1) * limitNum;
 
-    const filter = { collections: collection._id, status: 'active' };
+    const filter = { collections: collection._id, status: { $in: PUBLIC_PRODUCT_STATUSES } };
 
     const products = await Product.find(filter)
       .populate('category')
