@@ -41,6 +41,7 @@ const torobRoutes = require('./routes/torobRoutes');
 const { startTorobPayRecovery } = require('./services/torobpayRecovery');
 const { initSnappayRecovery } = require('./jobs/snappayRecovery');
 const { startOrderExpiryCron } = require('./services/orderExpiry');
+const { startCampaignScheduler } = require('./services/campaignScheduler');
 const discountRoutes = require('./routes/discountRoutes');
 const seoController = require('./controllers/seoController');
 
@@ -80,6 +81,7 @@ mongoose.connection.once('open', async () => {
     console.log('✅ Seeding finished.');
     startTorobPayRecovery();
     startOrderExpiryCron();
+    startCampaignScheduler();
     initSnappayRecovery();
   } catch (err) {
     console.error('🔴 Seeding error:', err);

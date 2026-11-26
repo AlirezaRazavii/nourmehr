@@ -34,6 +34,7 @@ const {
 } = require('../controllers/admin/categoryController');
 const { getSettings, updateSettings } = require('../controllers/admin/settingController');
 const { getCollections, getCollectionProducts, createCollection, updateCollection, deleteCollection, setCollectionProducts } = require('../controllers/admin/collectionController');
+const campaignController = require('../controllers/admin/campaignController');
 const blogController = require('../controllers/admin/blogController');
 const reviewController = require('../controllers/admin/reviewController');
 const notificationController = require('../controllers/admin/notificationController');
@@ -278,6 +279,14 @@ router.get('/collections/:id/products', hasPermission(PERMISSIONS.COLLECTIONS), 
 router.put('/collections/:id/products', hasPermission(PERMISSIONS.COLLECTIONS), setCollectionProducts);
 router.put('/collections/:id', hasPermission(PERMISSIONS.COLLECTIONS), normalizeSeo, updateCollection);
 router.delete('/collections/:id', hasPermission(PERMISSIONS.COLLECTIONS), deleteCollection);
+
+/* -------------------------------- کمپین‌ها -------------------------------- */
+// از همان مجوز «کالکشن‌ها» استفاده می‌کند (نیازی به مجوز جدید نیست)
+router.get('/campaigns', hasPermission(PERMISSIONS.COLLECTIONS), campaignController.getCampaigns);
+router.post('/campaigns', hasPermission(PERMISSIONS.COLLECTIONS), campaignController.createCampaign);
+router.get('/campaigns/:id', hasPermission(PERMISSIONS.COLLECTIONS), campaignController.getCampaignById);
+router.put('/campaigns/:id', hasPermission(PERMISSIONS.COLLECTIONS), campaignController.updateCampaign);
+router.delete('/campaigns/:id', hasPermission(PERMISSIONS.COLLECTIONS), campaignController.deleteCampaign);
 
 /* ----------------------------- اخبار و مقالات ------------------------------- */
 router.get('/blogs', hasPermission(PERMISSIONS.BLOGS), blogController.getBlogs);
