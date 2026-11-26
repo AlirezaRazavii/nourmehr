@@ -41,23 +41,40 @@ const message = computed(() => {
   const name = campaignName.value
   const max = Number(o.maxPercent) || 0
   const uniform = (Number(o.minPercent) || max) === max
+  const list = Array.isArray(o.sizes) ? o.sizes : []
 
-  if (!props.hasSizes) {
+  // ۱) محصول بدون سایز (یا سایزی گزارش نشده) → جملهٔ سطح محصول
+  if (!props.hasSizes || !list.length) {
     if (isFa.value) return `این محصول ${fa(max)}٪ تخفیف دارد و جزو کمپین «${name}» است.`
     return `This product is ${max}% off — part of "${name}".`
   }
 
-  if (o.allSizes) {
+  // ۲) ⭐ فقط یک سایز هدف است (از جمله محصول تک‌سایز) → مفرد + نام دقیق سایز
+  if (list.length === 1) {
+    const n = loc(list[0].name)
+    const p = Number(list[0].percent) || 0
     if (isFa.value) {
-      const pct = uniform ? `${fa(max)}٪` : `تا ${fa(max)}٪`
-      return `همهٔ سایزهای این محصول ${pct} تخفیف دارند و جزو کمپین «${name}» هستند.`
+      const prefix = n.startsWith('سایز') ? '' : 'سایز '
+      return `${prefix}«${n}» ${fa(p)}٪ تخفیف دارد و جزو کمپین «${name}» است.`
     }
-    const pct = uniform ? `${max}%` : `up to ${max}%`
-    return `All sizes of this product are ${pct} off — part of "${name}".`
+    const label = /^size\b/i.test(n) ? n : `Size ${n}`
+    return `${label} is ${p}% off — part of "${name}".`
   }
 
+  // ۳) همهٔ سایزها هدف‌اند (بیش از یک سایز)
+  if (o.allSizes) {
+    const count = list.length
+    if (isFa.value) {
+      const pct = uniform ? `${fa(max)}٪` : `تا ${fa(max)}٪`
+      return `همهٔ ${fa(count)} سایز این محصول ${pct} تخفیف دارند و جزو کمپین «${name}» هستند.`
+    }
+    const pct = uniform ? `${max}%` : `up to ${max}%`
+    return `All ${count} sizes of this product are ${pct} off — part of "${name}".`
+  }
+
+  // ۴) چند سایز مشخص — گروه‌بندی بر اساس درصد
   const groups = new Map()
-  for (const s of o.sizes || []) {
+  for (const s of list) {
     const p = Number(s.percent) || 0
     if (!groups.has(p)) groups.set(p, [])
     groups.get(p).push(loc(s.name))
@@ -91,7 +108,7 @@ const onFinished = () => { ended.value = true; emit('finished') }
     <span class="cmp-offer-icon">⚡</span>
     <div class="cmp-offer-body">
       <p class="cmp-offer-text">{{ message }}</p>
-      <div v-if="chips.length && !offers.allSizes" class="cmp-offer-chips">
+      <div v-if="chips.length && chips.length <= 12" class="cmp-offer-chips">
         <button
           v-for="c in chips"
           :key="c.label"

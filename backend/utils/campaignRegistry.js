@@ -104,18 +104,30 @@ const buildCampaignOffers = (product) => {
 
   const sizes = [];
   let allSizes = false;
+
+  // افزودن/ادغام یک سایز (بیشترین درصد برنده است)
+  const pushSize = (name, percent) => {
+    const key = name.fa || name.en;
+    if (!key) return;
+    const ex = sizes.find((x) => (x.name.fa || x.name.en) === key);
+    if (ex) ex.percent = Math.max(ex.percent, percent);
+    else sizes.push({ name, percent });
+  };
+
   for (const t of winner.targets) {
-    if (!t.sizes.length) { allSizes = true; continue; }
+    if (!t.sizes.length) {
+      allSizes = true;
+      // ⭐ «همهٔ سایزها» را به سایزهای واقعی محصول باز کن تا نام دقیق در پیام بیاید
+      // (محصول تک‌سایز باید مفرد و با نام سایز خودش نوشته شود، نه «همهٔ سایزها … هستند»)
+      for (const s of productSizes) pushSize(nameOf(s), t.percent);
+      continue;
+    }
     for (const raw of t.sizes) {
       const match = productSizes.find((s) => {
         const n = nameOf(s);
         return n.fa === raw || n.en === raw;
       });
-      const name = match ? nameOf(match) : { fa: raw, en: raw };
-      const key = name.fa || name.en;
-      const ex = sizes.find((x) => (x.name.fa || x.name.en) === key);
-      if (ex) ex.percent = Math.max(ex.percent, t.percent);
-      else sizes.push({ name, percent: t.percent });
+      pushSize(match ? nameOf(match) : { fa: raw, en: raw }, t.percent);
     }
   }
 
