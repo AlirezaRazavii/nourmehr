@@ -39,6 +39,37 @@ const findSize = (product, sizeName) => {
   );
 };
 
+/* ------------------------- لایهٔ کمپین (تزریقی) -------------------------
+ * رجیستری کمپین خودش را اینجا ثبت می‌کند؛ این فایل هیچ مدلی را require نمی‌کند.
+ * اگر رجیستری ثبت نشده باشد (مثلاً در تست)، رفتار دقیقاً مثل قبل می‌ماند.
+ */
+let campaignProvider = null;
+const setCampaignProvider = (fn) => {
+  campaignProvider = typeof fn === 'function' ? fn : null;
+};
+
+// آیا این هدفِ کمپین شامل این سایز می‌شود؟ (sizes خالی = همهٔ سایزها)
+const sizeMatches = (target, size) => {
+  if (!target.sizes || target.sizes.length === 0) return true;
+  if (!size || !size.name) return false;
+  const names =
+    typeof size.name === 'string'
+      ? [size.name]
+      : [size.name.fa, size.name.en].filter(Boolean);
+  return names.some((n) => target.sizes.includes(n));
+};
+
+const campaignPercentFor = (product, size) => {
+  if (!campaignProvider || !product || !product._id) return 0;
+  let best = 0;
+  for (const t of campaignProvider(product._id) || []) {
+    if (!sizeMatches(t, size)) continue;
+    const p = normalizePercent(t.percent);
+    if (p > best) best = p;
+  }
+  return best;
+};
+
 // حل قیمت برای یک سایز مشخص (یا null = سطح محصول)
 const resolveWithSize = (product, size) => {
   const p = product || {};
@@ -47,11 +78,46 @@ const resolveWithSize = (product, size) => {
 
   const sizePercent = normalizePercent(size && size.discountPercent);
   const productPercent = normalizePercent(p.discountPercent);
-  const percent = sizePercent > 0 ? sizePercent : productPercent;
-  const source = sizePercent > 0 ? 'size' : productPercent > 0 ? 'product' : 'none';
+  const catalogPercent = sizePercent > 0 ? sizePercent : productPercent;
+
+  // ⭐ کمپین و کاتالوگ جمع نمی‌شوند؛ تخفیف بزرگ‌تر برنده است
+  const campPercent = campaignPercentFor(p, size);
+  const percent = Math.max(catalogPercent, campPercent);
+  const source =
+    percent === 0
+      ? 'none'
+      : campPercent > 0 && campPercent >= catalogPercent
+      ? 'campaign'
+      : sizePercent > 0
+      ? 'size'
+      : 'product';
 
   const final = applyPercent(original, percent);
   return { original, final, percent, source, hasDiscount: percent > 0 && final < original };
+};
+
+/**
+ * ⭐ نمای «تخفیف مؤثر» برای پاسخ API عمومی.
+ * روی یک کپی کار می‌کند (سندِ کش‌شده هرگز mutate نمی‌شود) تا فرانت
+ * بدون دانستن چیزی از کمپین، همان عدد بک‌اند را محاسبه کند.
+ * دیتابیس دست‌نخورده می‌ماند.
+ */
+const withCampaignView = (product) => {
+  const p = product;
+  if (!p || !p._id || !campaignProvider) return product;
+  const targets = campaignProvider(p._id);
+  if (!targets || !targets.length) return product;
+
+  const productPercent = normalizePercent(p.discountPercent);
+  const newProductPercent = Math.max(productPercent, campaignPercentFor(p, null));
+
+  const sizes = (Array.isArray(p.sizes) ? p.sizes : []).map((s) => {
+    const sp = normalizePercent(s && s.discountPercent);
+    const catalog = sp > 0 ? sp : productPercent;
+    return { ...s, discountPercent: Math.max(catalog, campaignPercentFor(p, s)) };
+  });
+
+  return { ...p, discountPercent: newProductPercent, sizes };
 };
 
 // قیمت واحد قابل پرداخت برای سایز انتخابی
@@ -103,4 +169,6 @@ module.exports = {
   resolveWithSize,
   resolveUnitPrice,
   getPriceInfo,
+  setCampaignProvider,
+  withCampaignView,
 };

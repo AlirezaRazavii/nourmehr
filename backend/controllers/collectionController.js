@@ -1,10 +1,11 @@
 const Collection = require('../models/Collection');
 const Product = require('../models/Product');
 const { getOrSet } = require('../utils/cache');
-const { getPriceInfo } = require('../utils/pricing');
+const { getPriceInfo, withCampaignView } = require('../utils/pricing');
 
 // قیمت سایز-آگاه: ارزان‌ترین سایزِ تخفیف‌خورده (مطابق کارت محصولات و سبد)
-const formatProduct = (p) => {
+const formatProduct = (raw) => {
+  const p = withCampaignView(raw);
   const info = getPriceInfo(p);
   return {
     ...p,
@@ -44,12 +45,18 @@ const getHomeCollections = async (req, res) => {
           .lean();
         return {
           ...col,
-          products: products.map(formatProduct)
+          products
         };
       }));
     });
 
-    res.json({ success: true, data });
+    // ⭐ قیمت‌ها بیرون از کش محاسبه می‌شوند
+    const out = (data || []).map((col) => ({
+      ...col,
+      products: (col.products || []).map(formatProduct)
+    }));
+
+    res.json({ success: true, data: out });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const Product = require('../models/Product');
 const Category = require('../models/Category');
 const { getOrSet, KEYS } = require('../utils/cache');
-const { applyPercent } = require('../utils/pricing');
+const { applyPercent, withCampaignView } = require('../utils/pricing');
 
 const LIST_FIELDS =
   'name slug mainImage price oldPrice discountPercent stock status category ' +
@@ -19,7 +19,9 @@ const fmt = (v) => toNum(v).toLocaleString('fa-IR');
 
 const getFinalPrice = (p) => applyPercent(p?.price, p?.discountPercent);
 
-const withPricing = (p) => {
+const withPricing = (raw) => {
+  // ⭐ نمای تخفیف مؤثر (کاتالوگ + کمپین) — روی کپی، نه روی سند کش‌شده
+  const p = withCampaignView(raw);
   const finalPrice = getFinalPrice(p);
   return {
     ...p,
@@ -95,13 +97,14 @@ const getProducts = async (req, res) => {
         Product.countDocuments(filter),
       ]);
 
-      return { data: docs.map(withPricing), total };
+      // ⭐ فقط دادهٔ خام کش می‌شود؛ قیمت بیرون از کش محاسبه می‌شود
+      return { data: docs, total };
     });
 
     res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
     res.json({
       success: true,
-      data: payload.data,
+      data: payload.data.map(withPricing),
       total: payload.total,
       page: pageNum,
       limit: limitNum,
@@ -130,17 +133,16 @@ const getProductBySlugOrId = async (req, res) => {
           .populate('category', 'name slug icon parents')
           .populate({
             path: 'relatedProducts',
-            select: 'name slug mainImage price discountPercent category stock',
+            select: 'name slug mainImage price oldPrice discountPercent sizes category stock',
             populate: { path: 'category', select: 'name slug' },
           })
           .lean();
 
         if (!product) return null;
 
-        const out = withPricing(product);
-        out.relatedProducts = (product.relatedProducts || []).map(withPricing);
+        let related = product.relatedProducts || [];
 
-        if (out.relatedProducts.length === 0) {
+        if (related.length === 0) {
           const categoryId = product.category?._id || product.category;
           if (categoryId) {
             const auto = await Product.find({
@@ -148,15 +150,15 @@ const getProductBySlugOrId = async (req, res) => {
               _id: { $ne: product._id },
               status: 'active',
             })
-              .select('name slug mainImage price discountPercent category stock')
+              .select('name slug mainImage price oldPrice discountPercent sizes category stock')
               .populate('category', 'name slug')
               .sort({ createdAt: -1 })
               .limit(6)
               .lean();
-            out.relatedProducts = auto.map(withPricing);
+            related = auto;
           }
         }
-        return out;
+        return { product, related };
       },
       { negativeTtl: 30 }
     );
@@ -166,11 +168,15 @@ const getProductBySlugOrId = async (req, res) => {
     }
 
     // شمارنده: خارج از چرخهٔ پاسخ، خطایش نباید ریکوئست را بشکند
-    Product.updateOne({ _id: productData._id }, { $inc: { viewsCount: 1 } })
+    Product.updateOne({ _id: productData.product._id }, { $inc: { viewsCount: 1 } })
       .catch((e) => console.error('[viewsCount]', e.message));
 
+    // ⭐ قیمت‌ها بیرون از کش — شروع/پایان کمپین فوراً دیده شود
+    const out = withPricing(productData.product);
+    out.relatedProducts = (productData.related || []).map(withPricing);
+
     res.set('Cache-Control', 'public, max-age=60');
-    res.json({ success: true, data: productData });
+    res.json({ success: true, data: out });
   } catch (error) {
     fail(res, error);
   }

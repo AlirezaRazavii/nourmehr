@@ -1,5 +1,6 @@
 const Campaign = require('../models/Campaign');
 const { delByPrefix, invalidateProductCache, invalidateSeoCache } = require('../utils/cache');
+const { refreshCampaignRegistry } = require('../utils/campaignRegistry');
 
 /**
  * cron کمپین‌ها — فقط کار «نظافتی» می‌کند:
@@ -30,6 +31,9 @@ const runCampaignScheduler = async () => {
       console.log(`[campaignScheduler] «${doc.name?.fa || doc.slug}» : ${doc.status} → ${next}`);
     }
 
+    // ⭐ رجیستری هر دقیقه تازه شود (حتی وقتی وضعیت‌ها عوض نشده‌اند)
+    await refreshCampaignRegistry();
+
     if (changed > 0) {
       delByPrefix('public:campaigns');
       invalidateProductCache();
@@ -44,6 +48,8 @@ const runCampaignScheduler = async () => {
 };
 
 const startCampaignScheduler = () => {
+  // بارگذاری فوری تا اولین درخواست‌ها هم کمپین فعال را ببینند
+  refreshCampaignRegistry().catch(() => {});
   // یک‌بار بعد از بالا آمدن (جبران عقب‌ماندگی وقتی سرور خواب بوده)
   const t = setTimeout(() => runCampaignScheduler(), 10_000);
   if (typeof t.unref === 'function') t.unref();

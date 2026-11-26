@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Campaign = require('../../models/Campaign');
 const Product = require('../../models/Product');
 const { delByPrefix, invalidateProductCache, invalidateSeoCache } = require('../../utils/cache');
+const { refreshCampaignRegistry } = require('../../utils/campaignRegistry');
 
 const MAX_TARGETS = 500;
 const isValidId = (id) => mongoose.Types.ObjectId.isValid(id);
@@ -16,6 +17,8 @@ const slugify = (text) =>
     .replace(/^-|-$/g, '');
 
 const invalidateCampaignCaches = () => {
+  // ⭐ تغییر ادمین فوراً در قیمت‌ها دیده شود (بدون انتظار برای cron)
+  refreshCampaignRegistry().catch(() => {});
   delByPrefix('public:campaigns');
   invalidateProductCache();
   invalidateSeoCache();
