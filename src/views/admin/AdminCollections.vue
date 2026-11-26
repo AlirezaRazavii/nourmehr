@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { adminApi } from '../../services/adminApi'
 import { getImageUrl } from '../../utils/imageUrl'
 import SeoPanel from './SeoPanel.vue'
@@ -16,6 +16,18 @@ const searchQuery = ref('')
 const productSearch = ref('')
 const selectedProductIds = ref([])
 const savingProducts = ref(false)
+
+// ⭐ اعضای فعلی کالکشن — مستقیم از سرور (منبع حقیقت)
+const baselineIds = ref([])
+const membersLoading = ref(false)
+
+// ⭐ صفحه‌بندی و جستجوی سروریِ انتخابگر محصول
+const productPage = ref(1)
+const productPages = ref(1)
+const productTotal = ref(0)
+const productsLoading = ref(false)
+let productSearchTimer = null
+let productsReqSeq = 0
 
 const form = ref({
   name: { fa: '', en: '' }, slug: '', 
@@ -52,14 +64,38 @@ const fetchCollections = async () => {
   loading.value = false
 }
 
-const fetchProducts = async () => {
-  const res = await adminApi.getProducts({ limit: 1000 })
-  if (res.success) allProducts.value = res.data
+// ⭐ جستجو + صفحه‌بندی سمت سرور؛ پاسخ‌های کهنه دور ریخته می‌شوند
+const fetchProducts = async (page = 1) => {
+  const seq = ++productsReqSeq
+  productsLoading.value = true
+  try {
+    const params = { limit: 50, page }
+    if (productSearch.value.trim()) params.search = productSearch.value.trim()
+    const res = await adminApi.getProducts(params)
+    if (seq !== productsReqSeq) return
+    if (res.success) {
+      allProducts.value = res.data
+      productPage.value = res.page || 1
+      productPages.value = res.pages || 1
+      productTotal.value = res.total || 0
+    }
+  } catch (err) {
+    if (seq === productsReqSeq) {
+      alert('خطا در دریافت محصولات: ' + (err.response?.data?.message || err.message))
+    }
+  } finally {
+    if (seq === productsReqSeq) productsLoading.value = false
+  }
 }
+
+watch(productSearch, () => {
+  if (!showProductsModal.value) return
+  clearTimeout(productSearchTimer)
+  productSearchTimer = setTimeout(() => fetchProducts(1), 400)
+})
 
 onMounted(() => {
   fetchCollections()
-  fetchProducts()
 })
 
 const filteredCollections = computed(() => {
@@ -69,15 +105,6 @@ const filteredCollections = computed(() => {
     (c.name?.fa || '').toLowerCase().includes(q) || 
     (c.name?.en || '').toLowerCase().includes(q) || 
     (c.description?.fa || '').toLowerCase().includes(q)
-  )
-})
-
-const filteredProductList = computed(() => {
-  if (!productSearch.value) return allProducts.value
-  const q = productSearch.value.toLowerCase()
-  return allProducts.value.filter(p => 
-    (p.name?.fa || '').toLowerCase().includes(q) || 
-    (p.name?.en || '').toLowerCase().includes(q)
   )
 })
 
@@ -143,14 +170,29 @@ const deleteCollection = async (id) => {
 }
 
 // ───────── مدیریت محصولات کالکشن ─────────
-const openProductsManager = (col) => {
+const openProductsManager = async (col) => {
   managingCollection.value = col
   productSearch.value = ''
-  // محصولاتی که از قبل این کالکشن را دارند، تیک‌خورده باشند
-  selectedProductIds.value = allProducts.value
-    .filter(p => Array.isArray(p.collections) && p.collections.some(c => (c?._id || c) === col._id))
-    .map(p => p._id)
+  selectedProductIds.value = []
+  baselineIds.value = []
+  allProducts.value = []
   showProductsModal.value = true
+  membersLoading.value = true
+  try {
+    // ⭐ اعضا از endpoint اختصاصی گرفته می‌شوند، نه از لیست ناقص محصولات
+    const res = await adminApi.getCollectionProducts(col._id)
+    if (!res.success) throw new Error(res.message || 'خطا در دریافت اعضای کالکشن')
+    baselineIds.value = (res.data || []).map(p => p._id)
+    selectedProductIds.value = [...baselineIds.value]
+  } catch (err) {
+    // بدون دانستن اعضای فعلی، ذخیره ممنوع است (جلوگیری از حذف ناخواسته)
+    showProductsModal.value = false
+    alert('خطا در دریافت اعضای فعلی کالکشن: ' + (err.response?.data?.message || err.message))
+    return
+  } finally {
+    membersLoading.value = false
+  }
+  fetchProducts(1)
 }
 
 const toggleProduct = (id) => {
@@ -161,14 +203,25 @@ const toggleProduct = (id) => {
 
 const isSelected = (id) => selectedProductIds.value.includes(id)
 
+// ⭐ فقط تغییرات (diff) ارسال می‌شود، نه کل لیست
 const saveProducts = async () => {
+  if (membersLoading.value) return
+  const base = new Set(baselineIds.value)
+  const sel = new Set(selectedProductIds.value)
+  const add = [...sel].filter(id => !base.has(id))
+  const remove = [...base].filter(id => !sel.has(id))
+
+  if (add.length === 0 && remove.length === 0) {
+    showProductsModal.value = false
+    return
+  }
+
   savingProducts.value = true
   try {
-    const res = await adminApi.setCollectionProducts(managingCollection.value._id, selectedProductIds.value)
+    const res = await adminApi.setCollectionProducts(managingCollection.value._id, { add, remove })
     if (!res.success) throw new Error(res.message || 'خطا در ذخیره')
     showProductsModal.value = false
     await fetchCollections()
-    await fetchProducts()
   } catch (err) {
     alert('خطا: ' + (err.response?.data?.message || err.message))
   } finally {
@@ -361,11 +414,16 @@ const generateSlug = () => {
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
               <input v-model="productSearch" type="text" placeholder="جستجوی محصول..." />
             </div>
-            <p class="selected-count">{{ selectedProductIds.length }} محصول انتخاب شده</p>
+            <p class="selected-count">
+              {{ selectedProductIds.length }} انتخاب شده
+              <span class="members-count">· {{ baselineIds.length }} عضو فعلی</span>
+            </p>
+
+            <div v-if="productsLoading" class="picker-loading">در حال بارگذاری محصولات...</div>
 
             <div class="product-pick-list">
               <label
-                v-for="p in filteredProductList"
+                v-for="p in allProducts"
                 :key="p._id"
                 class="pick-item"
                 :class="{ picked: isSelected(p._id) }"
@@ -380,14 +438,20 @@ const generateSlug = () => {
                   <span class="pick-cat">{{ p.category?.name?.fa || p.category?.name || '' }}</span>
                 </div>
               </label>
-              <div v-if="filteredProductList.length === 0" class="empty-state" style="grid-column:1/-1">
+              <div v-if="!productsLoading && allProducts.length === 0" class="empty-state" style="grid-column:1/-1">
                 <span>محصولی یافت نشد</span>
               </div>
             </div>
 
+            <div v-if="productPages > 1" class="picker-pagination">
+              <button type="button" class="page-btn" :disabled="productPage <= 1 || productsLoading" @click="fetchProducts(productPage - 1)">قبلی</button>
+              <span class="page-info">صفحه {{ productPage }} از {{ productPages }} — {{ productTotal }} محصول</span>
+              <button type="button" class="page-btn" :disabled="productPage >= productPages || productsLoading" @click="fetchProducts(productPage + 1)">بعدی</button>
+            </div>
+
             <div class="modal-actions">
               <button class="cancel-btn" @click="showProductsModal = false">انصراف</button>
-              <button class="submit-btn" :disabled="savingProducts" @click="saveProducts">
+              <button class="submit-btn" :disabled="savingProducts || membersLoading" @click="saveProducts">
                 {{ savingProducts ? 'در حال ذخیره...' : 'ذخیره محصولات' }}
               </button>
             </div>
@@ -531,6 +595,12 @@ const generateSlug = () => {
 .pick-info { display: flex; flex-direction: column; min-width: 0; }
 .pick-name { font-size: 0.85rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pick-cat { font-size: 0.72rem; opacity: 0.5; }
+.members-count { color: rgba(255,255,255,0.45); font-weight: 400; }
+.picker-loading { font-size: 0.85rem; color: rgba(255,255,255,0.5); }
+.picker-pagination { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.page-btn { padding: 8px 16px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04); color: #fff; font-size: 0.85rem; cursor: pointer; font-family: inherit; }
+.page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.page-info { font-size: 0.8rem; opacity: 0.6; }
 
 .modal-enter-active, .modal-leave-active { transition: all 0.3s ease; }
 .modal-enter-from, .modal-leave-to { opacity: 0; transform: scale(0.95); }

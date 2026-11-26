@@ -33,7 +33,7 @@ const {
     reorderCategories,
 } = require('../controllers/admin/categoryController');
 const { getSettings, updateSettings } = require('../controllers/admin/settingController');
-const { getCollections, createCollection, updateCollection, deleteCollection, setCollectionProducts } = require('../controllers/admin/collectionController');
+const { getCollections, getCollectionProducts, createCollection, updateCollection, deleteCollection, setCollectionProducts } = require('../controllers/admin/collectionController');
 const blogController = require('../controllers/admin/blogController');
 const reviewController = require('../controllers/admin/reviewController');
 const notificationController = require('../controllers/admin/notificationController');
@@ -274,6 +274,7 @@ router.delete('/hero/slides/:slideId', hasPermission(PERMISSIONS.HERO), heroCtrl
 /* -------------------------------- کالکشن‌ها -------------------------------- */
 router.get('/collections', hasPermission(PERMISSIONS.COLLECTIONS), getCollections);
 router.post('/collections', hasPermission(PERMISSIONS.COLLECTIONS), normalizeSeo, createCollection);
+router.get('/collections/:id/products', hasPermission(PERMISSIONS.COLLECTIONS), getCollectionProducts);
 router.put('/collections/:id/products', hasPermission(PERMISSIONS.COLLECTIONS), setCollectionProducts);
 router.put('/collections/:id', hasPermission(PERMISSIONS.COLLECTIONS), normalizeSeo, updateCollection);
 router.delete('/collections/:id', hasPermission(PERMISSIONS.COLLECTIONS), deleteCollection);

@@ -231,8 +231,13 @@ export const adminApi = {
     return res.data
   },
 
-  async setCollectionProducts(id, productIds) {
-    const res = await api.put(`/admin/collections/${id}/products`, { productIds })
+  async getCollectionProducts(id) {
+    const res = await api.get(`/admin/collections/${id}/products`)
+    return res.data
+  },
+
+  async setCollectionProducts(id, { add = [], remove = [] }) {
+    const res = await api.put(`/admin/collections/${id}/products`, { add, remove })
     return res.data
   },
 
