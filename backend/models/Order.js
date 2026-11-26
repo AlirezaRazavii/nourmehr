@@ -7,7 +7,11 @@ const orderItemSchema = new mongoose.Schema({
   quantity: { type: Number, required: true, min: 1 },
   color: String,
   size: String,
-  image: String
+  image: String,
+  // ⭐ اسنپ‌شات تخفیف هنگام ثبت سفارش (بدون default — نبودِ فیلد = سفارش قدیمی)
+  originalPrice: Number,
+  discountPercent: Number,
+  discountSource: String // 'size' | 'product' | 'none'
 });
 
 const shippingInfoSchema = new mongoose.Schema({
@@ -33,6 +37,8 @@ const orderSchema = new mongoose.Schema({
   discountAmount: { type: Number, default: 0, min: 0 },
   discountCode: { type: String, default: null, trim: true, uppercase: true },
   discountConsumed: { type: Boolean, default: false },
+  // ⭐ تصمیم قفل‌شدهٔ درگاه اعتباری در لحظه ثبت (بدون default — قدیمی‌ها undefined)
+  creditBlocked: Boolean,
   shippingCost: { type: Number, required: true, min: 0 },
   total: { type: Number, required: true, min: 0 },
   status: {

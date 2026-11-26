@@ -9,6 +9,11 @@ const {
   rollbackDiscountForOrder,
 } = require('../utils/discountEngine');
 const { resolveUnitPrice } = require('../utils/pricing');
+const {
+  CREDIT_PAYMENT_METHODS,
+  blocksCredit,
+  buildBlockMessage,
+} = require('../utils/paymentPolicy');
 
 const generateOrderRef = () => 'NM-' + Date.now();
 
@@ -136,20 +141,29 @@ const createOrder = async (req, res) => {
     let originalSubtotal = 0; // قیمت اصلی (قبل از تخفیف محصول) — گزارش/دیتا
     const orderItems = [];
     const engineItems = []; // ⭐ اقلام به زبان موتور تخفیف (دسته‌ها + قیمت‌ها)
+    const creditBlockedItems = []; // ⭐ اقلامی که تخفیفشان از حد مجاز درگاه اعتباری بیشتر است
     for (const item of cart.items) {
       const product = item.product;
       if (!product) continue;
       if (product.stock < item.quantity) {
         return res.status(400).json({ success: false, message: `موجودی محصول ${product.name} کافی نیست` });
       }
-      const unitPrice = getUnitPrice(product, item.size);
+      const r = resolveUnitPrice(product, item.size);
+      const unitPrice = r.final;
       subtotal += unitPrice * item.quantity;
-      originalSubtotal += getOriginalUnitPrice(product, item.size) * item.quantity;
+      originalSubtotal += r.original * item.quantity;
+      if (blocksCredit(r.percent)) {
+        creditBlockedItems.push({
+          name: getLocalizedName(product.name),
+          size: item.size || '',
+          percent: r.percent,
+        });
+      }
       engineItems.push({
         productId: String(product._id),
         quantity: item.quantity,
         unitPrice,
-        originalUnitPrice: getOriginalUnitPrice(product, item.size),
+        originalUnitPrice: r.original,
         categories: [String(product.category)].filter(Boolean),
       });
       orderItems.push({
@@ -160,7 +174,11 @@ const createOrder = async (req, res) => {
         quantity: item.quantity,
         color: item.color || '',
         size: item.size || '',
-        image: product.mainImage || ''
+        image: product.mainImage || '',
+        // ⭐ اسنپ‌شات تخفیف — مبنای گیت درگاه و گزارش‌های بعدی
+        originalPrice: r.original,
+        discountPercent: r.percent,
+        discountSource: r.source
       });
     }
 
@@ -185,6 +203,15 @@ const createOrder = async (req, res) => {
       } catch (err) {
         return res.status(err.statusCode || 400).json({ success: false, message: err.message });
       }
+    }
+
+    // ⭐ قفل درگاه اعتباری بر اساس آستانه تخفیف (کد تخفیف لحاظ نمی‌شود)
+    const creditBlocked = creditBlockedItems.length > 0;
+    if (creditBlocked && CREDIT_PAYMENT_METHODS.includes(paymentMethod)) {
+      return res.status(400).json({
+        success: false,
+        message: buildBlockMessage(creditBlockedItems, paymentMethod),
+      });
     }
 
     const shippingCost = await calculateShippingCost(shippingMethod);
@@ -258,6 +285,9 @@ const createOrder = async (req, res) => {
         paymentStatus: 'pending'
       });
     }
+
+    // ⭐ قفل تصمیم درگاه روی خود سفارش (سفارش‌های قدیمی undefined می‌مانند)
+    order.creditBlocked = creditBlocked;
 
     // اعتبارسنجی کامل «قبل از» رزرو موجودی
     await order.validate();

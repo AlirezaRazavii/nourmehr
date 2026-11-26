@@ -1,6 +1,7 @@
 const Cart = require('../models/Cart');
 const Product = require('../models/Product');
 const { resolveUnitPrice } = require('../utils/pricing');
+const { resolvePaymentPolicy } = require('../utils/paymentPolicy');
 
 
 const getUnitPrice = (product, sizeName) => resolveUnitPrice(product, sizeName).final;
@@ -34,9 +35,19 @@ const getCart = async (req, res) => {
     // هزینه ارسال در مرحله checkout محاسبه می‌شود، نه اینجا
     const shippingCost = 0;
     const total = subtotal;
+    // ⭐ سیاست درگاه + ساعت سرور (برای تایمرهای کمپین در فاز بعد)
+    const policy = resolvePaymentPolicy(cart.items);
     res.json({
       success: true,
-      cart: { items: cartItems, subtotal, shippingCost, discount: 0, total }
+      cart: {
+        items: cartItems,
+        subtotal,
+        shippingCost,
+        discount: 0,
+        total,
+        ...policy,
+        serverTime: Date.now()
+      }
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

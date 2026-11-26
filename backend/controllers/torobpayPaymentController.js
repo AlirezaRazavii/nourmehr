@@ -158,6 +158,11 @@ const initiateTorobPayPayment = async (req, res) => {
     if (NON_PAYABLE_STATUSES.includes(order.status)) {
       return res.status(400).json({ success: false, message: 'این سفارش لغو شده و قابل پرداخت نیست' });
     }
+    // ⭐ قفل درگاه اعتباری بر اساس آستانه تخفیف (دفاع مستقل از فرانت)
+    const creditGate = await assertCreditGatewayAllowed(order);
+    if (!creditGate.allowed) {
+      return res.status(400).json({ success: false, message: creditGate.message });
+    }
     if (!isAmountInRange(order.total)) {
       return res.status(400).json({
         success: false,
