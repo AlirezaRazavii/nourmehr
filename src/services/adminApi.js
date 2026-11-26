@@ -241,6 +241,32 @@ export const adminApi = {
     return res.data
   },
 
+  /* ------------------------------ کمپین‌ها ------------------------------ */
+  async getCampaigns() {
+    const res = await api.get('/admin/campaigns')
+    return res.data
+  },
+
+  async getCampaignById(id) {
+    const res = await api.get(`/admin/campaigns/${id}`)
+    return res.data
+  },
+
+  async createCampaign(data) {
+    const res = await api.post('/admin/campaigns', data)
+    return res.data
+  },
+
+  async updateCampaign(id, data) {
+    const res = await api.put(`/admin/campaigns/${id}`, data)
+    return res.data
+  },
+
+  async deleteCampaign(id) {
+    const res = await api.delete(`/admin/campaigns/${id}`)
+    return res.data
+  },
+
   async updateUserPermissions(id, permissions) {
     const res = await api.put(`/admin/users/${id}/permissions`, { permissions })
     return res.data

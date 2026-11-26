@@ -112,6 +112,7 @@ const routes = [
       { path: 'settings', name: 'AdminSettings', component: AdminSettings },
       { path: 'categories', name: 'AdminCategories', component: () => import('./views/admin/AdminCategories.vue') },
       { path: 'collections', name: 'AdminCollections', component: () => import('./views/admin/AdminCollections.vue') },
+      { path: 'campaigns', name: 'AdminCampaigns', component: () => import('./views/admin/AdminCampaigns.vue') },
       { path: 'reviews', name: 'AdminReviews', component: () => import('./views/admin/AdminReviews.vue') },
       { path: 'admins', name: 'AdminAdmins', component: () => import('./views/admin/AdminAdmins.vue') },
       { path: 'hero', name: 'AdminHero', component: AdminHero, meta: { title: 'مدیریت هیرو' } },
