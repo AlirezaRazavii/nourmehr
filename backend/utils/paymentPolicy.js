@@ -69,7 +69,7 @@ const buildBlockMessage = (blocking, method, totalItems = 0) => {
   const label = METHOD_LABELS[method] || 'درگاه اعتباری';
   const list = blocking || [];
   const th = fa(CREDIT_BLOCK_THRESHOLD);
-  const rule = `${label} برای تخفیف‌های ${th}٪ و بیشتر قابل استفاده نیست.`;
+  const rule = `${label} به دلیل کسر کارمزد، برای تخفیف‌های ${th}٪ و بیشتر قابل استفاده نیست.`;
 
   if (!list.length) {
     return `برخی اقلام سبد شما ${th}٪ یا بیشتر تخفیف دارند. ${rule} لطفاً «پرداخت آنلاین» را انتخاب کنید.`;
