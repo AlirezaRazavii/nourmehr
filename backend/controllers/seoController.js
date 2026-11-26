@@ -10,6 +10,7 @@ const Collection = require('../models/Collection');
 const Category = require('../models/Category');
 const BlogCategory = require('../models/BlogCategory');
 const { getOrSet } = require('../utils/cache');
+const { applyPercent } = require('../utils/pricing');
 
 const SITE_URL = (process.env.SITE_URL || 'https://nourmehr.ir').replace(/\/+$/, '');
 
@@ -682,7 +683,7 @@ exports.productBotRenderer = async (req, res, next) => {
     // قیمت نهایی با تخفیف + موجودی واقعی
     const basePrice = Number(product.price) || 0;
     const discount = Number(product.discountPercent) || 0;
-    const finalPrice = discount > 0 && discount < 100 ? Math.round(basePrice * (1 - discount / 100)) : basePrice;
+    const finalPrice = applyPercent(basePrice, discount);
     const inStock = product.status === 'active' && Number(product.stock || 0) > 0;
 
     const head = metaTags({
@@ -1305,11 +1306,7 @@ const buildProductsHtml = async (lang, categorySlug) => {
   });
 
   const num = (n) => Number(n).toLocaleString(lang === 'fa' ? 'fa-IR' : 'en-US');
-  const finalPrice = (p) => {
-    const base = Number(p.price) || 0;
-    const d = Number(p.discountPercent) || 0;
-    return d > 0 && d < 100 ? Math.round(base * (1 - d / 100)) : base;
-  };
+  const finalPrice = (p) => applyPercent(p.price, p.discountPercent);
 
   const items = products.map((p) => {
     const name = pick(p.name, lang);

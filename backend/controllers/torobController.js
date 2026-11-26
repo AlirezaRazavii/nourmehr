@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const mongoose = require('mongoose');
 const Product = require('../models/Product');
 const { getOrSet } = require('../utils/cache');
+const { resolveWithSize, applyPercent } = require('../utils/pricing');
 
 const IS_PROD = process.env.NODE_ENV === 'production';
 
@@ -58,32 +59,25 @@ const formatProductForTorob = (product) => {
   );
 
   let basePrice = toNum(product.price);
-  let discount = toNum(product.discountPercent);
   let sizeStockSum = 0;
   let sizeBased = false;
+  let finalPrice = applyPercent(product.price, product.discountPercent);
 
   if (sizes.length > 0) {
     sizeBased = true;
 
-    /* قیمت نهایی هر سایز با تخفیف «خودش» — مستقل، بدون تداخل */
-    const sizeFinal = (s) => {
-      const p = toNum(s.price);
-      const d = toNum(s.discountPercent);
-      return d > 0 && d < 100 ? Math.round(p * (1 - d / 100)) : p;
-    };
-
     /* ارزان‌ترین سایزِ موجود؛ اگر هیچ سایزی موجود نیست: ارزان‌ترین همه */
     const inStockSizes = sizes.filter((s) => toNum(s.stock) > 0);
     const pool = inStockSizes.length > 0 ? inStockSizes : sizes;
-    const cheapest = pool.reduce((a, b) => (sizeFinal(a) <= sizeFinal(b) ? a : b));
+    const cheapest = pool.reduce((a, b) =>
+      resolveWithSize(product, a).final <= resolveWithSize(product, b).final ? a : b
+    );
 
-    basePrice = toNum(cheapest.price);
-    discount = toNum(cheapest.discountPercent);
+    const r = resolveWithSize(product, cheapest);
+    basePrice = r.original;
+    finalPrice = r.final;
     sizeStockSum = sizes.reduce((sum, s) => sum + toNum(s.stock), 0);
   }
-
-  const finalPrice =
-    discount > 0 && discount < 100 ? Math.round(basePrice * (1 - discount / 100)) : basePrice;
 
   /* old_price:
      - سایزدار: قیمت اصلی همان سایز

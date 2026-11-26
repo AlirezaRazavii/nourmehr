@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const { seoSchema } = require('./shared/seoSchema');
+const { applyPercent } = require('../utils/pricing');
 
 const localizedShort = (max) => ({
   fa: { type: String, trim: true, maxlength: max, default: '' },
@@ -179,9 +180,7 @@ const productSchema = new mongoose.Schema(
 
 /* ---------------------------------- Virtuals -------------------------------- */
 productSchema.virtual('finalPrice').get(function () {
-  const price = Number(this.price) || 0;
-  const d = Number(this.discountPercent) || 0;
-  return d > 0 && d < 100 ? Math.round(price * (1 - d / 100)) : price;
+  return applyPercent(this.price, this.discountPercent);
 });
 
 productSchema.virtual('inStock').get(function () {

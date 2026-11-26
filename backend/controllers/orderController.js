@@ -8,6 +8,7 @@ const {
   consumeDiscountForOrder,
   rollbackDiscountForOrder,
 } = require('../utils/discountEngine');
+const { resolveUnitPrice } = require('../utils/pricing');
 
 const generateOrderRef = () => 'NM-' + Date.now();
 
@@ -24,43 +25,11 @@ const getLocalizedName = (name) => {
   return name.fa || name.en || '';
 };
 
-// قیمت واحد با احتساب سایز انتخابی و تخفیف درصدی محصول
-const getUnitPrice = (product, sizeName) => {
-  let base = product.price;
-  let sizeDiscount = 0;
-  if (sizeName && Array.isArray(product.sizes)) {
-    const s = product.sizes.find(x => {
-      if (!x || !x.name) return false;
-      // نام سایز ممکن است رشته یا آبجکت دوزبانه باشد
-      if (typeof x.name === 'string') return x.name === sizeName;
-      return x.name.fa === sizeName || x.name.en === sizeName;
-    });
-    if (s) {
-      if (s.price) base = s.price;
-      if (s.discountPercent && s.discountPercent > 0) sizeDiscount = s.discountPercent;
-    }
-  }
-  if (sizeDiscount > 0) {
-    return Math.round(base * (1 - sizeDiscount / 100));
-  }
-  if (product.discountPercent && product.discountPercent > 0) {
-    return Math.round(base * (1 - product.discountPercent / 100));
-  }
-  return base;
-};
+// قیمت واحد با احتساب سایز انتخابی و تخفیف درصدی محصول/سایز
+const getUnitPrice = (product, sizeName) => resolveUnitPrice(product, sizeName).final;
 
 // قیمت واحد «اصلی» (بدون تخفیف محصول/سایز) — پایه محاسبه درصد کد تخفیف
-const getOriginalUnitPrice = (product, sizeName) => {
-  if (sizeName && Array.isArray(product.sizes)) {
-    const s = product.sizes.find(x => {
-      if (!x || !x.name) return false;
-      if (typeof x.name === 'string') return x.name === sizeName;
-      return x.name.fa === sizeName || x.name.en === sizeName;
-    });
-    if (s && s.price) return s.price;
-  }
-  return product.price;
-};
+const getOriginalUnitPrice = (product, sizeName) => resolveUnitPrice(product, sizeName).original;
 
 // محاسبه پویا و پایداری هزینه ارسال بر اساس تنظیمات دیتابیس
 const calculateShippingCost = async (methodId) => {

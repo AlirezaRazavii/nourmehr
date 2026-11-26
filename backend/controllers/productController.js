@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Product = require('../models/Product');
 const Category = require('../models/Category');
 const { getOrSet, KEYS } = require('../utils/cache');
+const { applyPercent } = require('../utils/pricing');
 
 const LIST_FIELDS =
   'name slug mainImage price oldPrice discountPercent stock status category ' +
@@ -16,12 +17,7 @@ const toNum = (v) => {
 
 const fmt = (v) => toNum(v).toLocaleString('fa-IR');
 
-const getFinalPrice = (p) => {
-  const price = toNum(p?.price);
-  const d = toNum(p?.discountPercent);
-  if (d > 0 && d < 100) return Math.round(price * (1 - d / 100));
-  return price;
-};
+const getFinalPrice = (p) => applyPercent(p?.price, p?.discountPercent);
 
 const withPricing = (p) => {
   const finalPrice = getFinalPrice(p);

@@ -1,20 +1,19 @@
 const Collection = require('../models/Collection');
 const Product = require('../models/Product');
 const { getOrSet } = require('../utils/cache');
+const { getPriceInfo } = require('../utils/pricing');
 
-const getFinalPrice = (product) => {
-  if (product.discountPercent && product.discountPercent > 0) {
-    return product.price * (1 - product.discountPercent / 100);
-  }
-  return product.price;
+// قیمت سایز-آگاه: ارزان‌ترین سایزِ تخفیف‌خورده (مطابق کارت محصولات و سبد)
+const formatProduct = (p) => {
+  const info = getPriceInfo(p);
+  return {
+    ...p,
+    finalPrice: info.minPrice,
+    priceFormatted: Number(p.price || 0).toLocaleString('fa-IR'),
+    finalPriceFormatted: Number(info.minPrice || 0).toLocaleString('fa-IR'),
+    priceInfo: info
+  };
 };
-
-const formatProduct = (p) => ({
-  ...p,
-  finalPrice: getFinalPrice(p),
-  priceFormatted: Number(p.price || 0).toLocaleString('fa-IR'),
-  finalPriceFormatted: getFinalPrice(p).toLocaleString('fa-IR')
-});
 
 // لیست همه کالکشن‌های فعال (برای منو یا صفحه فهرست کالکشن‌ها)
 const getCollections = async (req, res) => {
