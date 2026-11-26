@@ -210,7 +210,7 @@ const createOrder = async (req, res) => {
     if (creditBlocked && CREDIT_PAYMENT_METHODS.includes(paymentMethod)) {
       return res.status(400).json({
         success: false,
-        message: buildBlockMessage(creditBlockedItems, paymentMethod),
+        message: buildBlockMessage(creditBlockedItems, paymentMethod, orderItems.length),
       });
     }
 

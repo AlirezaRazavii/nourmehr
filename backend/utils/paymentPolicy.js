@@ -44,16 +44,58 @@ const blocksCredit = (percent) => {
   return p > 0 && p >= CREDIT_BLOCK_THRESHOLD;
 };
 
-// پیام گویا برای کاربر: نام اقلام + درصد + دو راه‌حل
-const buildBlockMessage = (blocking, method) => {
+// اگر نام سایز خودش با «سایز» شروع شود، پیشوند تکراری اضافه نکن
+const sizeLabel = (size) => {
+  const s = String(size || '').trim();
+  if (!s) return '';
+  return s.startsWith('سایز') ? s : `سایز ${s}`;
+};
+
+const itemLabel = (b) => {
+  const sz = sizeLabel(b.size);
+  return `«${b.name}${sz ? ` — ${sz}` : ''}»`;
+};
+
+/**
+ * پیام گویا برای کاربر.
+ * @param {Array} blocking   اقلام مسدودکننده
+ * @param {string} method    درگاه انتخابی
+ * @param {number} totalItems تعداد کل اقلام سبد/سفارش
+ *
+ * پیشنهاد «تفکیک سفارش» فقط وقتی داده می‌شود که حداقل یک قلمِ آزاد در سبد باشد؛
+ * برای سبد تک‌قلمی (یا سبدی که همه اقلامش مسدودند) تفکیک بی‌معنی است.
+ */
+const buildBlockMessage = (blocking, method, totalItems = 0) => {
   const label = METHOD_LABELS[method] || 'درگاه اعتباری';
-  const list = (blocking || [])
-    .map((b) => `«${b.name}${b.size ? ` — سایز ${b.size}` : ''}» با ${fa(b.percent)}٪ تخفیف`)
-    .join('، ');
-  const head = list
-    ? `تخفیف ${list} از حد مجاز ${fa(CREDIT_BLOCK_THRESHOLD)}٪ برای ${label} بیشتر است.`
-    : `برخی اقلام سبد شما بیش از حد مجاز ${fa(CREDIT_BLOCK_THRESHOLD)}٪ تخفیف دارند.`;
-  return `${head} برای خرید این اقلام یا «پرداخت آنلاین» را انتخاب کنید، یا آن‌ها را از این سبد جدا کرده و در دو سفارش جداگانه ثبت کنید.`;
+  const list = blocking || [];
+  const th = fa(CREDIT_BLOCK_THRESHOLD);
+  const rule = `${label} برای تخفیف‌های ${th}٪ و بیشتر قابل استفاده نیست.`;
+
+  if (!list.length) {
+    return `برخی اقلام سبد شما ${th}٪ یا بیشتر تخفیف دارند. ${rule} لطفاً «پرداخت آنلاین» را انتخاب کنید.`;
+  }
+
+  const canSplit = Number(totalItems) > list.length;
+  const single = list.length === 1;
+
+  const head = single
+    ? `تخفیف ${itemLabel(list[0])} ${fa(list[0].percent)}٪ است. ${rule}`
+    : `تخفیف این اقلام ${th}٪ یا بیشتر است: ${list
+        .map((b) => `${itemLabel(b)} با ${fa(b.percent)}٪`)
+        .join('، ')}. ${rule}`;
+
+  let solution;
+  if (canSplit) {
+    solution = single
+      ? 'برای خرید این محصول یا «پرداخت آنلاین» را انتخاب کنید، یا آن را در یک سفارش جداگانه ثبت کنید.'
+      : 'برای خرید این اقلام یا «پرداخت آنلاین» را انتخاب کنید، یا آن‌ها را از بقیه سبد جدا کرده و در دو سفارش جداگانه ثبت کنید.';
+  } else {
+    solution = single
+      ? 'برای خرید این محصول «پرداخت آنلاین» را انتخاب کنید.'
+      : 'برای خرید این اقلام «پرداخت آنلاین» را انتخاب کنید.';
+  }
+
+  return `${head} ${solution}`;
 };
 
 // اقلام مسدودکننده از سبد زنده
@@ -73,12 +115,14 @@ const blockingFromCart = (cartItems = []) => {
 // سیاست کامل برای فرانت (مرحله بعد از آن استفاده می‌کند)
 const resolvePaymentPolicy = (cartItems = []) => {
   const blocking = blockingFromCart(cartItems);
+  // فقط اقلامی که محصولشان موجود است شمرده شوند (هم‌مبنای blockingFromCart)
+  const totalItems = (cartItems || []).filter((i) => i && i.product).length;
   return {
     creditBlockThreshold: CREDIT_BLOCK_THRESHOLD,
     creditBlocked: blocking.length > 0,
     creditBlockedItems: blocking,
     allowedPaymentMethods: blocking.length ? ['online'] : [...ALL_PAYMENT_METHODS],
-    creditBlockMessage: blocking.length ? buildBlockMessage(blocking, null) : '',
+    creditBlockMessage: blocking.length ? buildBlockMessage(blocking, null, totalItems) : '',
   };
 };
 
@@ -106,19 +150,28 @@ const blockingFromOrderLive = async (order) => {
 const assertCreditGatewayAllowed = async (order) => {
   if (!CREDIT_PAYMENT_METHODS.includes(order.paymentMethod)) return { allowed: true };
 
+  const orderItems = order.items || [];
+
   // تصمیمِ قفل‌شده در لحظه ثبت سفارش، ملاک نهایی است
   if (typeof order.creditBlocked === 'boolean') {
     if (!order.creditBlocked) return { allowed: true };
-    const blocking = (order.items || [])
-      .filter((i) => Number(i.discountPercent) > 0)
+    // ⭐ فقط اقلامی که واقعاً از آستانه گذشته‌اند (نه هر تخفیفی)
+    const blocking = orderItems
+      .filter((i) => blocksCredit(i.discountPercent))
       .map((i) => ({ name: i.name || '', size: i.size || '', percent: Number(i.discountPercent) }));
-    return { allowed: false, message: buildBlockMessage(blocking, order.paymentMethod) };
+    return {
+      allowed: false,
+      message: buildBlockMessage(blocking, order.paymentMethod, orderItems.length),
+    };
   }
 
   // سفارش قدیمی (قبل از این آپدیت) → محاسبه زنده
   const blocking = await blockingFromOrderLive(order);
   return blocking.length
-    ? { allowed: false, message: buildBlockMessage(blocking, order.paymentMethod) }
+    ? {
+        allowed: false,
+        message: buildBlockMessage(blocking, order.paymentMethod, orderItems.length),
+      }
     : { allowed: true };
 };
 
