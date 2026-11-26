@@ -1054,11 +1054,7 @@ const buildHomeHtml = async (lang) => {
   });
 
   const num = (n) => Number(n).toLocaleString(lang === 'fa' ? 'fa-IR' : 'en-US');
-  const finalPrice = (p) => {
-    const base = Number(p.price) || 0;
-    const d = Number(p.discountPercent) || 0;
-    return d > 0 && d < 100 ? Math.round(base * (1 - d / 100)) : base;
-  };
+  const finalPrice = (p) => applyPercent(p.price, p.discountPercent);
 
   const catItems = categories.map((c) =>
     `<li><a href="/${lang}/products?category=${escapeHtml(c.slug)}">${escapeHtml(pick(c.name, lang))}</a></li>`

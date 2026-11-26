@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useProductStore } from '../stores/products'
+import { getProductPriceInfo, getProductDiscountPercent } from '../utils/productPrice'
 
 const productStore = useProductStore()
 const route = useRoute()
@@ -51,11 +52,11 @@ const filteredProducts = computed(() => {
   
   // مرتب‌سازی
   if (sortBy.value === 'price-low') {
-    result = [...result].sort((a, b) => (a.price || 0) - (b.price || 0))
+    result = [...result].sort((a, b) => getProductPriceInfo(a).minPrice - getProductPriceInfo(b).minPrice)
   } else if (sortBy.value === 'price-high') {
-    result = [...result].sort((a, b) => (b.price || 0) - (a.price || 0))
+    result = [...result].sort((a, b) => getProductPriceInfo(b).minPrice - getProductPriceInfo(a).minPrice)
   } else if (sortBy.value === 'discount') {
-    result = [...result].sort((a, b) => (b.discountPercent || b.discount || 0) - (a.discountPercent || a.discount || 0))
+    result = [...result].sort((a, b) => getProductDiscountPercent(b) - getProductDiscountPercent(a))
   }
   
   return result
@@ -162,8 +163,8 @@ watch(() => route.query.search, (newSearch) => {
             
             <div class="card-footer">
               <div class="price-block">
-                <span v-if="product.oldPrice" class="old-price">{{ product.oldPriceFormatted || Number(product.oldPrice).toLocaleString('fa-IR') }}</span>
-                <span class="current-price">{{ product.priceFormatted || Number(product.price).toLocaleString('fa-IR') }} تومان</span>
+                <span v-if="getProductPriceInfo(product).oldPrice" class="old-price">{{ Number(getProductPriceInfo(product).oldPrice).toLocaleString('fa-IR') }}</span>
+                <span class="current-price">{{ Number(getProductPriceInfo(product).minPrice).toLocaleString('fa-IR') }} تومان</span>
               </div>
             </div>
           </div>

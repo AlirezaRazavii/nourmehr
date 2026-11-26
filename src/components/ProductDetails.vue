@@ -9,7 +9,8 @@ import { useAuth } from '../stores/auth'
 import { useWishlist } from '../stores/wishlist'
 
 import { getProductImages, getImageUrl } from '../utils/imageUrl'
-import { getProductPriceInfo } from '../utils/productPrice'
+import { getProductPriceInfo, getProductDiscountPercent } from '../utils/productPrice'
+import { resolveWithSize, resolveUnitPrice } from '../utils/pricing'
 import api from '../services/api'
 import { setProductSeo, resetSeoMeta } from '../utils/seoMeta'
 
@@ -53,6 +54,7 @@ const formatPrice = (n) =>
 
 // اطلاعات قیمت کارت‌های محصولات مرتبط (مثل کارت صفحه محصولات)
 const getPriceInfo = (p) => getProductPriceInfo(p)
+const badgePercent = (p) => getProductDiscountPercent(p)
 
 const getLocalizedText = (value) => {
   if (!value) return ''
@@ -126,40 +128,13 @@ const sizeList = computed(() =>
   }))
 )
 
-const displayUnitPrice = computed(() => {
-  const p = product.value
-  if (!p) return 0
-  let base = p.price
-  let sizeDiscount = 0
-  const s = sizeList.value.find((x) => x.name === selectedSize.value)
-  if (s) {
-    if (s.price) base = s.price
-    if (s.discountPercent > 0) sizeDiscount = s.discountPercent
-  }
-  if (sizeDiscount > 0) return Math.round(base * (1 - sizeDiscount / 100))
-  if (p.discountPercent > 0) return Math.round(base * (1 - p.discountPercent / 100))
-  return base
-})
+// ⭐ قیمت‌ها از تنها مرجع محاسبه خوانده می‌شوند (هم‌قانون با بک‌اند/سبد/سفارش)
+const resolvedPrice = computed(() => resolveUnitPrice(product.value, selectedSize.value || null))
 
-const originalUnitPrice = computed(() => {
-  const p = product.value
-  if (!p) return 0
-  const s = sizeList.value.find((x) => x.name === selectedSize.value)
-  return s && s.price ? s.price : p.price
-})
-
-const selectedSizeDiscount = computed(() => {
-  const s = sizeList.value.find((x) => x.name === selectedSize.value)
-  return s && s.discountPercent ? s.discountPercent : 0
-})
-
-
+const displayUnitPrice = computed(() => resolvedPrice.value.final)
+const originalUnitPrice = computed(() => resolvedPrice.value.original)
 // درصد تخفیف مؤثر: اول تخفیف سایز انتخابی، وگرنه تخفیف خود محصول
-const effectiveDiscount = computed(() => {
-  if (selectedSizeDiscount.value > 0) return selectedSizeDiscount.value
-  const d = Number(product.value?.discountPercent) || 0
-  return d > 0 && d < 100 ? d : 0
-})
+const effectiveDiscount = computed(() => resolvedPrice.value.percent)
 
 // ✦ تضمین انتخاب سایز — قلبِ رفع باگ:
 // هر وقت لیست سایزها آماده یا تغییر کند، اگر سایزِ انتخاب‌شده در آن نبود
@@ -519,8 +494,8 @@ watch(locale, () => {
             @pointercancel="onGalleryCancel"
           >
             <div class="image-glow"></div>
-            <span v-if="product.discountPercent" class="discount-badge">
-              {{ formatPrice(product.discountPercent) }}% {{ $t('product_discount') }}
+            <span v-if="effectiveDiscount > 0" class="discount-badge">
+              {{ formatPrice(effectiveDiscount) }}% {{ $t('product_discount') }}
             </span>
             <Transition name="image-fade" mode="out-in">
               <img
@@ -636,7 +611,7 @@ watch(locale, () => {
                 type="button"
                 @click="selectedSize = s.name"
                 :class="{ active: selectedSize === s.name }"
-              >{{ s.name }}<span v-if="s.price" class="size-price"> — {{ formatPrice(s.price) }} {{ $t('products_currency') }}</span><span v-if="s.discountPercent > 0" class="size-discount-tag">{{ $t('product_discount_off', { percent: formatPrice(s.discountPercent) }) }}</span></button>
+              >{{ s.name }}<span v-if="s.originalPrice > 0" class="size-price"> — <s v-if="s.hasDiscount" class="size-price-old">{{ formatPrice(s.originalPrice) }}</s> {{ formatPrice(s.finalPrice) }} {{ $t('products_currency') }}</span><span v-if="s.percent > 0" class="size-discount-tag">{{ $t('product_discount_off', { percent: formatPrice(s.percent) }) }}</span></button>
             </div>
           </div>
 
@@ -858,7 +833,7 @@ watch(locale, () => {
                   :alt="getLocalizedText(item.name)"
                   loading="lazy"
                 />
-                <div v-if="item.discountPercent" class="discount-tag">{{ formatPrice(item.discountPercent) }}%</div>
+                <div v-if="badgePercent(item) > 0" class="discount-tag">{{ formatPrice(badgePercent(item)) }}%</div>
                 <div class="card-badge">
                   <span>{{ getLocalizedText(item.category?.name || item.category) }}</span>
                 </div>
@@ -1003,6 +978,7 @@ watch(locale, () => {
 .sizes-list button { padding: 8px 18px !important; border-radius: 10px !important; cursor: pointer; border: 1px solid rgba(255,255,255,0.2) !important; background: rgba(15,23,42,0.8) !important; color: #fff !important; font-family: inherit; font-size: 0.9rem; transition: border-color 0.2s, background 0.2s, color 0.2s; }
 .sizes-list button.active { border: 2px solid #c5a059 !important; background: rgba(197,160,89,0.15) !important; color: #facc6b !important; }
 .size-price { opacity: 0.7; font-size: 0.8rem; }
+.size-price-old { opacity: 0.55; text-decoration: line-through; margin-inline-end: 4px; font-size: 0.75rem; }
 .size-discount-tag { display: inline-block; margin-inline-start: 6px; padding: 2px 8px; border-radius: 999px; background: rgba(239,68,68,0.15); color: #fca5a5; font-size: 0.7rem; font-weight: 600; }
 /* ---- نوت سفارشی محصول ---- */
 .product-notice { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border-radius: 14px; animation: noticeIn 0.5s cubic-bezier(0.16,1,0.3,1) both; }
