@@ -369,7 +369,7 @@ const removeRelatedProduct = (pid) => {
 /* ---------------------------- Sizes & Colors ---------------------------- */
 const addColor = () => form.value.colors.push({ name: { fa: '', en: '' }, value: '#c5a059' })
 const removeColor = (i) => form.value.colors.splice(i, 1)
-const addSize = () => form.value.sizes.push({ name: { fa: '', en: '' }, price: '', discountPercent: '' })
+const addSize = () => form.value.sizes.push({ name: { fa: '', en: '' }, price: '', discountPercent: '', stock: '' })
 const removeSize = (i) => form.value.sizes.splice(i, 1)
 
 /* ------------------------------- Modal I/O ------------------------------- */
@@ -444,7 +444,8 @@ const openEdit = async (product) => {
       sizes: Array.isArray(p.sizes)
         ? p.sizes.map(s => ({
             name: { fa: s.name?.fa || '', en: s.name?.en || '' },
-            price: s.price ?? '', discountPercent: s.discountPercent ?? ''
+            price: s.price ?? '', discountPercent: s.discountPercent ?? '',
+            stock: s.stock ?? ''
           }))
         : [],
       colors: Array.isArray(p.colors)
@@ -636,7 +637,8 @@ const buildPayload = () => {
       .map(s => ({
         name: { fa: s.name.fa.trim(), en: String(s.name.en || '').trim() },
         price: Number(s.price) || 0,
-        discountPercent: Math.min(Math.max(Number(s.discountPercent) || 0, 0), 100)
+        discountPercent: Math.min(Math.max(Number(s.discountPercent) || 0, 0), 100),
+        stock: Math.max(0, parseInt(s.stock, 10) || 0)
       })),
     colors: (form.value.colors || [])
       .filter(c => c?.name?.fa?.trim())
@@ -1093,6 +1095,7 @@ onUnmounted(() => {
                       <input v-model="s.name.en" type="text" class="form-input" placeholder="Size Name (EN)" dir="ltr" />
                     </div>
                     <input v-model="s.price" type="number" min="0" class="form-input w-120" placeholder="قیمت این سایز" />
+                    <input v-model="s.stock" type="number" min="0" class="form-input w-100" placeholder="موجودی" />
                     <input v-model="s.discountPercent" type="number" min="0" max="100" class="form-input w-100" placeholder="٪ تخفیف" />
                     <button type="button" class="remove-btn" @click="removeSize(i)">حذف</button>
                   </div>
