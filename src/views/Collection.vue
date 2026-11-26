@@ -10,6 +10,7 @@ import { useProductStore } from '../stores/products'
 import { useWishlist } from '../stores/wishlist'
 import { useAuth } from '../stores/auth'
 import { getProductPriceInfo } from '../utils/productPrice'
+import CampaignCountdown from '../components/CampaignCountdown.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -67,11 +68,14 @@ const productsLoading = ref(false)
 const loadError = ref('')
 // وقتی slug مربوط به یک «کالکشن» باشد اینجا پر می‌شود؛ null یعنی حالت دسته‌بندی
 const collectionData = ref(null)
+// ⭐ تایمر کمپین به صفر رسید؟
+const campaignEnded = ref(false)
 
 const fetchProducts = async (slug) => {
   productsLoading.value = true
   loadError.value = ''
   collectionData.value = null
+  campaignEnded.value = false
   try {
     let list = null
     // ۱) اول تلاش به‌عنوان «کالکشن» — دکمه‌های «مشاهده همه» صفحه اصلی به این‌ها لینک می‌دهند
@@ -98,6 +102,21 @@ const fetchProducts = async (slug) => {
 }
 
 const currentSlug = computed(() => route.params.slug)
+
+/* ───────── ⭐ کمپین زمان‌دار این کالکشن ───────── */
+const collectionCampaign = computed(() => collectionData.value?.campaign || null)
+const campaignHidden = computed(() => collectionData.value?.hideWhenCampaignEnds !== false)
+const campaignColor = computed(
+  () => collectionCampaign.value?.themeColor || collectionData.value?.bgColor || '#c5a059'
+)
+const campaignTitle = computed(() => loc(collectionCampaign.value?.name))
+const campaignCountdownLabel = computed(() => loc(collectionCampaign.value?.countdownLabel))
+
+const onCampaignFinished = () => {
+  campaignEnded.value = true
+  // اگر کالکشن مخفی نمی‌شود، داده را تازه کن تا تخفیف کمپین از قیمت‌ها برداشته شود
+  if (!campaignHidden.value && currentSlug.value) fetchProducts(currentSlug.value)
+}
 // دسته‌بندی‌های واقعی از دیتابیس (شامل دسته‌هایی که ادمین اضافه می‌کند)
 const dbCategories = computed(() => productStore.categories || [])
 
@@ -292,6 +311,36 @@ const renderStars = (rating) => {
 
             <p class="hero-desc">{{ currentCategory.description }}</p>
 
+            <!-- ⭐ بنر کمپین زمان‌دار + شمارش معکوس -->
+            <div
+              v-if="collectionCampaign || campaignEnded"
+              class="campaign-banner"
+              :class="{ ended: campaignEnded }"
+              :style="{ '--cmp': campaignColor }"
+            >
+              <div class="cmp-head">
+                <span class="cmp-dot"></span>
+                <span class="cmp-name">{{ campaignTitle || currentCategory.title }}</span>
+              </div>
+
+              <CampaignCountdown
+                v-if="!campaignEnded && collectionCampaign && collectionCampaign.showCountdown"
+                :ends-at="collectionCampaign.endsAt"
+                :starts-at="collectionCampaign.startsAt"
+                :server-time="collectionCampaign.serverTime"
+                :label="campaignCountdownLabel"
+                :color="campaignColor"
+                @finished="onCampaignFinished"
+              />
+
+              <div v-if="campaignEnded" class="cmp-ended">
+                <span>{{ locale === 'fa' ? 'این کمپین به پایان رسید و تخفیف‌ها برداشته شد.' : 'This campaign has ended and discounts were removed.' }}</span>
+                <router-link :to="{ name: 'Products', params: { lang: locale } }" class="cmp-link">
+                  {{ locale === 'fa' ? 'مشاهده همه محصولات' : 'View all products' }}
+                </router-link>
+              </div>
+            </div>
+
             <div class="hero-stats">
               <div class="stat-item">
                 <span class="stat-number">{{ filteredProducts.length }}</span>
@@ -338,7 +387,7 @@ const renderStars = (rating) => {
     </header>
 
     <!-- ═══════ Products Section ═══════ -->
-    <main class="products-section">
+    <main v-if="!(campaignEnded && campaignHidden)" class="products-section">
       <div class="section-container">
 
         <!-- ═══════ SEARCH BAR ═══════ -->
@@ -828,6 +877,42 @@ const renderStars = (rating) => {
   max-width: 520px;
   opacity: 0;
   animation: fadeUp 0.8s var(--ease-out) 0.5s forwards;
+}
+
+/* ⭐ بنر کمپین زمان‌دار */
+.campaign-banner {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding: 14px 18px;
+  margin: 0 0 28px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--cmp, var(--accent));
+  opacity: 0;
+  animation: fadeUp 0.8s var(--ease-out) 0.55s forwards;
+}
+.campaign-banner.ended { border-style: dashed; }
+.cmp-head { display: flex; align-items: center; gap: 9px; }
+.cmp-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--cmp, var(--accent));
+  box-shadow: 0 0 12px var(--cmp, var(--accent));
+}
+.cmp-name { font-size: 0.95rem; font-weight: 700; color: var(--cmp, var(--accent)); }
+.cmp-ended {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  font-size: 0.86rem; color: var(--text-secondary);
+}
+.cmp-link {
+  padding: 7px 16px; border-radius: 999px; text-decoration: none;
+  background: var(--cmp, var(--accent)); color: #050814;
+  font-size: 0.82rem; font-weight: 600;
+}
+@media (max-width: 768px) {
+  .campaign-banner { padding: 12px 14px; gap: 12px; }
+  .cmp-name { font-size: 0.86rem; }
 }
 
 .hero-stats {
