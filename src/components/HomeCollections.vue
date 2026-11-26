@@ -53,6 +53,18 @@
         </div>
       </header>
 
+      <!-- ⭐ شمارش معکوس کمپین (فقط اگر کالکشن به کمپین وصل باشد) -->
+      <div v-if="col.campaign && col.campaign.showCountdown" class="lx-timer-row">
+        <CampaignCountdown
+          :ends-at="col.campaign.endsAt"
+          :starts-at="col.campaign.startsAt"
+          :server-time="col.campaign.serverTime"
+          :label="getLocalizedText(col.campaign.countdownLabel)"
+          :color="col.campaign.themeColor || col.bgColor || '#c5a059'"
+          @finished="onCampaignFinished(col._id)"
+        />
+      </div>
+
       <div class="lx-divider"><span></span><i>◆</i><span></span></div>
 
       <!-- ROW -->
@@ -125,6 +137,7 @@ import { useI18n } from 'vue-i18n'
 import { getHomeCollections } from '../services/collectionApi'
 import { getImageUrl } from '../utils/imageUrl'
 import { getProductPriceInfo } from '../utils/productPrice'
+import CampaignCountdown from './CampaignCountdown.vue'
 
 const { t, locale } = useI18n()
 const router = useRouter()
@@ -203,6 +216,11 @@ onMounted(async () => {
 
   blockRefs.value.forEach((el) => { if (el) observer.observe(el) })
 })
+
+// ⭐ پایان کمپین → بلوک بدون رفرش از هوم حذف می‌شود
+const onCampaignFinished = (id) => {
+  collections.value = collections.value.filter((c) => c._id !== id)
+}
 
 onUnmounted(() => { if (observer) observer.disconnect() })
 </script>
@@ -309,6 +327,7 @@ onUnmounted(() => { if (observer) observer.disconnect() })
 }
 .head-link:hover .link-arrow { background: rgba(0,0,0,0.18); transform: translateX(-4px); }
 
+.lx-timer-row { display: flex; justify-content: flex-start; margin-top: 14px; }
 .lx-divider { display: flex; align-items: center; gap: 16px; margin: 26px 0 30px; }
 .lx-divider span { flex: 1; height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.14), transparent); }
 .lx-divider i { font-size: 0.6rem; color: var(--accent); }

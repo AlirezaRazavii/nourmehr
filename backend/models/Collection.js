@@ -26,6 +26,11 @@ const collectionSchema = new mongoose.Schema({
   showOnHome: { type: Boolean, default: true },
   sortOrder: { type: Number, default: 0 },
 
+  // ⭐ اتصال اختیاری به کمپین زمان‌دار (null = کالکشن معمولی)
+  campaign: { type: mongoose.Schema.Types.ObjectId, ref: 'Campaign', default: null },
+  // با پایان کمپین، این کالکشن هم از سایت ناپدید شود
+  hideWhenCampaignEnds: { type: Boolean, default: true },
+
   // ---------- سئو ----------
   seo: seoSchema({ priority: 0.8, changefreq: 'weekly' })
 }, { timestamps: true });

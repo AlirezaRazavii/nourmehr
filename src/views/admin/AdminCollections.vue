@@ -36,6 +36,7 @@ const form = ref({
   icon: '',
   description: { fa: '', en: '' }, 
   bgColor: '#c5a059', status: 'active', showOnHome: true, sortOrder: 0,
+  campaign: '', hideWhenCampaignEnds: true,
 })
 
 const statusColors = {
@@ -50,6 +51,7 @@ const blankForm = () => ({
   icon: '',
   description: { fa: '', en: '' }, 
   bgColor: '#c5a059', status: 'active', showOnHome: true, sortOrder: 0,
+  campaign: '', hideWhenCampaignEnds: true,
   seo: {
     fa: { title: '', description: '', focusKeyword: '', canonicalUrl: '', ogImage: '', ogTitle: '', ogDescription: '', noIndex: false },
     en: { title: '', description: '', focusKeyword: '', canonicalUrl: '', ogImage: '', ogTitle: '', ogDescription: '', noIndex: false },
@@ -94,8 +96,18 @@ watch(productSearch, () => {
   productSearchTimer = setTimeout(() => fetchProducts(1), 400)
 })
 
+// ⭐ لیست کمپین‌ها برای انتخابگر
+const campaigns = ref([])
+const fetchCampaignsForLink = async () => {
+  try {
+    const res = await adminApi.getCampaigns()
+    if (res.success) campaigns.value = res.data || []
+  } catch (e) { /* نبود لیست کمپین نباید پنل کالکشن را بشکند */ }
+}
+
 onMounted(() => {
   fetchCollections()
+  fetchCampaignsForLink()
 })
 
 const filteredCollections = computed(() => {
@@ -125,6 +137,8 @@ const openEdit = (col) => {
     description: { fa: col.description?.fa || '', en: col.description?.en || '' },
     bgColor: col.bgColor || '#c5a059', status: col.status || 'active',
     showOnHome: col.showOnHome ?? true, sortOrder: col.sortOrder ?? 0,
+    campaign: col.campaign?._id || col.campaign || '',
+    hideWhenCampaignEnds: col.hideWhenCampaignEnds !== false,
     seo: {
       fa: { ...blankForm().seo.fa, ...(col.seo?.fa || {}) },
       en: { ...blankForm().seo.en, ...(col.seo?.en || {}) },
@@ -367,6 +381,23 @@ const generateSlug = () => {
                 <label class="checkbox-label">
                   <input v-model="form.showOnHome" type="checkbox" />
                   <span>نمایش در صفحه اصلی</span>
+                </label>
+              </div>
+
+              <!-- ⭐ اتصال به کمپین زمان‌دار -->
+              <div class="form-group full">
+                <label class="form-label">کمپین زمان‌دار (اختیاری)</label>
+                <select v-model="form.campaign" class="form-select">
+                  <option value="">بدون کمپین</option>
+                  <option v-for="c in campaigns" :key="c._id" :value="c._id">
+                    {{ c.name?.fa }} — {{ c.effectiveStatus || c.status }}
+                  </option>
+                </select>
+              </div>
+              <div v-if="form.campaign" class="form-group full checkbox-group">
+                <label class="checkbox-label">
+                  <input v-model="form.hideWhenCampaignEnds" type="checkbox" />
+                  <span>با پایان کمپین، این کالکشن هم از سایت مخفی شود</span>
                 </label>
               </div>
               

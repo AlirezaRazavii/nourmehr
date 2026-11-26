@@ -1,4 +1,5 @@
 const Collection = require('../models/Collection');
+const Campaign = require('../models/Campaign');
 const Product = require('../models/Product');
 const { getOrSet } = require('../utils/cache');
 const { getPriceInfo, withCampaignView } = require('../utils/pricing');
@@ -16,11 +17,56 @@ const formatProduct = (raw) => {
   };
 };
 
+/* ---------------------- اتصال کالکشن به کمپین ----------------------
+ * وضعیت کمپین «موقع خواندن» سنجیده می‌شود؛ پس حتی اگر cron عقب بیفتد،
+ * کمپینِ منقضی فوراً از دید کاربر خارج می‌شود.
+ */
+const publicCampaign = (d) => ({
+  _id: d._id,
+  name: d.name,
+  slug: d.slug,
+  startsAt: d.startsAt,
+  endsAt: d.endsAt,
+  showCountdown: d.showCountdown !== false,
+  countdownLabel: d.countdownLabel,
+  themeColor: d.themeColor,
+  bannerImage: d.bannerImage,
+  serverTime: Date.now(),
+});
+
+const loadActiveCampaigns = async (collections) => {
+  const ids = [...new Set(
+    (collections || []).map((c) => (c.campaign ? String(c.campaign) : null)).filter(Boolean)
+  )];
+  if (!ids.length) return new Map();
+  const docs = await Campaign.find({ _id: { $in: ids } }).lean();
+  const now = new Date();
+  const map = new Map();
+  for (const d of docs) {
+    if (Campaign.computeStatus(d, now) === 'active') map.set(String(d._id), publicCampaign(d));
+  }
+  return map;
+};
+
+const withCampaignInfo = (col, map) => ({
+  ...col,
+  campaign: col.campaign ? (map.get(String(col.campaign)) || null) : null,
+});
+
+const isHiddenByCampaign = (col, map) =>
+  Boolean(col.campaign) &&
+  col.hideWhenCampaignEnds !== false &&
+  !map.has(String(col.campaign));
+
 // لیست همه کالکشن‌های فعال (برای منو یا صفحه فهرست کالکشن‌ها)
 const getCollections = async (req, res) => {
   try {
-    const collections = await Collection.find({ status: 'active' }).sort({ sortOrder: 1 });
-    res.json({ success: true, data: collections });
+    const collections = await Collection.find({ status: 'active' }).sort({ sortOrder: 1 }).lean();
+    const map = await loadActiveCampaigns(collections);
+    const data = collections
+      .filter((c) => !isHiddenByCampaign(c, map))
+      .map((c) => withCampaignInfo(c, map));
+    res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -51,10 +97,13 @@ const getHomeCollections = async (req, res) => {
     });
 
     // ⭐ قیمت‌ها بیرون از کش محاسبه می‌شوند
-    const out = (data || []).map((col) => ({
-      ...col,
-      products: (col.products || []).map(formatProduct)
-    }));
+    const campaignMap = await loadActiveCampaigns(data || []);
+    const out = (data || [])
+      .filter((col) => !isHiddenByCampaign(col, campaignMap))
+      .map((col) => ({
+        ...withCampaignInfo(col, campaignMap),
+        products: (col.products || []).map(formatProduct)
+      }));
 
     res.json({ success: true, data: out });
   } catch (error) {
@@ -74,6 +123,12 @@ const getCollectionBySlugOrId = async (req, res) => {
 
     const collection = await Collection.findOne({ $or: or }).lean();
     if (!collection) return res.status(404).json({ success: false, message: 'Collection not found' });
+
+    // ⭐ کمپینِ تمام‌شده → کالکشن هم از دسترس خارج می‌شود
+    const campaignMap = await loadActiveCampaigns([collection]);
+    if (isHiddenByCampaign(collection, campaignMap)) {
+      return res.status(404).json({ success: false, message: 'Collection not found' });
+    }
 
     let sortOption = {};
     if (sort === 'price_asc') sortOption = { price: 1 };
@@ -98,7 +153,7 @@ const getCollectionBySlugOrId = async (req, res) => {
     res.json({
       success: true,
       data: {
-        collection,
+        collection: withCampaignInfo(collection, campaignMap),
         products: products.map(formatProduct),
         total
       }

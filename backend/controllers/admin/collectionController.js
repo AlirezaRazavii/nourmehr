@@ -66,9 +66,22 @@ const slugify = (text) =>
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
 
+// ⭐ پاکسازی اتصال کمپین: رشتهٔ خالی یا شناسهٔ نامعتبر → null
+const normalizeCampaignLink = (data) => {
+  if (data.campaign !== undefined) {
+    const raw = data.campaign;
+    const id = raw && typeof raw === 'object' ? raw._id : raw;
+    data.campaign = id && isValidId(id) ? id : null;
+  }
+  if (data.hideWhenCampaignEnds !== undefined) {
+    data.hideWhenCampaignEnds = data.hideWhenCampaignEnds !== false;
+  }
+  return data;
+};
+
 const createCollection = async (req, res) => {
   try {
-    const data = { ...req.body };
+    const data = normalizeCampaignLink({ ...req.body });
     if (!data.name || !data.name.fa) {
       return res.status(400).json({ success: false, message: 'نام فارسی کالکشن الزامی است' });
     }
@@ -90,7 +103,8 @@ const updateCollection = async (req, res) => {
     if (!isValidId(req.params.id)) {
       return res.status(400).json({ success: false, message: 'شناسه کالکشن نامعتبر است' });
     }
-    const collection = await Collection.findByIdAndUpdate(req.params.id, req.body, {
+    const payload = normalizeCampaignLink({ ...req.body });
+    const collection = await Collection.findByIdAndUpdate(req.params.id, payload, {
       new: true,
       runValidators: true
     });
