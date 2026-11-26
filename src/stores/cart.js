@@ -3,9 +3,21 @@ import { ref, computed } from 'vue'
 import api from '../services/api'
 import { getImageUrl } from '../utils/imageUrl'
 
+// اگر سرور سیاست را نفرستاد (بک‌اند قدیمی)، همه درگاه‌ها باز می‌مانند
+const DEFAULT_ALLOWED_METHODS = ['online', 'torobpay', 'snappay', 'digipay']
+
 export const useCart = defineStore('cart', () => {
   const items = ref([])
   const serverCart = ref({ subtotal: 0, shipping: 0, discount: 0, total: 0 })
+  // ⭐ سیاست درگاه پرداخت از سرور (قفل اعتباری برای اقلام پرتخفیف)
+  const paymentPolicy = ref({
+    creditBlockThreshold: 50,
+    creditBlocked: false,
+    creditBlockedItems: [],
+    allowedPaymentMethods: [...DEFAULT_ALLOWED_METHODS],
+    creditBlockMessage: '',
+    serverTime: null,
+  })
   const isLoading = ref(false)
   const isOpen = ref(false)
   // ثبت وضعیت کامل سبد خرید در Matomo
@@ -95,6 +107,18 @@ export const useCart = defineStore('cart', () => {
         shipping: cart.shippingCost || 0,
         discount: cart.discount || 0,
         total: cart.total || 0,
+      }
+      // ⭐ سیاست درگاه — نبودِ داده = حالت باز (سازگاری عقب‌رو)
+      paymentPolicy.value = {
+        creditBlockThreshold: Number(cart.creditBlockThreshold) || 50,
+        creditBlocked: cart.creditBlocked === true,
+        creditBlockedItems: Array.isArray(cart.creditBlockedItems) ? cart.creditBlockedItems : [],
+        allowedPaymentMethods:
+          Array.isArray(cart.allowedPaymentMethods) && cart.allowedPaymentMethods.length
+            ? cart.allowedPaymentMethods
+            : [...DEFAULT_ALLOWED_METHODS],
+        creditBlockMessage: cart.creditBlockMessage || '',
+        serverTime: cart.serverTime || null,
       }
     } catch (err) {
       console.error('خطا در دریافت سبد خرید:', err)
@@ -233,6 +257,14 @@ export const useCart = defineStore('cart', () => {
   const resetCartState = () => {
     items.value = []
     serverCart.value = { subtotal: 0, shipping: 0, discount: 0, total: 0 }
+    paymentPolicy.value = {
+      creditBlockThreshold: 50,
+      creditBlocked: false,
+      creditBlockedItems: [],
+      allowedPaymentMethods: [...DEFAULT_ALLOWED_METHODS],
+      creditBlockMessage: '',
+      serverTime: null,
+    }
     isOpen.value = false
   }
 
@@ -263,6 +295,7 @@ export const useCart = defineStore('cart', () => {
     handleMiniCartMouseEnter,
     handleMiniCartMouseLeave,
     resetCartState,
+    paymentPolicy,
     formatPrice: safePrice,
   }
 })

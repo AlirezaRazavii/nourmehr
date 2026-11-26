@@ -193,6 +193,9 @@
 
                 <!-- ⭐ هشدار زنده: درگاه انتخابی با کد اعمال‌شده مجاز نیست -->
                 <p v-if="discountGatewayHint" class="discount-info error gateway-warning">{{ discountGatewayHint }}</p>
+
+                <!-- ⭐ قفل درگاه اعتباری به‌خاطر تخفیف اقلام (مستقل از کد تخفیف) -->
+                <p v-if="creditBlocked" class="discount-info error gateway-warning">{{ creditBlockMessage }}</p>
                 <div class="discount-section">
                   <h3>{{ $t('checkout_discount_code') }}</h3>
                   <div class="discount-form">
@@ -371,7 +374,7 @@ const formatPrice = (n) => Number(n || 0).toLocaleString(locale.value === 'fa' ?
 const router = useRouter()
 const route = useRoute()
 const cartStore = useCart()
-const { cartItems, totalItems, totalPrice, isEmpty } = storeToRefs(cartStore)
+const { cartItems, totalItems, totalPrice, isEmpty, paymentPolicy } = storeToRefs(cartStore)
 const { fetchCart } = cartStore
 const ordersStore = useOrders()
 const authStore = useAuth()
@@ -622,9 +625,12 @@ const isStep1Valid = computed(() =>
   validatePostalCode(shippingForm.value.postalCode) === ''
 )
 
-const isStep2Valid = computed(() =>
-  selectedPayment.value && !paymentMethods.value.find(m => m.id === selectedPayment.value)?.disabled
-)
+const isStep2Valid = computed(() => {
+  if (!selectedPayment.value) return false
+  const method = paymentMethods.value.find(m => m.id === selectedPayment.value)
+  if (!method) return false
+  return !isMethodDisabled(method)
+})
 
 const nextStep = () => {
   if (currentStep.value < 3) {
@@ -673,9 +679,18 @@ const applyDiscount = async () => {
   }
 }
 
-// ⭐ آیا درگاه با کدِ اعمال‌شده مجاز است؟ (درگاه‌های مسدود خاکستری می‌شوند)
+// ⭐ سیاست قفل اعتباری از سرور (مستقل از کد تخفیف)
+const creditBlocked = computed(() => paymentPolicy.value?.creditBlocked === true)
+const creditBlockMessage = computed(() => paymentPolicy.value?.creditBlockMessage || '')
+
+// ⭐ درگاه به دو دلیل می‌تواند مسدود شود:
+//    ۱) تخفیف اقلام از آستانه گذشته (سیاست سرور)  ۲) لیست سفید خود کد تخفیف
 const isMethodDisabled = (method) => {
   if (method.disabled) return true
+  const policyAllowed = paymentPolicy.value?.allowedPaymentMethods
+  if (Array.isArray(policyAllowed) && policyAllowed.length && !policyAllowed.includes(method.id)) {
+    return true
+  }
   const allowed = appliedDiscount.value?.allowedPaymentMethods
   if (!allowed || !allowed.length) return false
   return !allowed.includes(method.id)
@@ -689,6 +704,20 @@ const discountGatewayHint = computed(() => {
   }
   return ''
 })
+
+// ⭐ اگر درگاه انتخابی مسدود شد، خودکار به «پرداخت آنلاین» برگرد
+//    (فقط وقتی آن درگاه در لیست هست — تا حالت «ادامه سفارش» خراب نشود)
+const syncPaymentSelection = () => {
+  if (selectedPayment.value === 'online') return
+  const method = paymentMethods.value.find(m => m.id === selectedPayment.value)
+  if (method && isMethodDisabled(method)) selectedPayment.value = 'online'
+}
+
+watch(
+  [selectedPayment, creditBlocked, appliedDiscount, () => paymentMethods.value.length],
+  syncPaymentSelection,
+  { immediate: true }
+)
 
 const partialNote = computed(() => {
   const d = appliedDiscount.value
@@ -721,6 +750,14 @@ const submitOrder = async () => {
   const allowed = appliedDiscount.value?.allowedPaymentMethods
   if (allowed && allowed.length && !allowed.includes(selectedPayment.value)) {
     errorMessage.value = t('checkout_discount_gateway_blocked')
+    isProcessing.value = false
+    return
+  }
+
+  // ⭐ گارد تخفیف اقلام × درگاه اعتباری — پیام دقیق از سرور
+  const policyAllowed = paymentPolicy.value?.allowedPaymentMethods
+  if (Array.isArray(policyAllowed) && policyAllowed.length && !policyAllowed.includes(selectedPayment.value)) {
+    errorMessage.value = creditBlockMessage.value || t('checkout_discount_gateway_blocked')
     isProcessing.value = false
     return
   }
