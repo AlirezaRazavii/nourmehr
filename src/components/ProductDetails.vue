@@ -11,6 +11,7 @@ import { useWishlist } from '../stores/wishlist'
 import { getProductImages, getImageUrl } from '../utils/imageUrl'
 import { getProductPriceInfo, getProductDiscountPercent } from '../utils/productPrice'
 import { resolveWithSize, resolveUnitPrice } from '../utils/pricing'
+import CampaignOfferNotice from './CampaignOfferNotice.vue'
 import api from '../services/api'
 import { setProductSeo, resetSeoMeta } from '../utils/seoMeta'
 
@@ -120,12 +121,35 @@ const productNotice = computed(() => {
 const inStock = computed(() => (product.value?.stock ?? 0) > 0)
 const maxQty = computed(() => product.value?.stock || 10)
 
+// ⭐ سایزهایی که هدف کمپین فعال‌اند (برای نشان ⚡ روی چیپ)
+const campaignSizeSet = computed(() => {
+  const set = new Set()
+  for (const s of product.value?.campaignOffers?.sizes || []) {
+    if (s.name?.fa) set.add(s.name.fa)
+    if (s.name?.en) set.add(s.name.en)
+  }
+  return set
+})
+
 const sizeList = computed(() =>
-  (product.value?.sizes || []).map((s) => ({
-    name: typeof s.name === 'string' ? s.name : getLocalizedText(s.name),
-    price: s.price || 0,
-    discountPercent: s.discountPercent || 0
-  }))
+  (product.value?.sizes || []).map((s) => {
+    const r = resolveWithSize(product.value, s)
+    const faName = typeof s.name === 'string' ? s.name : s.name?.fa
+    const enName = typeof s.name === 'string' ? s.name : s.name?.en
+    return {
+      name: typeof s.name === 'string' ? s.name : getLocalizedText(s.name),
+      price: s.price || 0,
+      discountPercent: s.discountPercent || 0,
+      originalPrice: r.original,
+      finalPrice: r.final,
+      percent: r.percent,
+      hasDiscount: r.hasDiscount,
+      isCampaign:
+        product.value?.campaignOffers?.allSizes === true ||
+        campaignSizeSet.value.has(faName) ||
+        campaignSizeSet.value.has(enName)
+    }
+  })
 )
 
 // ⭐ قیمت‌ها از تنها مرجع محاسبه خوانده می‌شوند (هم‌قانون با بک‌اند/سبد/سفارش)
@@ -135,6 +159,12 @@ const displayUnitPrice = computed(() => resolvedPrice.value.final)
 const originalUnitPrice = computed(() => resolvedPrice.value.original)
 // درصد تخفیف مؤثر: اول تخفیف سایز انتخابی، وگرنه تخفیف خود محصول
 const effectiveDiscount = computed(() => resolvedPrice.value.percent)
+
+// ⭐ پایان کمپین در همین صفحه → دادهٔ محصول بی‌صدا تازه شود
+// (قیمت‌ها برمی‌گردند، نوتیف و نشان ⚡ خودکار ناپدید می‌شوند)
+const onCampaignOfferFinished = () => {
+  if (route.params.id) productStore.fetchProduct(route.params.id)
+}
 
 // ✦ تضمین انتخاب سایز — قلبِ رفع باگ:
 // هر وقت لیست سایزها آماده یا تغییر کند، اگر سایزِ انتخاب‌شده در آن نبود
@@ -602,6 +632,16 @@ watch(locale, () => {
             <span v-if="selectedColor" class="selected-color-name">{{ getLocalizedText(selectedColor.name) }}</span>
           </div>
 
+          <!-- ⭐ نوتیف کمپین: کدام سایزها تخفیف کمپین دارند -->
+          <CampaignOfferNotice
+            v-if="product && product.campaignOffers"
+            :offers="product.campaignOffers"
+            :product-id="String(product._id || '')"
+            :has-sizes="sizeList.length > 0"
+            @select-size="selectedSize = $event"
+            @finished="onCampaignOfferFinished"
+          />
+
           <div v-if="sizeList.length" class="size-selector">
             <label>{{ $t('product_select_size') }}</label>
             <div class="sizes-list">
@@ -611,7 +651,7 @@ watch(locale, () => {
                 type="button"
                 @click="selectedSize = s.name"
                 :class="{ active: selectedSize === s.name }"
-              >{{ s.name }}<span v-if="s.originalPrice > 0" class="size-price"> — <s v-if="s.hasDiscount" class="size-price-old">{{ formatPrice(s.originalPrice) }}</s> {{ formatPrice(s.finalPrice) }} {{ $t('products_currency') }}</span><span v-if="s.percent > 0" class="size-discount-tag">{{ $t('product_discount_off', { percent: formatPrice(s.percent) }) }}</span></button>
+              >{{ s.name }}<span v-if="s.isCampaign" class="size-campaign-mark" aria-hidden="true">⚡</span><span v-if="s.originalPrice > 0" class="size-price"> — <s v-if="s.hasDiscount" class="size-price-old">{{ formatPrice(s.originalPrice) }}</s> {{ formatPrice(s.finalPrice) }} {{ $t('products_currency') }}</span><span v-if="s.percent > 0" class="size-discount-tag">{{ $t('product_discount_off', { percent: formatPrice(s.percent) }) }}</span></button>
             </div>
           </div>
 
@@ -980,6 +1020,7 @@ watch(locale, () => {
 .size-price { opacity: 0.7; font-size: 0.8rem; }
 .size-price-old { opacity: 0.55; text-decoration: line-through; margin-inline-end: 4px; font-size: 0.75rem; }
 .size-discount-tag { display: inline-block; margin-inline-start: 6px; padding: 2px 8px; border-radius: 999px; background: rgba(239,68,68,0.15); color: #fca5a5; font-size: 0.7rem; font-weight: 600; }
+.size-campaign-mark { margin-inline-start: 4px; font-size: 0.72rem; }
 /* ---- نوت سفارشی محصول ---- */
 .product-notice { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border-radius: 14px; animation: noticeIn 0.5s cubic-bezier(0.16,1,0.3,1) both; }
 @keyframes noticeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }

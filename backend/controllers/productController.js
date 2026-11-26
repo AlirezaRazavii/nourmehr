@@ -3,6 +3,7 @@ const Product = require('../models/Product');
 const Category = require('../models/Category');
 const { getOrSet, KEYS } = require('../utils/cache');
 const { applyPercent, withCampaignView } = require('../utils/pricing');
+const { buildCampaignOffers } = require('../utils/campaignRegistry');
 
 const LIST_FIELDS =
   'name slug mainImage price oldPrice discountPercent stock status category ' +
@@ -174,6 +175,8 @@ const getProductBySlugOrId = async (req, res) => {
     // ⭐ قیمت‌ها بیرون از کش — شروع/پایان کمپین فوراً دیده شود
     const out = withPricing(productData.product);
     out.relatedProducts = (productData.related || []).map(withPricing);
+    // ⭐ نوتیف کمپین — بیرون از کش، فقط محصول تکی (نه لیست‌ها)
+    out.campaignOffers = buildCampaignOffers(productData.product);
 
     res.set('Cache-Control', 'public, max-age=60');
     res.json({ success: true, data: out });

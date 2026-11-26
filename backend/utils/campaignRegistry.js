@@ -28,6 +28,12 @@ const buildIndex = (docs) => {
         sizes: (t.sizes || []).map((s) => String(s)),
         starts,
         ends,
+        // ⭐ متادیتا برای نوتیف صفحهٔ محصول (روی قیمت‌ها اثری ندارد)
+        name: doc.name,
+        slug: doc.slug,
+        themeColor: doc.themeColor,
+        countdownLabel: doc.countdownLabel,
+        showCountdown: doc.showCountdown,
       };
       if (!map.has(pid)) map.set(pid, []);
       map.get(pid).push(entry);
@@ -41,7 +47,7 @@ const refreshCampaignRegistry = async () => {
   loading = (async () => {
     try {
       const docs = await Campaign.find({ status: { $in: ['scheduled', 'active'] } })
-        .select('status startsAt endsAt targets')
+        .select('status startsAt endsAt targets name slug themeColor countdownLabel showCountdown')
         .lean();
       index = buildIndex(docs);
     } catch (err) {
@@ -68,4 +74,67 @@ const getCampaignTargets = (productId) => {
 // تزریق به pricing — pricing.js هیچ مدلی را require نمی‌کند (خالص می‌ماند)
 setCampaignProvider(getCampaignTargets);
 
-module.exports = { refreshCampaignRegistry, getCampaignTargets };
+/**
+ * ⭐ اطلاعات کمپینِ فعال برای نوتیف صفحهٔ محصول.
+ * اگر چند کمپین روی یک محصول باشند، همان که بیشترین درصد را می‌دهد برنده است
+ * (هم‌قانون با pricing). خروجی روی پاسخ API می‌نشیند، نه در دیتابیس.
+ */
+const buildCampaignOffers = (product) => {
+  if (!product || !product._id) return null;
+  const targets = getCampaignTargets(product._id);
+  if (!targets.length) return null;
+
+  const byCampaign = new Map();
+  for (const t of targets) {
+    if (!byCampaign.has(t.campaignId)) byCampaign.set(t.campaignId, { meta: t, targets: [], max: 0, min: 100 });
+    const g = byCampaign.get(t.campaignId);
+    g.targets.push(t);
+    g.max = Math.max(g.max, t.percent);
+    g.min = Math.min(g.min, t.percent);
+  }
+  let winner = null;
+  for (const g of byCampaign.values()) if (!winner || g.max > winner.max) winner = g;
+
+  const meta = winner.meta;
+  const productSizes = Array.isArray(product.sizes) ? product.sizes : [];
+  const nameOf = (s) =>
+    typeof s?.name === 'string'
+      ? { fa: s.name, en: s.name }
+      : { fa: s?.name?.fa || '', en: s?.name?.en || '' };
+
+  const sizes = [];
+  let allSizes = false;
+  for (const t of winner.targets) {
+    if (!t.sizes.length) { allSizes = true; continue; }
+    for (const raw of t.sizes) {
+      const match = productSizes.find((s) => {
+        const n = nameOf(s);
+        return n.fa === raw || n.en === raw;
+      });
+      const name = match ? nameOf(match) : { fa: raw, en: raw };
+      const key = name.fa || name.en;
+      const ex = sizes.find((x) => (x.name.fa || x.name.en) === key);
+      if (ex) ex.percent = Math.max(ex.percent, t.percent);
+      else sizes.push({ name, percent: t.percent });
+    }
+  }
+
+  return {
+    campaign: {
+      name: meta.name,
+      slug: meta.slug,
+      startsAt: meta.starts,
+      endsAt: meta.ends,
+      themeColor: meta.themeColor,
+      countdownLabel: meta.countdownLabel,
+      showCountdown: meta.showCountdown !== false,
+    },
+    serverTime: Date.now(),
+    allSizes,
+    maxPercent: winner.max,
+    minPercent: winner.min,
+    sizes,
+  };
+};
+
+module.exports = { refreshCampaignRegistry, getCampaignTargets, buildCampaignOffers };
