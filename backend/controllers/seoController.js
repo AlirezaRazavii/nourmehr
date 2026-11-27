@@ -730,7 +730,9 @@ exports.productBotRenderer = async (req, res, next) => {
       offers: basePrice > 0 ? {
         '@type': 'Offer',
         url: canonical,
-        price: finalPrice,
+        //قیمت‌های پروژه «تومان» است ولی schema.org واحد ISO می‌خواهد (IRR = ریال)
+        // تومان × ۱۰ = ریال — وگرنه گوگل قیمت را ۱۰ برابر ارزان‌تر می‌خواند
+        price: finalPrice * 10,
         priceCurrency: 'IRR',
         itemCondition: 'https://schema.org/NewCondition',
         availability: inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
