@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import api from '../services/api'
@@ -71,34 +71,80 @@ const collectionData = ref(null)
 // ⭐ تایمر کمپین به صفر رسید؟
 const campaignEnded = ref(false)
 
-const fetchProducts = async (slug) => {
+/* ───────── ⭐ صفحه‌بندی / جست‌وجو / مرتب‌سازی سمت سرور ───────── */
+const PAGE_SIZE = 24
+const page = ref(1)
+const totalPages = ref(1)
+const totalProducts = ref(0)
+let reqSeq = 0
+let searchTimer = null
+let suppressWatch = false
+
+const SORT_MAP = {
+  newest: 'newest',
+  'price-low': 'price_asc',
+  'price-high': 'price_desc',
+  popular: 'popular',
+}
+
+const fetchProducts = async (slug, targetPage = 1) => {
+  if (!slug) return
+  const seq = ++reqSeq
   productsLoading.value = true
   loadError.value = ''
-  collectionData.value = null
-  campaignEnded.value = false
+
+  const params = {
+    page: targetPage,
+    limit: PAGE_SIZE,
+    sort: SORT_MAP[selectedSort.value] || 'newest',
+  }
+  const q = searchQuery.value.trim()
+  if (q) params.search = q
+
   try {
     let list = null
-    // ۱) اول تلاش به‌عنوان «کالکشن» — دکمه‌های «مشاهده همه» صفحه اصلی به این‌ها لینک می‌دهند
+    // ۱) اول تلاش به‌عنوان «کالکشن»
     try {
-      const data = await getCollection(encodeURIComponent(slug), { limit: 100 })
+      const data = await getCollection(encodeURIComponent(slug), params)
+      if (seq !== reqSeq) return
       if (data?.collection) {
         collectionData.value = data.collection
+        campaignEnded.value = false
         list = data.products || []
+        totalProducts.value = Number(data.total) || list.length
+        totalPages.value = Number(data.totalPages) || 1
+        page.value = Number(data.page) || targetPage
       }
     } catch { /* کالکشن نبود — به دسته‌بندی برمی‌گردیم */ }
     // ۲) اگر کالکشن نبود، به‌عنوان «دسته‌بندی»
     if (list === null) {
-      const res = await api.get(`/products?category=${encodeURIComponent(slug)}&limit=50`)
+      const qs = new URLSearchParams(params).toString()
+      const res = await api.get(`/products?category=${encodeURIComponent(slug)}&${qs}`)
+      if (seq !== reqSeq) return
+      collectionData.value = null
       list = res.data.data || []
+      totalProducts.value = Number(res.data.total) || list.length
+      totalPages.value = Number(res.data.totalPages) || 1
+      page.value = Number(res.data.page) || targetPage
     }
     apiProducts.value = list
   } catch (e) {
+    if (seq !== reqSeq) return
     console.error('[Collection] خطا در دریافت محصولات:', e)
     apiProducts.value = []
+    totalProducts.value = 0
+    totalPages.value = 1
     loadError.value = e.response?.data?.message || e.message || 'خطا در برقراری با سرور'
   } finally {
-    productsLoading.value = false
+    if (seq === reqSeq) productsLoading.value = false
   }
+}
+
+const goToPage = (p) => {
+  const target = Math.min(Math.max(1, p), totalPages.value || 1)
+  if (target === page.value) return
+  fetchProducts(currentSlug.value, target)
+  document.querySelector('.products-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
 const currentSlug = computed(() => route.params.slug)
@@ -174,29 +220,20 @@ const sortOptions = [
 
 const selectedSort = ref('newest')
 
-const filteredProducts = computed(() => {
-  let products = apiProducts.value
+// ⭐ جست‌وجو/مرتب‌سازی حالا سمت سرور انجام می‌شود؛ این فقط لیست صفحهٔ جاری است
+const filteredProducts = computed(() => apiProducts.value)
 
-  if (searchQuery.value.trim()) {
-    const q = searchQuery.value.trim().toLowerCase()
-    products = products.filter(p =>
-      (loc(p.name) || '').toLowerCase().includes(q) ||
-      (loc(p.shortDesc) || '').toLowerCase().includes(q)
-    )
-  }
+watch(searchQuery, () => {
+  if (suppressWatch) return
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => {
+    if (currentSlug.value) fetchProducts(currentSlug.value, 1)
+  }, 400)
+})
 
-  // اعمال مرتب‌سازی دراپ‌داون (قبل از این انتخاب کاربر هیچ اثری نداشت)
-  const list = [...products]
-  if (selectedSort.value === 'price-low') {
-    list.sort((a, b) => (getPriceInfo(a)?.minPrice ?? 0) - (getPriceInfo(b)?.minPrice ?? 0))
-  } else if (selectedSort.value === 'price-high') {
-    list.sort((a, b) => (getPriceInfo(b)?.minPrice ?? 0) - (getPriceInfo(a)?.minPrice ?? 0))
-  } else if (selectedSort.value === 'popular') {
-    list.sort((a, b) => Number(b.ratingAverage || 0) - Number(a.ratingAverage || 0))
-  } else {
-    list.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
-  }
-  return list
+watch(selectedSort, () => {
+  if (suppressWatch) return
+  if (currentSlug.value) fetchProducts(currentSlug.value, 1)
 })
 const clearSearch = () => {
   searchQuery.value = ''
@@ -224,7 +261,13 @@ const handleMouseMove = (e) => {
 }
 
 watch(() => route.params.slug, (slug) => {
-  if (slug) fetchProducts(slug)
+  if (!slug) return
+  // تعویض کالکشن → جست‌وجو/مرتب‌سازی ریست شود (بدون درخواست اضافه)
+  suppressWatch = true
+  searchQuery.value = ''
+  selectedSort.value = 'newest'
+  nextTick(() => { suppressWatch = false })
+  fetchProducts(slug, 1)
 }, { immediate: false })
 
 onMounted(() => {
@@ -343,7 +386,7 @@ const renderStars = (rating) => {
 
             <div class="hero-stats">
               <div class="stat-item">
-                <span class="stat-number">{{ filteredProducts.length }}</span>
+                <span class="stat-number">{{ formatPrice(totalProducts) }}</span>
                 <span class="stat-label">محصول</span>
               </div>
               <div class="stat-divider"></div>
@@ -434,7 +477,7 @@ const renderStars = (rating) => {
             <!-- live result count -->
             <Transition name="fade-scale">
               <div v-if="searchQuery.trim()" class="search-result-badge">
-                <span>{{ filteredProducts.length }}</span> نتیجه
+                <span>{{ formatPrice(totalProducts) }}</span> نتیجه
               </div>
             </Transition>
           </div>
@@ -451,7 +494,7 @@ const renderStars = (rating) => {
               محصولات {{ currentCategory.title }}
             </h2>
             <p class="results-meta">
-              نمایش <strong>{{ filteredProducts.length }}</strong> محصول
+              نمایش <strong>{{ filteredProducts.length }}</strong> از <strong>{{ formatPrice(totalProducts) }}</strong> محصول
               <span v-if="searchQuery.trim()" class="search-hint">
                 برای «<em>{{ searchQuery }}</em>»
               </span>
@@ -543,6 +586,13 @@ const renderStars = (rating) => {
               </div>
             </div>
           </article>
+        </div>
+
+        <!-- ⭐ صفحه‌بندی سروری -->
+        <div v-if="!productsLoading && !loadError && totalPages > 1" class="collection-pagination">
+          <button type="button" class="page-nav" :disabled="page <= 1" @click="goToPage(page - 1)">قبلی</button>
+          <span class="page-status">صفحه {{ formatPrice(page) }} از {{ formatPrice(totalPages) }}</span>
+          <button type="button" class="page-nav" :disabled="page >= totalPages" @click="goToPage(page + 1)">بعدی</button>
         </div>
 
         <!-- Skeleton loading cards -->
@@ -1344,6 +1394,30 @@ const renderStars = (rating) => {
   grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
   gap: clamp(14px, 1.6vw, 22px);
 }
+
+/* ⭐ صفحه‌بندی */
+.collection-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  margin: 34px 0 10px;
+  flex-wrap: wrap;
+}
+.page-nav {
+  padding: 10px 24px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary, #fff);
+  font-family: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+.page-nav:hover:not(:disabled) { border-color: var(--accent); transform: translateY(-1px); }
+.page-nav:disabled { opacity: 0.35; cursor: not-allowed; }
+.page-status { font-size: 0.85rem; color: var(--text-secondary); }
 
 /* ═══════════════════════════════════════
    PRODUCT CARD — دقیقاً مثل Products.vue

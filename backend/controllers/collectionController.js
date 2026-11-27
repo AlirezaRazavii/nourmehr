@@ -7,6 +7,8 @@ const { getPriceInfo, withCampaignView } = require('../utils/pricing');
 // ⭐ هم‌فیلتر با صفحهٔ محصولات: ناموجود هم دیده شود، فقط غیرفعال پنهان بماند
 const PUBLIC_PRODUCT_STATUSES = ['active', 'out_of_stock'];
 
+const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 // قیمت سایز-آگاه: ارزان‌ترین سایزِ تخفیف‌خورده (مطابق کارت محصولات و سبد)
 const formatProduct = (raw) => {
   const p = withCampaignView(raw);
@@ -119,7 +121,7 @@ const getCollectionBySlugOrId = async (req, res) => {
   try {
     const mongoose = require('mongoose');
     const { id } = req.params;
-    const { page = 1, limit = 100, sort = 'newest' } = req.query;
+    const { page = 1, limit = 24, sort = 'newest', search = '' } = req.query;
 
     const or = [{ slug: id }];
     if (mongoose.Types.ObjectId.isValid(id)) or.push({ _id: id });
@@ -135,15 +137,26 @@ const getCollectionBySlugOrId = async (req, res) => {
     }
 
     let sortOption = {};
-    if (sort === 'price_asc') sortOption = { price: 1 };
-    else if (sort === 'price_desc') sortOption = { price: -1 };
-    else sortOption = { createdAt: -1 };
+    if (sort === 'price_asc') sortOption = { price: 1, _id: 1 };
+    else if (sort === 'price_desc') sortOption = { price: -1, _id: 1 };
+    else if (sort === 'popular') sortOption = { ratingAverage: -1, ratingCount: -1, _id: -1 };
+    else sortOption = { createdAt: -1, _id: -1 };
 
     const pageNum = Math.max(1, parseInt(page) || 1);
-    const limitNum = Math.min(200, Math.max(1, parseInt(limit) || 100));
+    const limitNum = Math.min(200, Math.max(1, parseInt(limit) || 24));
     const skip = (pageNum - 1) * limitNum;
 
     const filter = { collections: collection._id, status: { $in: PUBLIC_PRODUCT_STATUSES } };
+
+    // ⭐ جست‌وجوی سروری — روی کل کالکشن، نه فقط صفحهٔ فعلی
+    const q = String(search || '').trim().slice(0, 80);
+    if (q) {
+      const rx = new RegExp(escapeRegex(q), 'i');
+      filter.$or = [
+        { 'name.fa': rx }, { 'name.en': rx },
+        { 'shortDesc.fa': rx }, { 'shortDesc.en': rx },
+      ];
+    }
 
     const products = await Product.find(filter)
       .populate('category')
@@ -159,7 +172,10 @@ const getCollectionBySlugOrId = async (req, res) => {
       data: {
         collection: withCampaignInfo(collection, campaignMap),
         products: products.map(formatProduct),
-        total
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.max(1, Math.ceil(total / limitNum))
       }
     });
   } catch (error) {
