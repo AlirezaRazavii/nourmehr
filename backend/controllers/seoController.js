@@ -891,14 +891,56 @@ exports.collectionBotRenderer = async (req, res, next) => {
       ogDescription: seoLang.ogDescription || '',
     });
 
+    // ⭐ محصولات این کالکشن — لینک داخلی + قیمت مؤثر (سایز/کمپین‌آگاه)
+    const colProducts = await Product.find({
+      collections: collection._id,
+      status: { $in: PUBLIC_PRODUCT_STATUSES },
+      'seo.fa.noIndex': { $ne: true },
+    })
+      .select('name slug mainImage price oldPrice discountPercent sizes')
+      .sort({ createdAt: -1 })
+      .limit(60)
+      .lean();
+
+    const priceNum = (n) => Number(n || 0).toLocaleString(lang === 'fa' ? 'fa-IR' : 'en-US');
+    const currencyLabel = lang === 'fa' ? 'تومان' : 'Toman';
+
+    const productItems = colProducts.map((p) => {
+      const pName = pick(p.name, lang);
+      const pSlug = String(p.slug || p._id);
+      const pPrice = getPriceInfo(p).minPrice;
+      return `      <li><a href="/${lang}/product/${escapeHtml(pSlug)}">${escapeHtml(pName)}</a>${pPrice > 0 ? ` <span>— ${priceNum(pPrice)} ${currencyLabel}</span>` : ''}</li>`;
+    }).join('\n');
+
     const jsonLd = {
       '@context': 'https://schema.org',
       '@type': 'CollectionPage',
       name,
       description: metaDescription,
       url: canonical,
-      image: image ? absoluteUrl(image) : undefined
+      image: image ? absoluteUrl(image) : undefined,
+      // ⭐ کالکشن اعتبار داخلی را به محصولاتش منتقل می‌کند
+      hasPart: colProducts.length
+        ? colProducts.map((p) => ({
+            '@type': 'Product',
+            name: pick(p.name, lang),
+            url: absoluteUrl(`/${lang}/product/${p.slug || p._id}`),
+          }))
+        : undefined
     };
+
+    const itemListLd = colProducts.length
+      ? {
+          '@context': 'https://schema.org',
+          '@type': 'ItemList',
+          itemListElement: colProducts.map((p, i) => ({
+            '@type': 'ListItem',
+            position: i + 1,
+            url: absoluteUrl(`/${lang}/product/${p.slug || p._id}`),
+            name: pick(p.name, lang),
+          })),
+        }
+      : null;
 
     const breadcrumbLd = {
       '@context': 'https://schema.org',
@@ -921,8 +963,13 @@ exports.collectionBotRenderer = async (req, res, next) => {
       ${image ? `<img src="${escapeHtml(absoluteUrl(image))}" alt="${escapeHtml(name)}" width="800" />` : ''}
       <p>${escapeHtml(metaDescription)}</p>
       ${fullDesc ? `<h2>${lang === 'fa' ? 'درباره این مجموعه' : 'About this collection'}</h2><div>${escapeHtml(fullDesc)}</div>` : ''}
+      ${productItems ? `<h2>${lang === 'fa' ? 'محصولات این مجموعه' : 'Products in this collection'}</h2>
+      <ul>
+${productItems}
+      </ul>` : ''}
       <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
       <script type="application/ld+json">${JSON.stringify(breadcrumbLd)}</script>
+      ${itemListLd ? `<script type="application/ld+json">${JSON.stringify(itemListLd)}</script>` : ''}
     </article>`;
 
     if (noIndex) res.setHeader('X-Robots-Tag', 'noindex, nofollow');
