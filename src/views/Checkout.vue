@@ -763,21 +763,15 @@ const submitOrder = async () => {
   }
 
   try {
-    let order = createdOrder.value
-    // ⭐ اگر روش پرداخت (یا مبلغ/کد تخفیف) عوض شده، سفارش باید دوباره ساخته شود
-    // تا بک‌اند همان سفارش را با paymentMethod جدید به‌روزرسانی کند.
-    // وگرنه initiate خطای «این سفارش برای پرداخت X ثبت نشده است» می‌دهد.
-    const staleOrder =
-      order &&
-      (order.paymentMethod !== selectedPayment.value ||
-        Number(order.discountAmount || 0) !== Number(discountAmount.value || 0))
-    if (staleOrder) {
-      order = null
-      createdOrder.value = null
-    }
+    // ⭐ روش پرداخت را همین ابتدا «فریز» کن تا اگر وسطِ await عوض شد،
+    //    سفارش و درگاه با دو روش متفاوت ساخته/صدا زده نشوند.
+    const payMethod = selectedPayment.value
 
-    // فقط اگر سفارشی ساخته نشده (یا کهنه شده)، سفارش بساز
-    if (!order) {
+    // ⭐ همیشه سفارش را بساز/به‌روزرسانی کن. بک‌اند خودش همان سفارشِ پرداخت‌نشده
+    //    را با paymentMethod جدید آپدیت می‌کند (شماره سفارش ثابت می‌ماند).
+    //    کش‌کردن createdOrder باعث خطای «این سفارش برای پرداخت X ثبت نشده است» می‌شد.
+    let order = null
+    {
       const orderPayload = {
         shippingInfo: {
           fullName: shippingForm.value.fullName,
@@ -790,7 +784,7 @@ const submitOrder = async () => {
           note: shippingForm.value.note,
           shippingMethod: selectedShipping.value
         },
-        paymentMethod: selectedPayment.value,
+        paymentMethod: payMethod,
         discountCode: appliedDiscount.value?.code || null,
         items: cartItems.value.map(item => ({
           productId: item.productId,
@@ -856,14 +850,14 @@ const submitOrder = async () => {
     } catch (e) { /* خطای تحلیل نباید فرآیند پرداخت را متوقف کند */ }
 
     // پرداخت آنلاین (زرین‌پال) یا اقساطی (ترب‌پی / اسنپ‌پی / دیجی‌پی)
-    if (selectedPayment.value === 'online' || selectedPayment.value === 'torobpay' || selectedPayment.value === 'snappay' || selectedPayment.value === 'digipay') {
+    if (payMethod === 'online' || payMethod === 'torobpay' || payMethod === 'snappay' || payMethod === 'digipay') {
       try {
         const { paymentApi } = await import('../services/paymentApi')
-        const paymentRes = selectedPayment.value === 'torobpay'
+        const paymentRes = payMethod === 'torobpay'
           ? await paymentApi.initiateTorobPayPayment(order._id)
-          : selectedPayment.value === 'snappay'
+          : payMethod === 'snappay'
           ? await paymentApi.initiateSnappPayPayment(order._id)
-          : selectedPayment.value === 'digipay'
+          : payMethod === 'digipay'
           ? await paymentApi.initiateDigipayPayment(order._id)
           : await paymentApi.initiatePayment(order._id)
 
