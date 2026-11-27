@@ -1316,7 +1316,7 @@ const buildProductsHtml = async (lang, categorySlug) => {
   if (category) filter.category = category._id;
 
   const products = await Product.find(filter)
-    .select('name slug mainImage price discountPercent')
+    .select('name slug mainImage price oldPrice discountPercent sizes')
     .sort({ createdAt: -1 })
     .limit(60)
     .lean();
