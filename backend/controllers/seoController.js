@@ -10,7 +10,7 @@ const Collection = require('../models/Collection');
 const Category = require('../models/Category');
 const BlogCategory = require('../models/BlogCategory');
 const { getOrSet } = require('../utils/cache');
-const { applyPercent } = require('../utils/pricing');
+const { applyPercent, getPriceInfo } = require('../utils/pricing');
 
 const SITE_URL = (process.env.SITE_URL || 'https://nourmehr.ir').replace(/\/+$/, '');
 
@@ -680,10 +680,10 @@ exports.productBotRenderer = async (req, res, next) => {
 
     const ogImage = seoLang.ogImage || product.mainImage || product.images?.[0] || '';
 
-    // قیمت نهایی با تخفیف + موجودی واقعی
     const basePrice = Number(product.price) || 0;
     const discount = Number(product.discountPercent) || 0;
-    const finalPrice = applyPercent(basePrice, discount);
+    const priceInfo = getPriceInfo(product);
+    const finalPrice = priceInfo.minPrice > 0 ? priceInfo.minPrice : applyPercent(basePrice, discount);
     const inStock = product.status === 'active' && Number(product.stock || 0) > 0;
 
     const head = metaTags({
@@ -1030,7 +1030,7 @@ const buildHomeHtml = async (lang) => {
       'seo.fa.noIndex': { $ne: true },
       'seo.sitemap.include': { $ne: false },
     })
-      .select('name slug mainImage price discountPercent')
+      .select('name slug mainImage price oldPrice discountPercent sizes')
       .sort({ createdAt: -1 })
       .limit(12)
       .lean(),
@@ -1054,7 +1054,7 @@ const buildHomeHtml = async (lang) => {
   });
 
   const num = (n) => Number(n).toLocaleString(lang === 'fa' ? 'fa-IR' : 'en-US');
-  const finalPrice = (p) => applyPercent(p.price, p.discountPercent);
+  const finalPrice = (p) => getPriceInfo(p).minPrice;
 
   const catItems = categories.map((c) =>
     `<li><a href="/${lang}/products?category=${escapeHtml(c.slug)}">${escapeHtml(pick(c.name, lang))}</a></li>`
@@ -1302,7 +1302,7 @@ const buildProductsHtml = async (lang, categorySlug) => {
   });
 
   const num = (n) => Number(n).toLocaleString(lang === 'fa' ? 'fa-IR' : 'en-US');
-  const finalPrice = (p) => applyPercent(p.price, p.discountPercent);
+  const finalPrice = (p) => getPriceInfo(p).minPrice;
 
   const items = products.map((p) => {
     const name = pick(p.name, lang);
