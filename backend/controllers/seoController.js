@@ -7,6 +7,22 @@
 const Blog = require('../models/Blog');
 const Product = require('../models/Product');
 const Collection = require('../models/Collection');
+const Campaign = require('../models/Campaign');
+
+
+const filterVisibleCollections = async (collections) => {
+  const list = collections || [];
+  const ids = [...new Set(list.map((c) => (c.campaign ? String(c.campaign) : null)).filter(Boolean))];
+  if (!ids.length) return list;
+  const docs = await Campaign.find({ _id: { $in: ids } }).select('status startsAt endsAt expiryAction').lean();
+  const now = new Date();
+  const active = new Set(
+    docs.filter((d) => Campaign.computeStatus(d, now) === 'active').map((d) => String(d._id))
+  );
+  return list.filter(
+    (c) => !(c.campaign && c.hideWhenCampaignEnds !== false && !active.has(String(c.campaign)))
+  );
+};
 const Category = require('../models/Category');
 const BlogCategory = require('../models/BlogCategory');
 const { getOrSet } = require('../utils/cache');
@@ -329,7 +345,7 @@ const buildSitemap = async () => {
       status: 'active',
       'seo.fa.noIndex': { $ne: true },
       'seo.sitemap.include': { $ne: false }
-    }).select('slug updatedAt seo name description').lean(),
+    }).select('slug updatedAt seo name description campaign hideWhenCampaignEnds').lean(),
     BlogCategory.find({ isActive: true }).select('slug name').lean(),
   ]);
 
@@ -380,8 +396,8 @@ const buildSitemap = async () => {
     }, hasEnContent(c));
   }
 
-  // کالکشن‌ها
-  for (const col of collections) {
+  // کالکشن‌ها (بدون آن‌هایی که کمپینشان تمام شده)
+  for (const col of await filterVisibleCollections(collections)) {
     const sm = col.seo?.sitemap || {};
     pushBothLangs((l) => `/${l}/collection/${col.slug}`, {
       priority: sm.priority ?? 0.8,
@@ -843,7 +859,11 @@ exports.collectionBotRenderer = async (req, res, next) => {
     const lang = ['fa', 'en'].includes(req.params.lang) ? req.params.lang : 'fa';
     const slug = String(req.params.slug || '').toLowerCase();
 
-    const collection = await Collection.findOne({ slug, status: 'active' }).lean();
+    let collection = await Collection.findOne({ slug, status: 'active' }).lean();
+    // کمپین تمام‌شده → ربات هم مثل کاربر ۴۰۴ بگیرد (جلوگیری از ایندکس صفحهٔ مرده)
+    if (collection && (await filterVisibleCollections([collection])).length === 0) {
+      collection = null;
+    }
     if (!collection) {
       // قبلاً next() می‌شد و ربات به SPA fallback با status 200 می‌رسید (soft-404)
       const nfHead = metaTags({
@@ -1082,7 +1102,7 @@ const buildHomeHtml = async (lang) => {
       .limit(12)
       .lean(),
     Category.find({ status: 'active' }).select('name slug').lean(),
-    Collection.find({ status: 'active' }).select('name slug').lean(),
+    Collection.find({ status: 'active' }).select('name slug campaign hideWhenCampaignEnds').lean(),
     Blog.find(publishedFilter()).select('title slug').sort({ publishedAt: -1 }).limit(6).lean(),
   ]);
 
@@ -1119,7 +1139,7 @@ const buildHomeHtml = async (lang) => {
       </li>`;
   }).join('\n');
 
-  const collectionItems = collections.map((c) =>
+  const collectionItems = (await filterVisibleCollections(collections)).map((c) =>
     `      <li><a href="/${lang}/collection/${escapeHtml(c.slug)}">${escapeHtml(pick(c.name, lang))}</a></li>`
   ).join('\n');
 
