@@ -36,6 +36,7 @@ const runCampaignScheduler = async () => {
 
     if (changed > 0) {
       delByPrefix('public:campaigns');
+      delByPrefix('torob:v3:'); // ⭐ فید ترب هم تازه شود
       invalidateProductCache();
       invalidateSeoCache();
       console.log(`[campaignScheduler] ${changed} کمپین به‌روزرسانی شد`);

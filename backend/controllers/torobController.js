@@ -168,9 +168,11 @@ const handleListRequest = async (validated) => {
       Product.countDocuments(filter),
     ]);
 
+    // ⭐ فقط دادهٔ خام کش می‌شود؛ قیمت بیرون از کش محاسبه می‌شود
+    // تا شروع/پایان کمپین فوراً در فید ترب دیده شود (نه ۵ دقیقه بعد)
     return {
       total: total,
-      products: docs.map(formatProductForTorob),
+      products: docs,
     };
   });
 };
@@ -232,7 +234,7 @@ const getTorobProducts = async (req, res) => {
         current_page: validated.page,
         total: payload.total,
         max_pages: Math.max(1, Math.ceil(payload.total / PRODUCT_PAGE_SIZE)),
-        products: payload.products,
+        products: (payload.products || []).map(formatProductForTorob),
       });
     }
 

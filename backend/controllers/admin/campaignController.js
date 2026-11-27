@@ -17,9 +17,10 @@ const slugify = (text) =>
     .replace(/^-|-$/g, '');
 
 const invalidateCampaignCaches = () => {
-  // ⭐ تغییر ادمین فوراً در قیمت‌ها دیده شود (بدون انتظار برای cron)
+  //  تغییر ادمین فوراً در قیمت‌ها دیده شود (بدون انتظار برای cron)
   refreshCampaignRegistry().catch(() => {});
   delByPrefix('public:campaigns');
+  delByPrefix('torob:v3:'); //  فید ترب هم تازه شود
   invalidateProductCache();
   invalidateSeoCache();
 };
