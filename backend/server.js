@@ -89,7 +89,7 @@ mongoose.connection.once('open', async () => {
 });
 
 mongoose.connection.on('error', (err) => console.error('🔴 MongoDB connection error:', err));
-mongoose.connection.on('disconnected', () => console.warn('🟡 MongoDB disconnected'));
+// لاگ disconnected در config/db.js ثبت می‌شود؛ اینجا تکراری بود
 
 // انتشار خودکار مقالات زمان‌بندی‌شده — هر یک دقیقه
 setInterval(() => {

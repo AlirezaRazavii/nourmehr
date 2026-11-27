@@ -47,38 +47,57 @@ const isAmountInRange = (amountToman) => {
 
 /* ------------------------- توکن JWT (با کش حافظه) ------------------------- */
 let jwtCache = { token: null, expiresAt: 0 };
+let oauthInflight = null;        // ⭐ درخواست هم‌زمان توکن فقط یک بار برود
+let oauthBlockedUntil = 0;       // ⭐ بعد از شکست، ۶۰ ثانیه صبر (ضد 429/401)
+const OAUTH_FAIL_COOLDOWN = 60 * 1000;
 
 const getAccessToken = async (forceRefresh = false) => {
   if (!isSnappPayConfigured()) throw new Error('درگاه اسنپ‌پی پیکربندی نشده است');
   if (!forceRefresh && jwtCache.token && jwtCache.expiresAt - Date.now() > 60000) {
     return jwtCache.token;
   }
-
-  const basic = Buffer.from(CLIENT_ID + ':' + CLIENT_SECRET).toString('base64');
-
-  // ⚠️ طبق Postman اسنپ‌پی: بدنه form-urlencoded است (نه JSON مثل ترب‌پی)
-  const form = new URLSearchParams({
-    grant_type: 'password',
-    scope: 'online-merchant',
-    username: USERNAME,
-    password: PASSWORD,
-  });
-
-  const { data } = await axios.post(BASE_URL + EP.oauth, form.toString(), {
-    headers: {
-      Authorization: 'Basic ' + basic,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    timeout: 20000,
-  });
-
-  const token = (data && (data.access_token || (data.response && data.response.access_token))) || null;
-  if (!token) {
-    throw new Error('پاسخ توکن اسنپ‌پی نامعتبر بود: ' + JSON.stringify(data).slice(0, 200));
+  if (Date.now() < oauthBlockedUntil) {
+    throw new Error('سرویس اسنپ‌پی موقتاً پاسخ نمی‌دهد؛ چند لحظه دیگر تلاش کنید');
   }
-  const expiresIn = Number(data && data.expires_in) || 3300;
-  jwtCache = { token, expiresAt: Date.now() + expiresIn * 1000 };
-  return token;
+  if (oauthInflight) return oauthInflight;
+
+  oauthInflight = (async () => {
+    const basic = Buffer.from(CLIENT_ID + ':' + CLIENT_SECRET).toString('base64');
+
+    // ⚠️ طبق Postman اسنپ‌پی: بدنه form-urlencoded است (نه JSON مثل ترب‌پی)
+    const form = new URLSearchParams({
+      grant_type: 'password',
+      scope: 'online-merchant',
+      username: USERNAME,
+      password: PASSWORD,
+    });
+
+    const { data } = await axios.post(BASE_URL + EP.oauth, form.toString(), {
+      headers: {
+        Authorization: 'Basic ' + basic,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      timeout: 20000,
+    });
+
+    const token = (data && (data.access_token || (data.response && data.response.access_token))) || null;
+    if (!token) {
+      throw new Error('پاسخ توکن اسنپ‌پی نامعتبر بود: ' + JSON.stringify(data).slice(0, 200));
+    }
+    const expiresIn = Number(data && data.expires_in) || 3300;
+    jwtCache = { token, expiresAt: Date.now() + expiresIn * 1000 };
+    oauthBlockedUntil = 0;
+    return token;
+  })();
+
+  try {
+    return await oauthInflight;
+  } catch (err) {
+    oauthBlockedUntil = Date.now() + OAUTH_FAIL_COOLDOWN;
+    throw err;
+  } finally {
+    oauthInflight = null;
+  }
 };
 
 /* ------------------ فراخوانی عمومی اندپوینت‌های اسنپ‌پی ------------------ */
@@ -146,6 +165,8 @@ const callApi = async (method, path, opts) => {
 const eligibleCache = new Map();
 const ELIGIBLE_CACHE_TTL = 5 * 60 * 1000;
 const ELIGIBLE_CACHE_MAX = 100;
+// ⭐ شکست هم کوتاه کش شود تا هر لود Checkout درگاه را بمباران نکند
+const ELIGIBLE_FAIL_TTL = 60 * 1000;
 
 const checkEligibility = async (amountToman) => {
   const amountRial = toRial(amountToman);
@@ -153,7 +174,8 @@ const checkEligibility = async (amountToman) => {
     return { success: true, eligible: false };
   }
   const cached = eligibleCache.get(amountRial);
-  if (cached && Date.now() - cached.at < ELIGIBLE_CACHE_TTL) return cached.result;
+  const ttl = cached && cached.failed ? ELIGIBLE_FAIL_TTL : ELIGIBLE_CACHE_TTL;
+  if (cached && Date.now() - cached.at < ttl) return cached.result;
 
   // paymentMethodTypes اختیاری است — اگر در مستندات مقدار مشخصی به تو دادند، در env بگذار
   const params = { amount: amountRial };
@@ -162,7 +184,12 @@ const checkEligibility = async (amountToman) => {
   }
 
   const res = await callApi('GET', EP.eligible, { params });
-  if (!res.success) return { success: false, message: res.message, code: res.code };
+  if (!res.success) {
+    const failure = { success: false, message: res.message, code: res.code };
+    if (eligibleCache.size >= ELIGIBLE_CACHE_MAX) eligibleCache.clear();
+    eligibleCache.set(amountRial, { result: failure, at: Date.now(), failed: true });
+    return failure;
+  }
 
   const result = {
     success: true,

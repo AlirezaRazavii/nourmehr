@@ -32,7 +32,8 @@ const recoverOne = async (payment) => {
       return;
     }
     console.warn('[snappay][recovery] status ناموفق: payment=' + payment._id + ' code=' + st.code + ' ' + st.message);
-    return; // خطای موقت — ران بعدی
+    // ⭐ 429 = محدودیت نرخ؛ بقیهٔ این ران را نسوزان
+    return st.code === 429 ? 'stop' : undefined;
   }
   const s = String((st.response && st.response.status) || '').toUpperCase();
   if (!s || s === 'ONGOING' || s === 'PENDING') return; // هنوز در جریان
@@ -98,7 +99,11 @@ const recoverSnappayPayments = async () => {
 
     for (const payment of payments) {
       try {
-        await recoverOne(payment);
+        const r = await recoverOne(payment);
+        if (r === 'stop') {
+          console.warn('[snappay][recovery] محدودیت نرخ (429) — ادامهٔ این ران متوقف شد');
+          break;
+        }
       } catch (err) {
         console.error(`[snappay][recovery] خطا در payment=${payment._id}:`, err.message);
       }
