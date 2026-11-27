@@ -22,7 +22,7 @@ const KEYS = {
   CATEGORIES: 'public:categories',
   CATEGORY_SLUG: 'public:category:slug:',
   HERO: 'public:hero:',
-  SEO: 'public:seo:',
+  SEO: 'seo:',
   DISCOUNTS: 'public:discounts',
 };
 

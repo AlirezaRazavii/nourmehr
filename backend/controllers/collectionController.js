@@ -124,7 +124,8 @@ const getCollectionBySlugOrId = async (req, res) => {
     const or = [{ slug: id }];
     if (mongoose.Types.ObjectId.isValid(id)) or.push({ _id: id });
 
-    const collection = await Collection.findOne({ $or: or }).lean();
+    // ⭐ کالکشن غیرفعال نباید از URL عمومی باز شود (هم‌قانون با لیست‌ها و sitemap)
+    const collection = await Collection.findOne({ $or: or, status: 'active' }).lean();
     if (!collection) return res.status(404).json({ success: false, message: 'Collection not found' });
 
     // ⭐ کمپینِ تمام‌شده → کالکشن هم از دسترس خارج می‌شود

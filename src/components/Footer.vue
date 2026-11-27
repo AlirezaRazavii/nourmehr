@@ -56,7 +56,12 @@
 
           <div class="column">
             <h3>{{ $t('footer_collections_title') }}</h3>
-            <ul>
+            <ul v-if="footerCollections.length">
+              <li v-for="c in footerCollections" :key="c._id">
+                <router-link :to="{ name: 'Collection', params: { lang: locale, slug: c.slug } }">{{ locName(c.title) || locName(c.name) }}</router-link>
+              </li>
+            </ul>
+            <ul v-else>
               <li><router-link :to="localePath('/products')">{{ $t('footer_col_diamond') }}</router-link></li>
               <li><router-link :to="localePath('/products')">{{ $t('footer_col_khatam') }}</router-link></li>
               <li><router-link :to="localePath('/products')">{{ $t('footer_col_turquoise') }}</router-link></li>
@@ -117,10 +122,22 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { getCollections } from '../services/collectionApi'
 
 const { locale } = useI18n()
+
+// ⭐ کالکشن‌های واقعی برای فوتر — به‌جای لینک‌های ثابت به /products
+const footerCollections = ref([])
+const locName = (v) => (!v ? '' : typeof v === 'string' ? v : (v[locale.value] || v.fa || v.en || ''))
+
+onMounted(async () => {
+  try {
+    const list = await getCollections()
+    footerCollections.value = (list || []).filter((c) => c.slug).slice(0, 4)
+  } catch { /* خطا → همان لینک‌های ثابت پایین نمایش داده می‌شوند */ }
+})
 
 // سال جاری به‌صورت داینامیک تا کپی‌رایت هرسال دستی به‌روز نشود
 const currentYear = new Date().getFullYear()
