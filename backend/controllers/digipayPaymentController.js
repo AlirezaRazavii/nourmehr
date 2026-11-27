@@ -16,6 +16,7 @@ const Cart = require('../models/Cart');
 const User = require('../models/User');
 const Product = require('../models/Product');
 const { consumeDiscountForOrder } = require('../utils/discountEngine');
+const { assertCreditGatewayAllowed } = require('../utils/paymentPolicy');
 const { getClientUrl } = require('../utils/urlHelper');
 const { sendAdminOrderSms } = require('../services/smsService');
 const {
