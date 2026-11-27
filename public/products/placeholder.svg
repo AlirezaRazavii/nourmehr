@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600" role="img" aria-label="Nourmehr">
+  <rect width="600" height="600" fill="#050814"/>
+  <g fill="none" stroke="#c5a059" stroke-width="2" opacity="0.5">
+    <circle cx="300" cy="300" r="150"/>
+    <circle cx="300" cy="300" r="110" opacity="0.6"/>
+  </g>
+  <path d="M300 210 L360 300 L300 390 L240 300 Z" fill="#c5a059" opacity="0.85"/>
+  <circle cx="300" cy="300" r="16" fill="#050814"/>
+  <text x="300" y="470" text-anchor="middle" fill="#c5a059" opacity="0.75"
+        font-family="Georgia, serif" font-size="34" letter-spacing="6">NOURMEHR</text>
+</svg>

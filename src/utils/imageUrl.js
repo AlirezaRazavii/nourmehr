@@ -1,4 +1,4 @@
-const PLACEHOLDER = '/products/placeholder.png'
+const PLACEHOLDER = '/products/placeholder.svg'
 
 export const getImageUrl = (path) => {
   if (!path) return PLACEHOLDER
