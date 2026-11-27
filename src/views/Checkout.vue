@@ -764,10 +764,19 @@ const submitOrder = async () => {
 
   try {
     let order = createdOrder.value
-    // اگر روش پرداخت عوض شود، بک‌اند همان سفارش را به‌روزرسانی می‌کند
-    // (بدون لغو و ساختن سفارش جدید)
+    // ⭐ اگر روش پرداخت (یا مبلغ/کد تخفیف) عوض شده، سفارش باید دوباره ساخته شود
+    // تا بک‌اند همان سفارش را با paymentMethod جدید به‌روزرسانی کند.
+    // وگرنه initiate خطای «این سفارش برای پرداخت X ثبت نشده است» می‌دهد.
+    const staleOrder =
+      order &&
+      (order.paymentMethod !== selectedPayment.value ||
+        Number(order.discountAmount || 0) !== Number(discountAmount.value || 0))
+    if (staleOrder) {
+      order = null
+      createdOrder.value = null
+    }
 
-    // فقط اگر سفارشی ساخته نشده، سفارش جدید بساز
+    // فقط اگر سفارشی ساخته نشده (یا کهنه شده)، سفارش بساز
     if (!order) {
       const orderPayload = {
         shippingInfo: {
